@@ -1,9 +1,17 @@
 #include "register_types.h"
 
-void register_ultimate_ai_types() {
+void initialize_ultimate_ai_module(ModuleInitializationLevel p_level) {
+    if (p_level != MODULE_INITIALIZATION_LEVEL_EDITOR) {
+        return;
+    }
+
     // TODO: Register classes for the Ultimate AI module.
 }
 
-void unregister_ultimate_ai_types() {
+void uninitialize_ultimate_ai_module(ModuleInitializationLevel p_level) {
+    if (p_level != MODULE_INITIALIZATION_LEVEL_EDITOR) {
+        return;
+    }
+
     // TODO: Unregister classes for the Ultimate AI module.
 }

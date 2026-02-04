@@ -1,7 +1,6 @@
-#ifndef ULTIMATE_AI_REGISTER_TYPES_H
-#define ULTIMATE_AI_REGISTER_TYPES_H
+#pragma once
 
-void register_ultimate_ai_types();
-void unregister_ultimate_ai_types();
+#include "modules/register_module_types.h"
 
-#endif // ULTIMATE_AI_REGISTER_TYPES_H
+void initialize_ultimate_ai_module(ModuleInitializationLevel p_level);
+void uninitialize_ultimate_ai_module(ModuleInitializationLevel p_level);
