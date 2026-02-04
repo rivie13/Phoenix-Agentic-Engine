@@ -23,7 +23,7 @@ jobs:
         run: pip install scons
 
       - name: Build Editor
-        run: scons platform=windows target=editor module_ultimate_ai_enabled=yes
+        run: scons platform=windows target=editor module_ultimate_ai_enabled=yes d3d12=no
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
