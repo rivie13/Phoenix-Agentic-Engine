@@ -1,0 +1,14 @@
+Import("env")
+
+module_env = env.Clone()
+
+# Add include paths
+module_env.Append(CPPPATH=["#modules/ultimate_ai"])
+
+# Compile all source files
+module_env.add_source_files(env.modules_sources, "*.cpp")
+module_env.add_source_files(env.modules_sources, "core/*.cpp")
+module_env.add_source_files(env.modules_sources, "mcp/*.cpp")
+module_env.add_source_files(env.modules_sources, "mcp/adapters/*.cpp")
+module_env.add_source_files(env.modules_sources, "ui/*.cpp")
+module_env.add_source_files(env.modules_sources, "agents/*.cpp")
