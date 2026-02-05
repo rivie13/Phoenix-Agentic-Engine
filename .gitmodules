@@ -1,0 +1,3 @@
+[submodule "modules/ultimate_ai/external/godot-ai-autonomous-agent"]
+	path = modules/ultimate_ai/external/godot-ai-autonomous-agent
+	url = https://github.com/rivie13/godot-ai-autonomous-agent.git
