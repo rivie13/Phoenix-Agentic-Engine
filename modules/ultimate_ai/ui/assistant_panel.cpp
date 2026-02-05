@@ -1,13 +1,11 @@
 /**************************************************************************/
-/*  assistant_panel.cpp                                                  */
+/*  assistant_panel.cpp                                                   */
 /**************************************************************************/
 /*                         This file is part of:                          */
-/*                     PHOENIX AGENTIC GAME ENGINE                        */
-/*                     Based on the Godot Engine                          */
-/*                       https://godotengine.org                         */
+/*                             GODOT ENGINE                               */
+/*                        https://godotengine.org                         */
 /**************************************************************************/
 /* Copyright (c) 2014-present Godot Engine contributors (see AUTHORS.md). */
-/* Copyright (c) 2026-present Phoenix Agentic Game Engine contributors (see AUTHORS.md). */
 /* Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur.                  */
 /*                                                                        */
 /* Permission is hereby granted, free of charge, to any person obtaining  */
@@ -34,8 +32,8 @@
 
 #include "core/object/class_db.h"
 #include "core/string/ustring.h"
-#include "scene/gui/button.h"
 #include "scene/gui/box_container.h"
+#include "scene/gui/button.h"
 #include "scene/gui/label.h"
 #include "scene/gui/line_edit.h"
 #include "scene/gui/option_button.h"
@@ -104,7 +102,7 @@ UltimateAssistantPanel::UltimateAssistantPanel() {
 
 	input_line = memnew(LineEdit);
 	input_line->set_h_size_flags(Control::SIZE_EXPAND_FILL);
-	input_line->set_placeholder(TTR("Type a message..."));	
+	input_line->set_placeholder(TTR("Type a message..."));
 	input_line->connect(SceneStringName(text_submitted), callable_mp(this, &UltimateAssistantPanel::_on_input_submitted));
 	input_row->add_child(input_line);
 

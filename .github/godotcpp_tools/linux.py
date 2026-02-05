@@ -1,5 +1,6 @@
 import os
 import sys
+
 from SCons.Tool import clang, clangxx
 from SCons.Variables import BoolVariable
 
@@ -15,12 +16,12 @@ def exists(env):
 
 def generate(env):
     try:
-        import common_compiler_flags # pyright: ignore[reportMissingImports]
+        import common_compiler_flags  # pyright: ignore[reportMissingImports]
     except ModuleNotFoundError:
         tools_path = os.path.normpath(os.path.join(env.Dir("#").abspath, "..", "tools"))
         if os.path.isdir(tools_path) and tools_path not in sys.path:
             sys.path.append(tools_path)
-        import common_compiler_flags # pyright: ignore[reportMissingImports]
+        import common_compiler_flags  # pyright: ignore[reportMissingImports]
 
     # In case the command line to AR is too long, use a response file.
     env["ARCOM_ORIG"] = env["ARCOM"]

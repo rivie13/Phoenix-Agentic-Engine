@@ -2,13 +2,11 @@
 /*  audio_driver_xaudio2.h                                                */
 /**************************************************************************/
 /*                         This file is part of:                          */
-/*                     PHOENIX AGENTIC GAME ENGINE                        */
-/*                     Based on the Godot Engine                          */
-/*                       https://godotengine.org                         */
+/*                             GODOT ENGINE                               */
+/*                        https://godotengine.org                         */
 /**************************************************************************/
 /* Copyright (c) 2014-present Godot Engine contributors (see AUTHORS.md). */
 /* Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur.                  */
-/* Copyright (c) 2026-present Phoenix Agentic Game Engine contributors (see AUTHORS.md). */
 /*                                                                        */
 /* Permission is hereby granted, free of charge, to any person obtaining  */
 /* a copy of this software and associated documentation files (the        */

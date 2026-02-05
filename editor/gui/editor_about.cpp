@@ -2,12 +2,10 @@
 /*  editor_about.cpp                                                      */
 /**************************************************************************/
 /*                         This file is part of:                          */
-/*                     PHOENIX AGENTIC GAME ENGINE                        */
-/*                     Based on the Godot Engine                          */
-/*                       https://godotengine.org                         */
+/*                             GODOT ENGINE                               */
+/*                        https://godotengine.org                         */
 /**************************************************************************/
 /* Copyright (c) 2014-present Godot Engine contributors (see AUTHORS.md). */
-/* Copyright (c) 2026-present Phoenix Agentic Game Engine contributors (see AUTHORS.md). */
 /* Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur.                  */
 /*                                                                        */
 /* Permission is hereby granted, free of charge, to any person obtaining  */
@@ -56,10 +54,10 @@ void EditorAbout::_notification(int p_what) {
 	switch (p_what) {
 		case NOTIFICATION_TRANSLATION_CHANGED: {
 			_about_text_label->set_text(
-						String(U"© 2014-present ") + TTR("Godot Engine contributors") + ".\n" +
-						String(U"© 2007-2014 Juan Linietsky, Ariel Manzur.\n") +
-						String(U"© 2026-present ") + TTR("Phoenix Agentic Game Engine contributors") + ".\n" +
-						TTR("Based on Godot Engine."));
+					String(U"© 2014-present ") + TTR("Godot Engine contributors") + ".\n" +
+					String(U"© 2007-2014 Juan Linietsky, Ariel Manzur.\n") +
+					String(U"© 2026-present ") + TTR("Phoenix Agentic Game Engine contributors") + ".\n" +
+					TTR("Based on Godot Engine."));
 
 			_project_manager_label->set_text(TTR("Project Manager", "Job Title"));
 

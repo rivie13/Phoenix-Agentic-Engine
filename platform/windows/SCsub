@@ -7,8 +7,8 @@ import os
 from pathlib import Path
 
 import platform_windows_builders
-import version
 
+import version
 from methods import redirect_emitter
 
 sources = []

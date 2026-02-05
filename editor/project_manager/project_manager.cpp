@@ -2,12 +2,10 @@
 /*  project_manager.cpp                                                   */
 /**************************************************************************/
 /*                         This file is part of:                          */
-/*                     PHOENIX AGENTIC GAME ENGINE                        */
-/*                     Based on the Godot Engine                          */
-/*                       https://godotengine.org                         */
+/*                             GODOT ENGINE                               */
+/*                        https://godotengine.org                         */
 /**************************************************************************/
 /* Copyright (c) 2014-present Godot Engine contributors (see AUTHORS.md). */
-/* Copyright (c) 2026-present Phoenix Agentic Game Engine contributors (see AUTHORS.md). */
 /* Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur.                  */
 /*                                                                        */
 /* Permission is hereby granted, free of charge, to any person obtaining  */
@@ -878,8 +876,8 @@ void ProjectManager::_open_recovery_mode_ask(bool manual) {
 
 	// Only show the initial crash preamble if this popup wasn't manually triggered.
 	if (!manual) {
-			recovery_mode_details +=
-					TTR("It looks like Phoenix Agentic Game Engine crashed when opening this project the last time. If you're having problems editing this project, you can try to open it in Recovery Mode.") +
+		recovery_mode_details +=
+				TTR("It looks like Phoenix Agentic Game Engine crashed when opening this project the last time. If you're having problems editing this project, you can try to open it in Recovery Mode.") +
 				String::utf8("\n\n");
 	}
 

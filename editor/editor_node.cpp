@@ -2,12 +2,10 @@
 /*  editor_node.cpp                                                       */
 /**************************************************************************/
 /*                         This file is part of:                          */
-/*                     PHOENIX AGENTIC GAME ENGINE                        */
-/*                     Based on the Godot Engine                          */
-/*                       https://godotengine.org                         */
+/*                             GODOT ENGINE                               */
+/*                        https://godotengine.org                         */
 /**************************************************************************/
 /* Copyright (c) 2014-present Godot Engine contributors (see AUTHORS.md). */
-/* Copyright (c) 2026-present Phoenix Agentic Game Engine contributors (see AUTHORS.md). */
 /* Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur.                  */
 /*                                                                        */
 /* Permission is hereby granted, free of charge, to any person obtaining  */
@@ -1168,6 +1166,24 @@ void EditorNode::init_plugins() {
 	Vector<String> addons;
 	if (ProjectSettings::get_singleton()->has_setting("editor_plugins/enabled")) {
 		addons = GLOBAL_GET("editor_plugins/enabled");
+	}
+
+	const String ai_plugin_cfg = "res://addons/ai_autonomous_agent/plugin.cfg";
+	if (FileAccess::exists(ai_plugin_cfg)) {
+		bool already_enabled = false;
+		for (int i = 0; i < addons.size(); i++) {
+			if (addons[i] == ai_plugin_cfg) {
+				already_enabled = true;
+				break;
+			}
+		}
+		if (!already_enabled) {
+			addons.push_back(ai_plugin_cfg);
+			ProjectSettings::get_singleton()->set("editor_plugins/enabled", addons);
+			if (project_settings_editor) {
+				project_settings_editor->queue_save();
+			}
+		}
 	}
 
 	for (const String &addon : addons) {
