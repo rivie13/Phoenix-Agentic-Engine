@@ -27,6 +27,9 @@ def generate(env):
     env["ARCOM_ORIG"] = env["ARCOM"]
     env["ARCOM"] = "${TEMPFILE('$ARCOM_ORIG', '$ARCOMSTR')}"
     env["TEMPFILESUFFIX"] = ".rsp"
+    # Force response files for large static archives on Linux.
+    env["MAXLINELENGTH"] = 4096
+    env["TEMPFILEARG"] = "@"
 
     if env["use_llvm"]:
         clang.generate(env)

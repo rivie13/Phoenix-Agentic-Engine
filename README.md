@@ -1,12 +1,12 @@
-# Godot Engine
+# Phoenix Agentic Game Engine
 
 ## Fork Notice (Phoenix Agentic Engine)
 
 This repository is a fork of [Godot Engine](https://github.com/godotengine/godot). Phoenix Agentic Engine is a heavily modified, AI-native edition of the Godot editor focused on agentic workflows for game development. Planning docs live in [phoenix_docs](phoenix_docs), and implementation will be layered with minimal core changes.
 
 <p align="center">
-  <a href="https://godotengine.org">
-    <img src="logo_outlined.svg" width="400" alt="Godot Engine logo">
+  <a>
+    <img src="branding/Phoenix_logo_dark.png" width="400" alt="Phoenix Agentic Game Engine logo">
   </a>
 </p>
 
