@@ -2,10 +2,12 @@
 /*  editor_build_profile.cpp                                              */
 /**************************************************************************/
 /*                         This file is part of:                          */
-/*                             GODOT ENGINE                               */
-/*                        https://godotengine.org                         */
+/*                     PHOENIX AGENTIC GAME ENGINE                        */
+/*                     Based on the Godot Engine                          */
+/*                       https://godotengine.org                         */
 /**************************************************************************/
 /* Copyright (c) 2014-present Godot Engine contributors (see AUTHORS.md). */
+/* Copyright (c) 2026-present Phoenix Agentic Game Engine contributors (see AUTHORS.md). */
 /* Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur.                  */
 /*                                                                        */
 /* Permission is hereby granted, free of charge, to any person obtaining  */
@@ -421,9 +423,9 @@ String EditorBuildProfile::get_build_option_name(BuildOption p_build_option) {
 		TTRC("Metal"),
 		TTRC("OpenGL"),
 		TTRC("Physics Server (2D)"),
-		TTRC("Godot Physics (2D)"),
+		TTRC("Phoenix Physics (2D)"),
 		TTRC("Physics Server (3D)"),
-		TTRC("Godot Physics (3D)"),
+		TTRC("Phoenix Physics (3D)"),
 		TTRC("Jolt Physics"),
 		TTRC("Text Server: Fallback"),
 		TTRC("Text Server: Advanced"),
@@ -458,9 +460,9 @@ String EditorBuildProfile::get_build_option_description(BuildOption p_build_opti
 		TTRC("Metal backend of RenderingDevice (Apple arm64 only)."),
 		TTRC("OpenGL backend (if disabled, the RenderingDevice backend is required)."),
 		TTRC("PhysicsServer and capabilities for 2D."),
-		TTRC("Godot Physics backend (2D)."),
+		TTRC("Phoenix Physics backend (2D)."),
 		TTRC("PhysicsServer and capabilities for 3D."),
-		TTRC("Godot Physics backend (3D)."),
+		TTRC("Phoenix Physics backend (3D)."),
 		TTRC("Jolt Physics backend (3D only)."),
 		TTRC("Fallback implementation of Text Server\nSupports basic text layouts."),
 		TTRC("Text Server implementation powered by ICU and HarfBuzz libraries.\nSupports complex text layouts, BiDi, and contextual OpenType font features."),

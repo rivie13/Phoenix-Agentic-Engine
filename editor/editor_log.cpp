@@ -2,10 +2,12 @@
 /*  editor_log.cpp                                                        */
 /**************************************************************************/
 /*                         This file is part of:                          */
-/*                             GODOT ENGINE                               */
-/*                        https://godotengine.org                         */
+/*                     PHOENIX AGENTIC GAME ENGINE                        */
+/*                     Based on the Godot Engine                          */
+/*                       https://godotengine.org                         */
 /**************************************************************************/
 /* Copyright (c) 2014-present Godot Engine contributors (see AUTHORS.md). */
+/* Copyright (c) 2026-present Phoenix Agentic Game Engine contributors (see AUTHORS.md). */
 /* Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur.                  */
 /*                                                                        */
 /* Permission is hereby granted, free of charge, to any person obtaining  */
@@ -617,7 +619,8 @@ EditorLog::EditorLog() {
 	vb_right->add_child(editor_filter->toggle_button);
 	type_filter_map.insert(MSG_TYPE_EDITOR, editor_filter);
 
-	add_message(GODOT_VERSION_FULL_NAME " (c) 2007-present Juan Linietsky, Ariel Manzur & Godot Contributors.");
+	add_message(GODOT_VERSION_FULL_NAME " (c) 2026-present Phoenix Agentic Game Engine contributors.");
+	add_message("Based on Godot Engine (c) 2007-present Juan Linietsky, Ariel Manzur & Godot Contributors.");
 
 	eh.errfunc = _error_handler;
 	eh.userdata = this;

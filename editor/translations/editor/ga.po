@@ -1,5 +1,5 @@
-# Irish translation of the Godot Engine editor interface.
-# Copyright (c) 2014-present Godot Engine contributors.
+# Irish translation of the Phoenix Agentic Game Engine editor interface.
+# Copyright (c) 2014-present Phoenix Agentic Game Engine contributors.
 # Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur.
 # This file is distributed under the same license as the Godot source code.
 # Rónán Quill <ronan085@gmail.com>, 2019, 2020.
@@ -7,7 +7,7 @@
 # "A Thousand Ships (she/her)" <over999ships@gmail.com>, 2025.
 msgid ""
 msgstr ""
-"Project-Id-Version: Godot Engine editor interface\n"
+"Project-Id-Version: Phoenix Agentic Game Engine editor interface\n"
 "Report-Msgid-Bugs-To: https://github.com/godotengine/godot\n"
 "PO-Revision-Date: 2026-01-17 13:01+0000\n"
 "Last-Translator: Aindriú Mac Giolla Eoin <aindriu80@gmail.com>\n"
@@ -3710,7 +3710,7 @@ msgstr "Oscail an duga %s."
 msgid "Focus on the %s dock."
 msgstr "Dírigh ar an duga %s."
 
-msgid "%s - Godot Engine"
+msgid "%s - Phoenix Agentic Game Engine"
 msgstr "%s - Inneall Godot"
 
 msgid "Move this dock right one tab."
@@ -7074,7 +7074,7 @@ msgstr "Baill Platanam"
 msgid "Gold Members"
 msgstr "Baill Óir"
 
-msgid "Thank you for choosing Godot Engine!"
+msgid "Thank you for choosing Phoenix Agentic Game Engine!"
 msgstr "Go raibh maith agat as Inneall Godot a roghnú!"
 
 msgid "Name cannot be empty."
@@ -7128,7 +7128,7 @@ msgstr "Cosán bonn: %s"
 msgid "Folder name is valid."
 msgstr "Tá ainm an fhillteáin bailí."
 
-msgid "Godot Engine contributors"
+msgid "Phoenix Agentic Game Engine contributors"
 msgstr "Ranníocóirí Inneall Godot"
 
 msgid "Double-click to open in browser."
@@ -7150,12 +7150,12 @@ msgid "Third-party Licenses"
 msgstr "Ceadúnais Tríú Páirtí"
 
 msgid ""
-"Godot Engine relies on a number of third-party free and open source "
+"Phoenix Agentic Game Engine relies on a number of third-party free and open source "
 "libraries, all compatible with the terms of its MIT license. The following is "
 "an exhaustive list of all such third-party components with their respective "
 "copyright statements and license terms."
 msgstr ""
-"Braitheann Godot Engine ar roinnt leabharlanna foinse oscailte agus saor in "
+"Braitheann Phoenix Agentic Game Engine ar roinnt leabharlanna foinse oscailte agus saor in "
 "aisce tríú páirtí, iad go léir comhoiriúnach le téarmaí a cheadúnais MIT. Seo "
 "a leanas liosta uileghabhálach de na comhpháirteanna tríú páirtí sin go léir "
 "lena ráitis chóipchirt agus lena dtéarmaí ceadúnais faoi seach."

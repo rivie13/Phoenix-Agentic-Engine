@@ -1,5 +1,5 @@
-# Thai translation of the Godot Engine editor interface.
-# Copyright (c) 2014-present Godot Engine contributors.
+# Thai translation of the Phoenix Agentic Game Engine editor interface.
+# Copyright (c) 2014-present Phoenix Agentic Game Engine contributors.
 # Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur.
 # This file is distributed under the same license as the Godot source code.
 # Kaveeta Vivatchai <goodytong@gmail.com>, 2017.
@@ -29,7 +29,7 @@
 # Wi Chan <mac.wikrom@gmail.com>, 2026.
 msgid ""
 msgstr ""
-"Project-Id-Version: Godot Engine editor interface\n"
+"Project-Id-Version: Phoenix Agentic Game Engine editor interface\n"
 "Report-Msgid-Bugs-To: https://github.com/godotengine/godot\n"
 "POT-Creation-Date: \n"
 "PO-Revision-Date: 2026-01-15 07:06+0000\n"
@@ -1983,8 +1983,8 @@ msgstr "คลาสนี้ถูกทำเครื่องหมายว
 msgid "This class is marked as experimental."
 msgstr "คลาสนี้ถูกทำเครื่องหมายว่าเป็นคลาสทดลอง"
 
-msgid "%s - Godot Engine"
-msgstr "%s - Godot Engine"
+msgid "%s - Phoenix Agentic Game Engine"
+msgstr "%s - Phoenix Agentic Game Engine"
 
 msgid "Dock Position"
 msgstr "ตำแหน่งแผง"
@@ -2977,8 +2977,8 @@ msgstr "สมาชิกระดับไททาเนียม"
 msgid "Using slashes in folder names will create subfolders recursively."
 msgstr "การใช้เครื่องหมายทับในชื่อโฟลเดอร์จะสร้างโฟลเดอร์ย่อยขึ้นมาซ้ำๆ"
 
-msgid "Godot Engine contributors"
-msgstr "ผู้ช่วยพัฒนา Godot Engine"
+msgid "Phoenix Agentic Game Engine contributors"
+msgstr "ผู้ช่วยพัฒนา Phoenix Agentic Game Engine"
 
 msgid "Double-click to open in browser."
 msgstr "ดับเบิลคลิกเพื่อเปิดในเบราว์เซอร์"
@@ -2996,12 +2996,12 @@ msgid "Third-party Licenses"
 msgstr "สัญญาอนุญาตจากบุคคลที่สาม"
 
 msgid ""
-"Godot Engine relies on a number of third-party free and open source "
+"Phoenix Agentic Game Engine relies on a number of third-party free and open source "
 "libraries, all compatible with the terms of its MIT license. The following is "
 "an exhaustive list of all such third-party components with their respective "
 "copyright statements and license terms."
 msgstr ""
-"Godot Engine อาศัยไลบรารีต่าง ๆ ที่นำมาใช้ได้อย่างเสรีและเปิดเผยโค้ดเป็นจำนวนมาก "
+"Phoenix Agentic Game Engine อาศัยไลบรารีต่าง ๆ ที่นำมาใช้ได้อย่างเสรีและเปิดเผยโค้ดเป็นจำนวนมาก "
 "ซึ่งเข้ากันได้กับสัญญาอนุญาต MIT ต่อไปนี้เป็นรายชื่อของไลบรารีทั้งหมดของบุคคลที่สาม "
 "รวมถึงข้อความลิขสิทธิ์ และข้อกำหนดการใช้งานของแต่ละไลบรารี"
 

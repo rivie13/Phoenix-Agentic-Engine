@@ -2,10 +2,12 @@
 /*  editor_theme_manager.cpp                                              */
 /**************************************************************************/
 /*                         This file is part of:                          */
-/*                             GODOT ENGINE                               */
-/*                        https://godotengine.org                         */
+/*                     PHOENIX AGENTIC GAME ENGINE                        */
+/*                     Based on the Godot Engine                          */
+/*                       https://godotengine.org                         */
 /**************************************************************************/
 /* Copyright (c) 2014-present Godot Engine contributors (see AUTHORS.md). */
+/* Copyright (c) 2026-present Phoenix Agentic Game Engine contributors (see AUTHORS.md). */
 /* Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur.                  */
 /*                                                                        */
 /* Permission is hereby granted, free of charge, to any person obtaining  */
@@ -330,11 +332,11 @@ EditorThemeManager::ThemeConfiguration EditorThemeManager::_create_theme_config(
 			} else if (config.preset == "Breeze Dark") {
 				preset_accent_color = Color(0.239, 0.682, 0.914);
 				preset_base_color = Color(0.1255, 0.1373, 0.149);
-			} else if (config.preset == "Godot 2") {
+			} else if (config.preset == "Phoenix 2") {
 				preset_accent_color = Color(0.53, 0.67, 0.89);
 				preset_base_color = Color(0.24, 0.23, 0.27);
 				preset_icon_saturation = 1;
-			} else if (config.preset == "Godot 3") {
+			} else if (config.preset == "Phoenix 3") {
 				preset_accent_color = Color(0.44, 0.73, 0.98);
 				preset_base_color = Color(0.21, 0.24, 0.29);
 				preset_icon_saturation = 1;
@@ -484,9 +486,9 @@ void _load_text_editor_theme() {
 void EditorThemeManager::_populate_text_editor_styles(const Ref<EditorTheme> &p_theme, ThemeConfiguration &p_config) {
 	const String text_editor_color_theme = EDITOR_GET("text_editor/theme/color_theme");
 	const bool is_default_theme = text_editor_color_theme == "Default";
-	const bool is_godot2_theme = text_editor_color_theme == "Godot 2";
+	const bool is_phoenix2_theme = text_editor_color_theme == "Phoenix 2";
 	const bool is_custom_theme = text_editor_color_theme == "Custom";
-	if (is_default_theme || is_godot2_theme || is_custom_theme) {
+	if (is_default_theme || is_phoenix2_theme || is_custom_theme) {
 		HashMap<StringName, Color> colors;
 		if (is_default_theme || is_custom_theme) {
 			// Adaptive colors for comments and elements with lower relevance.
@@ -562,13 +564,13 @@ void EditorThemeManager::_populate_text_editor_styles(const Ref<EditorTheme> &p_
 				colors["text_editor/theme/highlighting/comment_markers/warning_color"] = Color(0.75, 0.39, 0.03);
 				colors["text_editor/theme/highlighting/comment_markers/notice_color"] = Color(0.24, 0.54, 0.09);
 			}
-		} else if (is_godot2_theme) {
+		} else if (is_phoenix2_theme) {
 			colors = EditorSettings::get_godot2_text_editor_theme();
 		}
 		EditorSettings *settings = EditorSettings::get_singleton();
 		for (const KeyValue<StringName, Color> &setting : colors) {
 			settings->set_initial_value(setting.key, setting.value);
-			if (is_default_theme || is_godot2_theme) {
+			if (is_default_theme || is_phoenix2_theme) {
 				settings->set_manually(setting.key, setting.value);
 			}
 		}

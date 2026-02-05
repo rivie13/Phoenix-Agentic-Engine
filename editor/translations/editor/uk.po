@@ -1,5 +1,5 @@
-# Ukrainian translation of the Godot Engine editor interface.
-# Copyright (c) 2014-present Godot Engine contributors.
+# Ukrainian translation of the Phoenix Agentic Game Engine editor interface.
+# Copyright (c) 2014-present Phoenix Agentic Game Engine contributors.
 # Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur.
 # This file is distributed under the same license as the Godot source code.
 # Aleksandr <XpycT.TOP@gmail.com>, 2017.
@@ -65,7 +65,7 @@
 # "A Thousand Ships (she/her)" <over999ships@gmail.com>, 2025.
 msgid ""
 msgstr ""
-"Project-Id-Version: Ukrainian (Godot Engine)\n"
+"Project-Id-Version: Ukrainian (Phoenix Agentic Game Engine)\n"
 "Report-Msgid-Bugs-To: https://github.com/godotengine/godot\n"
 "POT-Creation-Date: \n"
 "PO-Revision-Date: 2026-01-15 05:04+0000\n"
@@ -3755,8 +3755,8 @@ msgstr "Відкрийте док-станцію %s."
 msgid "Focus on the %s dock."
 msgstr "Зосередьтеся на док-станції %s."
 
-msgid "%s - Godot Engine"
-msgstr "%s - Godot Engine"
+msgid "%s - Phoenix Agentic Game Engine"
+msgstr "%s - Phoenix Agentic Game Engine"
 
 msgid "Move this dock right one tab."
 msgstr "Перемістіть цю панель на одну вкладку праворуч."
@@ -7053,7 +7053,7 @@ msgstr "Платинові учасники"
 msgid "Gold Members"
 msgstr "Золоті учасники"
 
-msgid "Thank you for choosing Godot Engine!"
+msgid "Thank you for choosing Phoenix Agentic Game Engine!"
 msgstr "Дякуємо, що обрали двигун Godot!"
 
 msgid "Name cannot be empty."
@@ -7107,7 +7107,7 @@ msgstr "Базовий шлях: %s"
 msgid "Folder name is valid."
 msgstr "Некоректна назва теки."
 
-msgid "Godot Engine contributors"
+msgid "Phoenix Agentic Game Engine contributors"
 msgstr "Учасники розробки рушія Godot"
 
 msgid "Double-click to open in browser."
@@ -7129,7 +7129,7 @@ msgid "Third-party Licenses"
 msgstr "Ліцензування сторонніх компонентів"
 
 msgid ""
-"Godot Engine relies on a number of third-party free and open source "
+"Phoenix Agentic Game Engine relies on a number of third-party free and open source "
 "libraries, all compatible with the terms of its MIT license. The following is "
 "an exhaustive list of all such third-party components with their respective "
 "copyright statements and license terms."

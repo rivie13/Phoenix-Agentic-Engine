@@ -2,10 +2,12 @@
 /*  script_editor_plugin.cpp                                              */
 /**************************************************************************/
 /*                         This file is part of:                          */
-/*                             GODOT ENGINE                               */
-/*                        https://godotengine.org                         */
+/*                     PHOENIX AGENTIC GAME ENGINE                        */
+/*                     Based on the Godot Engine                          */
+/*                       https://godotengine.org                         */
 /**************************************************************************/
 /* Copyright (c) 2014-present Godot Engine contributors (see AUTHORS.md). */
+/* Copyright (c) 2026-present Phoenix Agentic Game Engine contributors (see AUTHORS.md). */
 /* Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur.                  */
 /*                                                                        */
 /* Permission is hereby granted, free of charge, to any person obtaining  */
@@ -854,7 +856,7 @@ void _import_text_editor_theme(const String &p_file) {
 	}
 	const String theme_name = p_file.get_file().get_basename();
 	if (EditorSettings::is_default_text_editor_theme(theme_name.to_lower())) {
-		EditorToaster::get_singleton()->popup_str(TTR("Importing theme failed. File name cannot be 'Default', 'Custom', or 'Godot 2'."), EditorToaster::SEVERITY_ERROR);
+		EditorToaster::get_singleton()->popup_str(TTR("Importing theme failed. File name cannot be 'Default', 'Custom', or 'Phoenix 2'."), EditorToaster::SEVERITY_ERROR);
 		return;
 	}
 
@@ -884,7 +886,7 @@ void _save_text_editor_theme_as(const String &p_file) {
 
 	const String theme_name = file.get_file().get_basename();
 	if (EditorSettings::is_default_text_editor_theme(theme_name.to_lower())) {
-		EditorToaster::get_singleton()->popup_str(TTR("Saving theme failed. File name cannot be 'Default', 'Custom', or 'Godot 2'."), EditorToaster::SEVERITY_ERROR);
+		EditorToaster::get_singleton()->popup_str(TTR("Saving theme failed. File name cannot be 'Default', 'Custom', or 'Phoenix 2'."), EditorToaster::SEVERITY_ERROR);
 		return;
 	}
 
@@ -4080,7 +4082,7 @@ ScriptEditor::ScriptEditor(WindowWrapper *p_wrapper) {
 
 	disk_changed = memnew(ConfirmationDialog);
 	{
-		disk_changed->set_title(TTRC("Files have been modified outside Godot"));
+		disk_changed->set_title(TTRC("Files have been modified outside Phoenix Agentic Game Engine"));
 
 		VBoxContainer *vbc = memnew(VBoxContainer);
 		disk_changed->add_child(vbc);
@@ -4183,7 +4185,7 @@ void ScriptEditorPlugin::_window_visibility_changed(bool p_visible) {
 void ScriptEditorPlugin::_notification(int p_what) {
 	switch (p_what) {
 		case NOTIFICATION_TRANSLATION_CHANGED: {
-			window_wrapper->set_window_title(vformat(TTR("%s - Godot Engine"), TTR("Script Editor")));
+			window_wrapper->set_window_title(vformat(TTR("%s - Phoenix Agentic Game Engine"), TTR("Script Editor")));
 		} break;
 		case NOTIFICATION_ENTER_TREE: {
 			connect("main_screen_changed", callable_mp(this, &ScriptEditorPlugin::_save_last_editor));

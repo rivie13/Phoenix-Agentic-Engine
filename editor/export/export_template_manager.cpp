@@ -2,10 +2,12 @@
 /*  export_template_manager.cpp                                           */
 /**************************************************************************/
 /*                         This file is part of:                          */
-/*                             GODOT ENGINE                               */
-/*                        https://godotengine.org                         */
+/*                     PHOENIX AGENTIC GAME ENGINE                        */
+/*                     Based on the Godot Engine                          */
+/*                       https://godotengine.org                         */
 /**************************************************************************/
 /* Copyright (c) 2014-present Godot Engine contributors (see AUTHORS.md). */
+/* Copyright (c) 2026-present Phoenix Agentic Game Engine contributors (see AUTHORS.md). */
 /* Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur.                  */
 /*                                                                        */
 /* Permission is hereby granted, free of charge, to any person obtaining  */
@@ -1168,7 +1170,7 @@ ExportTemplateManager::ExportTemplateManager() {
 	install_file_dialog->set_access(FileDialog::ACCESS_FILESYSTEM);
 	install_file_dialog->set_file_mode(FileDialog::FILE_MODE_OPEN_FILE);
 	install_file_dialog->set_current_dir(EDITOR_DEF("_export_template_download_directory", ""));
-	install_file_dialog->add_filter("*.tpz", TTR("Godot Export Templates"));
+	install_file_dialog->add_filter("*.tpz", TTR("Phoenix Agentic Game Engine Export Templates"));
 	install_file_dialog->connect("file_selected", callable_mp(this, &ExportTemplateManager::_install_file_selected).bind(false));
 	add_child(install_file_dialog);
 

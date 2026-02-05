@@ -2,10 +2,12 @@
 /*  editor_run_bar.cpp                                                    */
 /**************************************************************************/
 /*                         This file is part of:                          */
-/*                             GODOT ENGINE                               */
-/*                        https://godotengine.org                         */
+/*                     PHOENIX AGENTIC GAME ENGINE                        */
+/*                     Based on the Godot Engine                          */
+/*                       https://godotengine.org                         */
 /**************************************************************************/
 /* Copyright (c) 2014-present Godot Engine contributors (see AUTHORS.md). */
+/* Copyright (c) 2026-present Phoenix Agentic Game Engine contributors (see AUTHORS.md). */
 /* Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur.                  */
 /*                                                                        */
 /* Permission is hereby granted, free of charge, to any person obtaining  */
@@ -565,7 +567,7 @@ EditorRunBar::EditorRunBar() {
 		recovery_mode_popup->set_min_size(Size2(550, 70) * EDSCALE);
 		recovery_mode_popup->set_title(TTR("Recovery Mode"));
 		recovery_mode_popup->set_text(
-				TTR("Godot opened the project in Recovery Mode, which is a special mode that can help recover projects that crash the engine upon initialization. The following features have been temporarily disabled:") +
+				TTR("Phoenix Agentic Game Engine opened the project in Recovery Mode, which is a special mode that can help recover projects that crash the engine upon initialization. The following features have been temporarily disabled:") +
 				String::utf8("\n\n•  ") + TTR("Tool scripts") +
 				String::utf8("\n•  ") + TTR("Editor plugins") +
 				String::utf8("\n•  ") + TTR("GDExtension addons") +

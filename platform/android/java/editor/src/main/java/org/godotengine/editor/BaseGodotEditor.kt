@@ -2,10 +2,12 @@
 /*  BaseGodotEditor.kt                                                    */
 /**************************************************************************/
 /*                         This file is part of:                          */
-/*                             GODOT ENGINE                               */
-/*                        https://godotengine.org                         */
+/*                     PHOENIX AGENTIC GAME ENGINE                        */
+/*                     Based on the Godot Engine                          */
+/*                       https://godotengine.org                         */
 /**************************************************************************/
 /* Copyright (c) 2014-present Godot Engine contributors (see AUTHORS.md). */
+/* Copyright (c) 2026-present Phoenix Agentic Game Engine contributors (see AUTHORS.md). */
 /* Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur.                  */
 /*                                                                        */
 /* Permission is hereby granted, free of charge, to any person obtaining  */
@@ -74,11 +76,11 @@ import org.godotengine.openxr.vendors.utils.*
 import kotlin.math.min
 
 /**
- * Base class for the Godot Android Editor activities.
+ * Base class for the Phoenix Agentic Game Engine Android Editor activities.
  *
  * This provides the basic templates for the activities making up this application.
  * Each derived activity runs in its own process, which enable up to have several instances of
- * the Godot engine up and running at the same time.
+ * the Phoenix Agentic Game Engine up and running at the same time.
  */
 abstract class BaseGodotEditor : GodotActivity(), GameMenuFragment.GameMenuListener {
 

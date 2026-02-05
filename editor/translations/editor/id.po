@@ -1,5 +1,5 @@
-# Indonesian translation of the Godot Engine editor interface.
-# Copyright (c) 2014-present Godot Engine contributors.
+# Indonesian translation of the Phoenix Agentic Game Engine editor interface.
+# Copyright (c) 2014-present Phoenix Agentic Game Engine contributors.
 # Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur.
 # This file is distributed under the same license as the Godot source code.
 # Abdul Aziz Muslim Alqudsy <abdul.aziz.muslim.alqudsy@gmail.com>, 2016.
@@ -76,7 +76,7 @@
 # Dandihk <n00b38d@gmail.com>, 2025.
 msgid ""
 msgstr ""
-"Project-Id-Version: Godot Engine editor interface\n"
+"Project-Id-Version: Phoenix Agentic Game Engine editor interface\n"
 "Report-Msgid-Bugs-To: https://github.com/godotengine/godot\n"
 "POT-Creation-Date: \n"
 "PO-Revision-Date: 2026-01-05 13:02+0000\n"
@@ -3137,8 +3137,8 @@ msgstr "Anggota ini ditandai sebagai tidak digunakan lagi."
 msgid "This member is marked as experimental."
 msgstr "Anggota ini ditandai sebagai eksperimental."
 
-msgid "%s - Godot Engine"
-msgstr "%s - Godot Engine"
+msgid "%s - Phoenix Agentic Game Engine"
+msgstr "%s - Phoenix Agentic Game Engine"
 
 msgid "Dock Position"
 msgstr "Posisi Pengait"
@@ -5093,8 +5093,8 @@ msgstr ""
 msgid "Folder name is valid."
 msgstr "Nama berkas sudah valid."
 
-msgid "Godot Engine contributors"
-msgstr "Kontributor Godot Engine"
+msgid "Phoenix Agentic Game Engine contributors"
+msgstr "Kontributor Phoenix Agentic Game Engine"
 
 msgid "Double-click to open in browser."
 msgstr "Klik dua kali untuk membuka di browser."
@@ -5112,12 +5112,12 @@ msgid "Third-party Licenses"
 msgstr "Lisensi Pihak Ketiga"
 
 msgid ""
-"Godot Engine relies on a number of third-party free and open source "
+"Phoenix Agentic Game Engine relies on a number of third-party free and open source "
 "libraries, all compatible with the terms of its MIT license. The following is "
 "an exhaustive list of all such third-party components with their respective "
 "copyright statements and license terms."
 msgstr ""
-"Godot Engine mengandalkan sejumlah pustaka bebas dan sumber terbuka pihak "
+"Phoenix Agentic Game Engine mengandalkan sejumlah pustaka bebas dan sumber terbuka pihak "
 "ketiga, semuanya cocok dengan persyaratan lisensi MIT. Berikut adalah daftar "
 "lengkap semua komponen pihak ketiga dengan pernyataan hak cipta dan lisensi "
 "masing-masing."

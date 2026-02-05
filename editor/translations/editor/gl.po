@@ -1,5 +1,5 @@
-# Galician translation of the Godot Engine editor interface.
-# Copyright (c) 2014-present Godot Engine contributors.
+# Galician translation of the Phoenix Agentic Game Engine editor interface.
+# Copyright (c) 2014-present Phoenix Agentic Game Engine contributors.
 # Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur.
 # This file is distributed under the same license as the Godot source code.
 #
@@ -23,7 +23,7 @@
 # Sergio Souto Mourelle <sergiosoutomourelle@gmail.com>, 2025.
 msgid ""
 msgstr ""
-"Project-Id-Version: Godot Engine editor interface\n"
+"Project-Id-Version: Phoenix Agentic Game Engine editor interface\n"
 "Report-Msgid-Bugs-To: https://github.com/godotengine/godot\n"
 "PO-Revision-Date: 2025-11-20 13:51+0000\n"
 "Last-Translator: Sergio Souto Mourelle <sergiosoutomourelle@gmail.com>\n"
@@ -3290,8 +3290,8 @@ msgstr "Un cartafol con ese nome xa existe."
 msgid "Folder name is valid."
 msgstr "O nome do cartafol é válido."
 
-msgid "Godot Engine contributors"
-msgstr "Colaboradores de Godot Engine"
+msgid "Phoenix Agentic Game Engine contributors"
+msgstr "Colaboradores de Phoenix Agentic Game Engine"
 
 msgid "Double-click to open in browser."
 msgstr "Dobre-clic para abrir no navegador."
@@ -3309,12 +3309,12 @@ msgid "Third-party Licenses"
 msgstr "Licenzas de Terceiros"
 
 msgid ""
-"Godot Engine relies on a number of third-party free and open source "
+"Phoenix Agentic Game Engine relies on a number of third-party free and open source "
 "libraries, all compatible with the terms of its MIT license. The following is "
 "an exhaustive list of all such third-party components with their respective "
 "copyright statements and license terms."
 msgstr ""
-"Godot Engine depende dun número de bibliotecas de terceiros, gratis e open "
+"Phoenix Agentic Game Engine depende dun número de bibliotecas de terceiros, gratis e open "
 "source; todas compatibles cos termos da licenza MIT. A seguinte e unha lista "
 "exhaustiva dos devanditos compoñentes de terceiros, coas suas respectivas "
 "declaracións de copyright e termos de licenza."

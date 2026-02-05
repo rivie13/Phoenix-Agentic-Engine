@@ -2,11 +2,13 @@
 /*  export_plugin.cpp                                                     */
 /**************************************************************************/
 /*                         This file is part of:                          */
-/*                             GODOT ENGINE                               */
-/*                        https://godotengine.org                         */
+/*                     PHOENIX AGENTIC GAME ENGINE                        */
+/*                     Based on the Godot Engine                          */
+/*                       https://godotengine.org                         */
 /**************************************************************************/
 /* Copyright (c) 2014-present Godot Engine contributors (see AUTHORS.md). */
 /* Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur.                  */
+/* Copyright (c) 2026-present Phoenix Agentic Game Engine contributors (see AUTHORS.md). */
 /*                                                                        */
 /* Permission is hereby granted, free of charge, to any person obtaining  */
 /* a copy of this software and associated documentation files (the        */
@@ -421,7 +423,7 @@ Ref<Texture2D> EditorExportPlatformWeb::get_logo() const {
 bool EditorExportPlatformWeb::has_valid_export_configuration(const Ref<EditorExportPreset> &p_preset, String &r_error, bool &r_missing_templates, bool p_debug) const {
 #ifdef MODULE_MONO_ENABLED
 	// Don't check for additional errors, as this particular error cannot be resolved.
-	r_error += TTR("Exporting to Web is currently not supported in Godot 4 when using C#/.NET. Use Godot 3 to target Web with C#/Mono instead.") + "\n";
+	r_error += TTR("Exporting to Web is currently not supported in Phoenix Agentic Game Engine 4 when using C#/.NET. Use Phoenix Agentic Game Engine 3 to target Web with C#/Mono instead.") + "\n";
 	r_error += TTR("If this project does not use C#, use a non-C# editor build to export the project.") + "\n";
 	return false;
 #else

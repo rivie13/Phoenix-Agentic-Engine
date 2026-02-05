@@ -1,5 +1,5 @@
-# Greek translation of the Godot Engine editor interface.
-# Copyright (c) 2014-present Godot Engine contributors.
+# Greek translation of the Phoenix Agentic Game Engine editor interface.
+# Copyright (c) 2014-present Phoenix Agentic Game Engine contributors.
 # Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur.
 # This file is distributed under the same license as the Godot source code.
 # George Tsiamasiotis <gtsiam@windowslive.com>, 2017-2018, 2019, 2020, 2021.
@@ -36,7 +36,7 @@
 # Durondal <p16sias@ionio.gr>, 2026.
 msgid ""
 msgstr ""
-"Project-Id-Version: Godot Engine editor interface\n"
+"Project-Id-Version: Phoenix Agentic Game Engine editor interface\n"
 "Report-Msgid-Bugs-To: https://github.com/godotengine/godot\n"
 "POT-Creation-Date: \n"
 "PO-Revision-Date: 2026-01-18 16:02+0000\n"
@@ -3800,7 +3800,7 @@ msgstr "Μέλη Διαμάντια"
 msgid "Titanium Members"
 msgstr "Μέλη Τιτανίου"
 
-msgid "Thank you for choosing Godot Engine!"
+msgid "Thank you for choosing Phoenix Agentic Game Engine!"
 msgstr "Σας ευχαριστούμε που επιλέξατε την μηχανή Godot!"
 
 msgid "Name cannot be empty."
@@ -3815,8 +3815,8 @@ msgstr "Ήδη υπαρκτό όνομα κίνησης."
 msgid "Base path: %s"
 msgstr "Βασική διαδρομή: %s"
 
-msgid "Godot Engine contributors"
-msgstr "Συνεισφέροντες στην Godot Engine"
+msgid "Phoenix Agentic Game Engine contributors"
+msgstr "Συνεισφέροντες στην Phoenix Agentic Game Engine"
 
 msgid "Thanks from the Godot community!"
 msgstr "Ευχαριστίες από την κοινότητα της Godot!"
@@ -3831,7 +3831,7 @@ msgid "Third-party Licenses"
 msgstr "Άδειες τρίτων κατασκευαστών"
 
 msgid ""
-"Godot Engine relies on a number of third-party free and open source "
+"Phoenix Agentic Game Engine relies on a number of third-party free and open source "
 "libraries, all compatible with the terms of its MIT license. The following is "
 "an exhaustive list of all such third-party components with their respective "
 "copyright statements and license terms."

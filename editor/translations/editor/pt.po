@@ -1,5 +1,5 @@
-# Portuguese translation of the Godot Engine editor interface.
-# Copyright (c) 2014-present Godot Engine contributors.
+# Portuguese translation of the Phoenix Agentic Game Engine editor interface.
+# Copyright (c) 2014-present Phoenix Agentic Game Engine contributors.
 # Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur.
 # This file is distributed under the same license as the Godot source code.
 # António Sarmento <antonio.luis.sarmento@gmail.com>, 2016.
@@ -81,7 +81,7 @@
 # "A Thousand Ships (she/her)" <over999ships@gmail.com>, 2025.
 msgid ""
 msgstr ""
-"Project-Id-Version: Godot Engine editor interface\n"
+"Project-Id-Version: Phoenix Agentic Game Engine editor interface\n"
 "Report-Msgid-Bugs-To: https://github.com/godotengine/godot\n"
 "POT-Creation-Date: \n"
 "PO-Revision-Date: 2026-01-11 23:26+0000\n"
@@ -3472,8 +3472,8 @@ msgstr "Abra o encaixe %s."
 msgid "Focus on the %s dock."
 msgstr "Concentre-se no painel %s."
 
-msgid "%s - Godot Engine"
-msgstr "%s - Godot Engine"
+msgid "%s - Phoenix Agentic Game Engine"
+msgstr "%s - Phoenix Agentic Game Engine"
 
 msgid "Move this dock right one tab."
 msgstr "Mover este painel à direita por um TAB."
@@ -6557,8 +6557,8 @@ msgstr "Membros Platina"
 msgid "Gold Members"
 msgstr "Membros Ouro"
 
-msgid "Thank you for choosing Godot Engine!"
-msgstr "Obrigado por escolher o Godot Engine!"
+msgid "Thank you for choosing Phoenix Agentic Game Engine!"
+msgstr "Obrigado por escolher o Phoenix Agentic Game Engine!"
 
 msgid "Name cannot be empty."
 msgstr "O nome não pode estar vazio."
@@ -6610,8 +6610,8 @@ msgstr "Caminho base: %s"
 msgid "Folder name is valid."
 msgstr "O nome da pasta é válido."
 
-msgid "Godot Engine contributors"
-msgstr "Contribuidores do Godot Engine"
+msgid "Phoenix Agentic Game Engine contributors"
+msgstr "Contribuidores do Phoenix Agentic Game Engine"
 
 msgid "Double-click to open in browser."
 msgstr "Clique duas vezes para abrir no navegador."
@@ -6629,12 +6629,12 @@ msgid "Third-party Licenses"
 msgstr "Licenças de Terceiros"
 
 msgid ""
-"Godot Engine relies on a number of third-party free and open source "
+"Phoenix Agentic Game Engine relies on a number of third-party free and open source "
 "libraries, all compatible with the terms of its MIT license. The following is "
 "an exhaustive list of all such third-party components with their respective "
 "copyright statements and license terms."
 msgstr ""
-"O Godot Engine conta com várias Bibliotecas abertas e gratuitas de terceiros, "
+"O Phoenix Agentic Game Engine conta com várias Bibliotecas abertas e gratuitas de terceiros, "
 "todas compatíveis com os termos da sua licença MIT. A lista seguinte é uma "
 "lista exaustiva de todos esses Componentes de terceiros com suas respetivas "
 "declarações de direitos autorais e termos de licença."

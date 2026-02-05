@@ -2,10 +2,12 @@
 /*  project_list.cpp                                                      */
 /**************************************************************************/
 /*                         This file is part of:                          */
-/*                             GODOT ENGINE                               */
-/*                        https://godotengine.org                         */
+/*                     PHOENIX AGENTIC GAME ENGINE                        */
+/*                     Based on the Godot Engine                          */
+/*                       https://godotengine.org                         */
 /**************************************************************************/
 /* Copyright (c) 2014-present Godot Engine contributors (see AUTHORS.md). */
+/* Copyright (c) 2026-present Phoenix Agentic Game Engine contributors (see AUTHORS.md). */
 /* Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur.                  */
 /*                                                                        */
 /* Permission is hereby granted, free of charge, to any person obtaining  */
@@ -274,7 +276,7 @@ void ProjectListItemControl::set_unsupported_features(PackedStringArray p_featur
 				}
 				if (GODOT_VERSION_MAJOR != project_version_major || GODOT_VERSION_MINOR <= project_version_minor) {
 					// Don't show a warning if the project was last edited in a previous minor version.
-					tooltip_text += TTR("This project was last edited in a different Godot version: ") + p_features[i] + "\n";
+					tooltip_text += TTR("This project was last edited in a different Phoenix Agentic Game Engine version: ") + p_features[i] + "\n";
 				}
 				p_features.remove_at(i);
 				i--;
@@ -749,10 +751,25 @@ void ProjectList::_load_project_icon(int p_index) {
 
 	Ref<Texture2D> default_icon = get_editor_theme_icon(SNAME("DefaultProjectIcon"));
 	Ref<Texture2D> icon;
-	if (!item.icon.is_empty()) {
+	bool use_default_icon = item.icon.is_empty();
+	String icon_path;
+	if (!use_default_icon) {
+		icon_path = item.icon.replace_first("res://", item.path + "/");
+		if (item.icon == "res://icon.svg" || item.icon == "res://icon.png") {
+			const String exe_dir = OS::get_singleton()->get_executable_path().get_base_dir();
+			const String engine_root = exe_dir.get_base_dir();
+			const String engine_icon_path = engine_root.path_join(item.icon.get_file());
+			if (FileAccess::exists(icon_path) && FileAccess::exists(engine_icon_path)) {
+				if (FileAccess::get_file_as_bytes(icon_path) == FileAccess::get_file_as_bytes(engine_icon_path)) {
+					use_default_icon = true;
+				}
+			}
+		}
+	}
+	if (!use_default_icon) {
 		Ref<Image> img;
 		img.instantiate();
-		Error err = img->load(item.icon.replace_first("res://", item.path + "/"));
+		Error err = img->load(icon_path);
 		if (err == OK) {
 			img->resize(default_icon->get_width(), default_icon->get_height(), Image::INTERPOLATE_LANCZOS);
 			icon = ImageTexture::create_from_image(img);

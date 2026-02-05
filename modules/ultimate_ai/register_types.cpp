@@ -2,11 +2,13 @@
 /*  register_types.cpp                                                    */
 /**************************************************************************/
 /*                         This file is part of:                          */
-/*                             GODOT ENGINE                               */
-/*                        https://godotengine.org                         */
+/*                     PHOENIX AGENTIC GAME ENGINE                        */
+/*                     Based on the Godot Engine                          */
+/*                       https://godotengine.org                         */
 /**************************************************************************/
 /* Copyright (c) 2014-present Godot Engine contributors (see AUTHORS.md). */
 /* Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur.                  */
+/* Copyright (c) 2026-present Phoenix Agentic Game Engine contributors (see AUTHORS.md). */
 /*                                                                        */
 /* Permission is hereby granted, free of charge, to any person obtaining  */
 /* a copy of this software and associated documentation files (the        */
@@ -30,12 +32,18 @@
 
 #include "register_types.h"
 
+#ifdef TOOLS_ENABLED
+#include "ui/ultimate_ai_editor_plugin.h"
+#endif
+
 void initialize_ultimate_ai_module(ModuleInitializationLevel p_level) {
 	if (p_level != MODULE_INITIALIZATION_LEVEL_EDITOR) {
 		return;
 	}
 
-	// TODO: Register classes for the Ultimate AI module.
+#ifdef TOOLS_ENABLED
+	EditorPlugins::add_by_type<UltimateAIEditorPlugin>();
+#endif
 }
 
 void uninitialize_ultimate_ai_module(ModuleInitializationLevel p_level) {

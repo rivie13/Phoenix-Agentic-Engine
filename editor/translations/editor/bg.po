@@ -1,5 +1,5 @@
-# Bulgarian translation of the Godot Engine editor interface.
-# Copyright (c) 2014-present Godot Engine contributors.
+# Bulgarian translation of the Phoenix Agentic Game Engine editor interface.
+# Copyright (c) 2014-present Phoenix Agentic Game Engine contributors.
 # Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur.
 # This file is distributed under the same license as the Godot source code.
 # Bojidar Marinov <bojidar.marinov.bg@gmail.com>, 2016.
@@ -30,7 +30,7 @@
 # Vladimir Kirov <morbeo@gmail.com>, 2026.
 msgid ""
 msgstr ""
-"Project-Id-Version: Godot Engine editor interface\n"
+"Project-Id-Version: Phoenix Agentic Game Engine editor interface\n"
 "Report-Msgid-Bugs-To: https://github.com/godotengine/godot\n"
 "POT-Creation-Date: \n"
 "PO-Revision-Date: 2026-01-21 18:58+0000\n"

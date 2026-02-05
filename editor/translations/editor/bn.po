@@ -1,5 +1,5 @@
-# Bengali translation of the Godot Engine editor interface.
-# Copyright (c) 2014-present Godot Engine contributors.
+# Bengali translation of the Phoenix Agentic Game Engine editor interface.
+# Copyright (c) 2014-present Phoenix Agentic Game Engine contributors.
 # Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur.
 # This file is distributed under the same license as the Godot source code.
 # Abu Md. Maruf Sarker <maruf.webdev@gmail.com>, 2016-2017.
@@ -21,7 +21,7 @@
 # "A Thousand Ships (she/her)" <over999ships@gmail.com>, 2025.
 msgid ""
 msgstr ""
-"Project-Id-Version: Godot Engine editor interface\n"
+"Project-Id-Version: Phoenix Agentic Game Engine editor interface\n"
 "Report-Msgid-Bugs-To: https://github.com/godotengine/godot\n"
 "POT-Creation-Date: \n"
 "PO-Revision-Date: 2025-10-14 07:27+0000\n"
@@ -2911,8 +2911,8 @@ msgstr "একই নামের ফোল্ডার রয়েছে।"
 msgid "Folder name is valid."
 msgstr "ফোল্ডার নামটি গ্রহণযোগ্য।"
 
-msgid "Godot Engine contributors"
-msgstr "Godot Engine কন্ট্রিবিউটরস"
+msgid "Phoenix Agentic Game Engine contributors"
+msgstr "Phoenix Agentic Game Engine কন্ট্রিবিউটরস"
 
 msgid "Thanks from the Godot community!"
 msgstr "Godot কমিউনিটি হতে আপনাকে ধন্যবাদ!"

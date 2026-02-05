@@ -31,4 +31,4 @@ runs:
 
     - name: SCons Build
       shell: sh
-      run: scons --directory=./godot-cpp/test "gdextension_dir=${{ github.workspace }}" "custom_tools=${{ github.workspace }}/.github/godotcpp_tools" ${{ inputs.scons-flags }}
+      run: scons --directory=./godot-cpp/test "gdextension_dir=${{ github.workspace }}" "custom_tools=${{ github.workspace }}/.github/godotcpp_tools" use_response_file=yes ${{ inputs.scons-flags }}

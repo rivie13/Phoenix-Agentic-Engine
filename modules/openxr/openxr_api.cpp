@@ -2,11 +2,13 @@
 /*  openxr_api.cpp                                                        */
 /**************************************************************************/
 /*                         This file is part of:                          */
-/*                             GODOT ENGINE                               */
-/*                        https://godotengine.org                         */
+/*                     PHOENIX AGENTIC GAME ENGINE                        */
+/*                     Based on the Godot Engine                          */
+/*                       https://godotengine.org                         */
 /**************************************************************************/
 /* Copyright (c) 2014-present Godot Engine contributors (see AUTHORS.md). */
 /* Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur.                  */
+/* Copyright (c) 2026-present Phoenix Agentic Game Engine contributors (see AUTHORS.md). */
 /*                                                                        */
 /* Permission is hereby granted, free of charge, to any person obtaining  */
 /* a copy of this software and associated documentation files (the        */
@@ -605,9 +607,9 @@ XrResult OpenXRAPI::attempt_create_instance(XrVersion p_version) {
 
 	// Attempt to create our OpenXR instance for the requested version.
 	XrApplicationInfo application_info{
-		"Godot Engine", // applicationName, if we're running a game we'll update this down below.
+		"Phoenix Agentic Game Engine", // applicationName, if we're running a game we'll update this down below.
 		1, // applicationVersion, we don't currently have this
-		"Godot Engine", // engineName
+		"Phoenix Agentic Game Engine", // engineName
 		GODOT_VERSION_MAJOR * 10000 + GODOT_VERSION_MINOR * 100 + GODOT_VERSION_PATCH, // engineVersion 4.0 -> 40000, 4.0.1 -> 40001, 4.1 -> 40100, etc.
 		p_version // apiVersion
 	};
