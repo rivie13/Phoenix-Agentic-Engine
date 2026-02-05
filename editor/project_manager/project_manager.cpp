@@ -77,6 +77,7 @@
 #endif // PHYSICS_3D_DISABLED
 
 constexpr int GODOT4_CONFIG_VERSION = 5;
+constexpr float TITLE_BAR_LOGO_ASPECT = 1.5f;
 
 ProjectManager *ProjectManager::singleton = nullptr;
 
@@ -1309,6 +1310,12 @@ void ProjectManager::_titlebar_resized() {
 	if (title_bar) {
 		const int extra_titlebar_height = int(28 * EDSCALE);
 		title_bar->set_custom_minimum_size(Size2(0, margin.z - title_bar->get_global_position().y + extra_titlebar_height));
+	}
+	if (title_bar_logo && title_bar) {
+		const float logo_height = MAX(1.0f, title_bar->get_size().y);
+		const int logo_width = int(logo_height * TITLE_BAR_LOGO_ASPECT + 0.5f);
+		title_bar_logo->set_custom_minimum_size(Size2(logo_width, logo_height));
+		title_bar_logo->add_theme_constant_override("icon_max_width", logo_width);
 	}
 }
 
