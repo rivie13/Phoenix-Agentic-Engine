@@ -2,13 +2,55 @@
 
 ## Fork Notice (Phoenix Agentic Engine)
 
-This repository is a fork of [Godot Engine](https://github.com/godotengine/godot). Phoenix Agentic Engine is a heavily modified, AI-native edition of the Godot editor focused on agentic workflows for game development. Planning docs live in [phoenix_docs](phoenix_docs), and implementation will be layered with minimal core changes.
+This repository is a fork of [Godot Engine](https://github.com/godotengine/godot). Phoenix Agentic Engine is an AI-native edition of the Godot editor focused on agentic workflows for game development. Planning docs live in [phoenix_docs](phoenix_docs), and implementation is designed to keep core engine changes minimal.
 
 <p align="center">
   <a>
     <img src="branding/Phoenix_logo_dark.png" width="400" alt="Phoenix Agentic Game Engine logo">
   </a>
 </p>
+
+## What Is Phoenix
+
+Phoenix is an agentic, IDE-style AI workspace inside Godot focused on pixel-art/retro game creation (for now), with first-class control over models, tools, and context. It treats AI as a core development tool that can plan, act, verify, and iterate inside the editor.
+
+## What Makes Phoenix Different
+
+Phoenix extends the editor with integrated agentic systems that can:
+
+- Plan and decompose multi-step tasks (Ask / Plan / Agent modes)
+- Coordinate specialized agents (code, art, audio, tools)
+- Generate and edit GDScript, pixel art, and sound effects
+- Modify scenes, resources, and assets directly in the editor
+- Run and verify projects as part of an execution loop
+- Present diffs, approvals, and audit logs for safe changes
+
+Core engine systems such as rendering, physics, and platform support remain aligned with upstream Godot. Phoenix focuses on extending the editor layer, not rewriting engine fundamentals.
+
+## Agentic Workflow Overview
+
+Phoenix enables a workflow like:
+
+1. User defines an intent or task
+2. A planner produces a step-by-step plan
+3. Specialized agents execute steps with approvals
+4. Assets, scripts, and scenes are created or modified in-editor
+5. Results are summarized and optionally committed
+
+See [phoenix_docs/UX_ASSISTANT.md](phoenix_docs/UX_ASSISTANT.md) and [phoenix_docs/ARCHITECTURE.md](phoenix_docs/ARCHITECTURE.md) for the current UX and architecture plans.
+
+## Open Source And Managed Services
+
+Phoenix follows a dual-track model:
+
+- Open source editor integration (MIT), including BYOK support
+- Optional managed service for convenience, billing, and hosted models
+
+The managed service backend is proprietary and not required to use Phoenix. See [phoenix_docs/MONETIZATION.md](phoenix_docs/MONETIZATION.md) for details.
+
+## Integrations
+
+Phoenix is designed to integrate with editor-native tools and external MCP servers for docs, audio, asset tooling, and project management. See [phoenix_docs/INTEGRATIONS.md](phoenix_docs/INTEGRATIONS.md) and [phoenix_docs/GLUE_ARCHITECTURE.md](phoenix_docs/GLUE_ARCHITECTURE.md) for the current inventory and planned integrations.
 
 ## 2D and 3D cross-platform game engine
 
