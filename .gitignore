@@ -84,6 +84,7 @@ __pycache__/
 # Documentation
 doc/_build/
 phoenix_docs_private/
+phoenix_docs_private/ARCHITECTURE.md
 
 # Android
 .gradle/
