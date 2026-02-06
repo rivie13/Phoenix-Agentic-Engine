@@ -69,4 +69,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: phoenix-agentic-engine-windows
-          path: bin/godot.windows.editor.x86_64.exe
+          path: bin/phoenix_agentic.windows.editor.x86_64.exe

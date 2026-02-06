@@ -88,14 +88,6 @@ static Error copy_dir_recursive(const String &p_src, const String &p_dst) {
 	return OK;
 }
 
-static String read_text_file(const String &p_path) {
-	Ref<FileAccess> f = FileAccess::open(p_path, FileAccess::READ);
-	if (f.is_null()) {
-		return "";
-	}
-	return f->get_as_text();
-}
-
 static Error ensure_addon_synced() {
 	String exe_dir = OS::get_singleton()->get_executable_path().get_base_dir();
 	String repo_root = exe_dir.get_base_dir();
