@@ -22,3 +22,5 @@ leak:MethodBindVarArgTR<GDScript, Variant>::call
 leak:MethodBindVarArgTR<GDScriptFunctionState, Variant>::call
 leak:GDScriptLanguage::init
 leak:ScriptServer::init_languages
+leak:EditorFileSystem::_first_scan_process_scripts
+leak:EditorFileSystem::_first_scan_filesystem
