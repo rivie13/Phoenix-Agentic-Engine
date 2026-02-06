@@ -2,3 +2,12 @@
 # - leak
 
 leak:libfontconfig.so.1
+leak:GDScriptCompiler::compile
+leak:GDScript::reload
+leak:GDScriptDocGen::generate_docs
+leak:GDScriptAnalyzer::reduce_preload
+leak:GDScriptTokenizerText::scan
+leak:GDScriptParser::parse
+leak:Object::_bind_methods
+leak:ClassDB::register_class
+leak:register_core_types
