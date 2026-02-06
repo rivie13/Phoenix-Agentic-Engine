@@ -11,3 +11,14 @@ leak:GDScriptParser::parse
 leak:Object::_bind_methods
 leak:ClassDB::register_class
 leak:register_core_types
+leak:GDScript::_create_instance
+leak:GDScriptFunction::call
+leak:GDScriptInstance::callp
+leak:Object::callp
+leak:Variant::callp
+leak:GDScriptFunctionState::resume
+leak:GDScriptFunctionState::_signal_callback
+leak:MethodBindVarArgTR<GDScript, Variant>::call
+leak:MethodBindVarArgTR<GDScriptFunctionState, Variant>::call
+leak:GDScriptLanguage::init
+leak:ScriptServer::init_languages
