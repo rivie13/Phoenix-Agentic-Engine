@@ -1,5 +1,5 @@
 /**************************************************************************/
-/*  ultimate_ai_editor_plugin.h                                           */
+/*  assistant_settings_dialog.h                                           */
 /**************************************************************************/
 /*                         This file is part of:                          */
 /*                             GODOT ENGINE                               */
@@ -30,20 +30,40 @@
 
 #pragma once
 
-#include "core/input/shortcut.h"
-#include "editor/plugins/editor_plugin.h"
+#include "core/variant/variant.h"
+#include "scene/gui/dialogs.h"
 
-class UltimateAssistantPanel;
+class Button;
+class CheckBox;
+class ItemList;
+class LineEdit;
+class OptionButton;
+class Label;
 
-class UltimateAIEditorPlugin : public EditorPlugin {
-	GDCLASS(UltimateAIEditorPlugin, EditorPlugin);
+class UltimateAISettingsDialog : public AcceptDialog {
+	GDCLASS(UltimateAISettingsDialog, AcceptDialog);
 
-	UltimateAssistantPanel *assistant_panel = nullptr;
+	ItemList *model_list = nullptr;
+	LineEdit *model_input = nullptr;
+	Button *add_button = nullptr;
+	Button *remove_button = nullptr;
+	OptionButton *service_mode = nullptr;
+	LineEdit *local_endpoint = nullptr;
+	LineEdit *byok_key = nullptr;
+	LineEdit *managed_endpoint = nullptr;
+	CheckBox *allow_background_agents = nullptr;
+	CheckBox *auto_approve_reads = nullptr;
+	CheckBox *require_approvals = nullptr;
+
+	void _on_add_pressed();
+	void _on_remove_pressed();
+
+protected:
+	static void _bind_methods();
 
 public:
-	String get_plugin_name() const override;
+	void set_models(const PackedStringArray &p_models);
+	PackedStringArray get_selected_models() const;
 
-	void _notification(int p_what);
-
-	UltimateAIEditorPlugin();
+	UltimateAISettingsDialog();
 };
