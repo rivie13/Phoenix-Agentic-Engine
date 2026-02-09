@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
+from __future__ import annotations
 
 import os
 import re
 import sys
-from typing import Iterable, List
+from typing import Iterable
 
 DATA_URI_IMAGE_PATTERN = re.compile(
-    br"<image\b[^>]*\b(?:href|xlink:href)\s*=\s*['\"]data:image",
+    rb"<image\b[^>]*\b(?:href|xlink:href)\s*=\s*['\"]data:image",
     re.IGNORECASE,
 )
 
@@ -23,7 +24,7 @@ def is_test_fixture_path(path: str) -> bool:
     )
 
 
-def check_svg(path: str, errors: List[str]) -> None:
+def check_svg(path: str, errors: list[str]) -> None:
     if is_test_fixture_path(path):
         return
 
@@ -39,7 +40,7 @@ def check_svg(path: str, errors: List[str]) -> None:
 
 
 def main(paths: Iterable[str]) -> int:
-    errors: List[str] = []
+    errors: list[str] = []
 
     for path in paths:
         if not path.lower().endswith(".svg"):
