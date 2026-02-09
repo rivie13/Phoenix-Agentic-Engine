@@ -32,14 +32,15 @@
 
 #include "assistant_settings_dialog.h"
 
+#include "core/io/resource_loader.h"
 #include "core/object/class_db.h"
 #include "core/string/ustring.h"
 #include "editor/file_system/editor_file_system.h"
-#include "core/io/resource_loader.h"
 #include "scene/gui/box_container.h"
-#include "scene/gui/dialogs.h"
 #include "scene/gui/button.h"
 #include "scene/gui/check_box.h"
+#include "scene/gui/dialogs.h"
+#include "scene/gui/item_list.h"
 #include "scene/gui/label.h"
 #include "scene/gui/line_edit.h"
 #include "scene/gui/option_button.h"
@@ -50,7 +51,6 @@
 #include "scene/gui/tab_bar.h"
 #include "scene/gui/tab_container.h"
 #include "scene/gui/text_edit.h"
-#include "scene/gui/item_list.h"
 
 void UltimateAssistantPanel::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_new_tab_pressed"), &UltimateAssistantPanel::_on_new_tab_pressed);
