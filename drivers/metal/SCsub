@@ -50,9 +50,11 @@ env_metal.Append(CCFLAGS=["-fmodules", "-fcxx-modules"])
 
 driver_obj = []
 
-env_metal.add_source_files(driver_obj, "*.mm")
+mm_files = env_metal.Glob("*.mm")
+env_metal.add_source_files(driver_obj, mm_files)
+mm_basenames = {os.path.splitext(os.path.basename(str(f)))[0] for f in mm_files}
 cpp_files = env_metal.Glob("*.cpp")
-cpp_files = [f for f in cpp_files if os.path.basename(str(f)) != "metal_device_properties.cpp"]
+cpp_files = [f for f in cpp_files if os.path.splitext(os.path.basename(str(f)))[0] not in mm_basenames]
 env_metal.add_source_files(driver_obj, cpp_files)
 env.drivers_sources += driver_obj
 
