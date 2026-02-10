@@ -90,6 +90,20 @@ class UltimateAssistantPanel : public PanelContainer {
 		Array context_metadata;
 	};
 
+	struct SharedChatTabState {
+		int id = 0;
+		String display_name;
+		String transcript;
+		int mode_selected = 0;
+		int model_selected = 0;
+		int agent_mode_selected = 0;
+		String session_name_text;
+		PackedStringArray context_items;
+		Array context_metadata;
+		bool context_collapsed = false;
+		bool is_active = false;
+	};
+
 	VBoxContainer *root = nullptr;
 	HBoxContainer *header = nullptr;
 	Label *title_label = nullptr;
@@ -118,6 +132,17 @@ class UltimateAssistantPanel : public PanelContainer {
 	PackedStringArray available_models;
 	int tab_counter = 0;
 	bool theme_ready = false;
+	bool applying_shared_state = false;
+
+	static Vector<UltimateAssistantPanel *> s_instances;
+	static Vector<SharedChatTabState> s_shared_tabs;
+	static Vector<ArchivedSession> s_shared_archived_sessions;
+	static PackedStringArray s_shared_models;
+	static Dictionary s_shared_pixelpen_snapshot;
+	static Array s_shared_pixelpen_layers;
+	static int s_shared_tab_counter;
+	static int s_shared_current_tab;
+	static bool s_shared_initialized;
 
 	void _on_new_tab_pressed();
 	void _on_tab_close_requested(int p_tab_index);
@@ -140,7 +165,8 @@ class UltimateAssistantPanel : public PanelContainer {
 	void _on_previous_session_activated(int p_index);
 	void _on_session_name_changed(const String &p_text, int p_tab_id);
 	void _append_message(int p_tab_id, const String &p_role, const String &p_content);
-	void _add_chat_tab();
+	void _add_chat_tab(int p_forced_id = -1);
+	void _add_chat_tab_from_state(const SharedChatTabState &p_state);
 	void _refresh_model_selectors();
 	void _ensure_default_models();
 	int _find_tab_index_by_id(int p_tab_id) const;
@@ -157,6 +183,14 @@ class UltimateAssistantPanel : public PanelContainer {
 	void _archive_tab(const ChatTab &p_tab);
 	void _restore_archived_session(int p_index);
 	String _get_tab_label(const ChatTab &p_tab) const;
+	SharedChatTabState _build_shared_state_for_tab(const ChatTab &p_tab) const;
+	void _capture_shared_state();
+	void _apply_shared_state();
+	void _broadcast_shared_state();
+	void _clear_tabs_ui();
+	void _sync_pixelpen_snapshot_to_tabs();
+	void _upsert_pixelpen_snapshot(ChatTab &r_tab);
+	void _populate_pixelpen_context_items(const String &p_filter);
 
 protected:
 	static void _bind_methods();
@@ -164,4 +198,5 @@ protected:
 
 public:
 	UltimateAssistantPanel();
+	static void broadcast_pixelpen_context(const Dictionary &p_snapshot, const Array &p_layers);
 };

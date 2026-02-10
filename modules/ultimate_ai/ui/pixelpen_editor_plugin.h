@@ -1,5 +1,5 @@
 /**************************************************************************/
-/*  register_types.cpp                                                    */
+/*  pixelpen_editor_plugin.h                                              */
 /**************************************************************************/
 /*                         This file is part of:                          */
 /*                             GODOT ENGINE                               */
@@ -28,28 +28,54 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
 /**************************************************************************/
 
-#include "register_types.h"
+#pragma once
 
-#ifdef TOOLS_ENABLED
-#include "ui/pixelpen_editor_plugin.h"
-#include "ui/ultimate_ai_editor_plugin.h"
-#endif
+#include "editor/plugins/editor_plugin.h"
 
-void initialize_ultimate_ai_module(ModuleInitializationLevel p_level) {
-	if (p_level != MODULE_INITIALIZATION_LEVEL_EDITOR) {
-		return;
-	}
+class Control;
+class Resource;
+class UltimateAssistantPanel;
+class Window;
 
-#ifdef TOOLS_ENABLED
-	EditorPlugins::add_by_type<UltimateAIEditorPlugin>();
-	EditorPlugins::add_by_type<PixelPenEditorPlugin>();
-#endif
-}
+class PixelPenEditorPlugin : public EditorPlugin {
+	GDCLASS(PixelPenEditorPlugin, EditorPlugin);
 
-void uninitialize_ultimate_ai_module(ModuleInitializationLevel p_level) {
-	if (p_level != MODULE_INITIALIZATION_LEVEL_EDITOR) {
-		return;
-	}
+	Window *window_instance = nullptr;
+	Control *window_main_ui = nullptr;
+	UltimateAssistantPanel *window_assistant_panel = nullptr;
+	bool class_scripts_preloaded = false;
+	bool extension_loaded = false;
+	String last_main_screen = "3D";
+	Vector<Ref<Resource>> preloaded_scripts;
+	uint64_t last_context_sync_msec = 0;
+	Dictionary last_context_snapshot;
+	Array last_context_layers;
 
-	// TODO: Unregister classes for the Ultimate AI module.
-}
+	void _notification(int p_what);
+
+	bool _ensure_addon_installed();
+	String _find_source_addon_path() const;
+	Error _copy_dir_recursive(const String &p_src, const String &p_dst);
+	void _preload_script(const char *p_path);
+	void _preload_class_scripts();
+	void _open_window();
+	void _ensure_window_layout();
+	void _sync_context_from_window();
+	Array _collect_layer_snapshot() const;
+	Dictionary _build_snapshot() const;
+	uint64_t _get_latest_mtime(const String &p_path) const;
+	bool _read_sync_marker(const String &p_marker_path, String &r_revision, uint64_t &r_mtime) const;
+	void _write_sync_marker(const String &p_marker_path, const String &p_revision, uint64_t p_mtime) const;
+	Error _remove_dir_contents(const String &p_path) const;
+	void _on_window_exited();
+	void _on_main_screen_changed(const String &p_screen_name);
+
+public:
+	String get_plugin_name() const override;
+	bool has_main_screen() const override;
+	const Ref<Texture2D> get_plugin_icon() const override;
+	void make_visible(bool p_visible) override;
+
+	PixelPenEditorPlugin();
+	~PixelPenEditorPlugin();
+};

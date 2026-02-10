@@ -52,6 +52,21 @@
 #include "scene/gui/tab_container.h"
 #include "scene/gui/text_edit.h"
 
+Vector<UltimateAssistantPanel *> UltimateAssistantPanel::s_instances;
+Vector<UltimateAssistantPanel::SharedChatTabState> UltimateAssistantPanel::s_shared_tabs;
+Vector<UltimateAssistantPanel::ArchivedSession> UltimateAssistantPanel::s_shared_archived_sessions;
+PackedStringArray UltimateAssistantPanel::s_shared_models;
+Dictionary UltimateAssistantPanel::s_shared_pixelpen_snapshot;
+Array UltimateAssistantPanel::s_shared_pixelpen_layers;
+int UltimateAssistantPanel::s_shared_tab_counter = 0;
+int UltimateAssistantPanel::s_shared_current_tab = 0;
+bool UltimateAssistantPanel::s_shared_initialized = false;
+
+namespace {
+const char *const PIXELPEN_SNAPSHOT_KIND = "pixelpen_snapshot";
+const char *const PIXELPEN_LAYER_KIND = "pixelpen_layer";
+}
+
 void UltimateAssistantPanel::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_new_tab_pressed"), &UltimateAssistantPanel::_on_new_tab_pressed);
 	ClassDB::bind_method(D_METHOD("_on_tab_close_requested", "tab_index"), &UltimateAssistantPanel::_on_tab_close_requested);
@@ -133,7 +148,7 @@ UltimateAssistantPanel::UltimateAssistantPanel() {
 	context_dialog->add_child(context_dialog_root);
 
 	Label *context_search_label = memnew(Label);
-	context_search_label->set_text(TTR("Project files"));
+	context_search_label->set_text(TTR("Project files and PixelPen context"));
 	context_dialog_root->add_child(context_search_label);
 
 	context_search_input = memnew(LineEdit);
@@ -185,6 +200,15 @@ UltimateAssistantPanel::UltimateAssistantPanel() {
 	_build_hub_tab();
 	_add_chat_tab();
 	tab_container->set_current_tab(0);
+
+	s_instances.push_back(this);
+	if (s_shared_initialized) {
+		_apply_shared_state();
+	} else {
+		_capture_shared_state();
+		s_shared_initialized = true;
+	}
+	_sync_pixelpen_snapshot_to_tabs();
 }
 
 void UltimateAssistantPanel::_notification(int p_what) {
@@ -193,6 +217,14 @@ void UltimateAssistantPanel::_notification(int p_what) {
 		case NOTIFICATION_THEME_CHANGED: {
 			theme_ready = true;
 			_refresh_tab_close_icons();
+		} break;
+		case NOTIFICATION_PREDELETE: {
+			for (int i = 0; i < s_instances.size(); i++) {
+				if (s_instances[i] == this) {
+					s_instances.remove_at(i);
+					break;
+				}
+			}
 		} break;
 		default:
 			break;
@@ -303,7 +335,7 @@ void UltimateAssistantPanel::_build_hub_tab() {
 	_refresh_tab_close_icons();
 }
 
-void UltimateAssistantPanel::_add_chat_tab() {
+void UltimateAssistantPanel::_add_chat_tab(int p_forced_id) {
 	ChatTab tab;
 	VBoxContainer *tab_root = memnew(VBoxContainer);
 	tab_root->set_h_size_flags(Control::SIZE_EXPAND_FILL);
@@ -418,7 +450,10 @@ void UltimateAssistantPanel::_add_chat_tab() {
 	steer_button->set_visible(false);
 	input_actions->add_child(steer_button);
 
-	int tab_id = ++tab_counter;
+	int tab_id = p_forced_id >= 0 ? p_forced_id : (tab_counter + 1);
+	if (tab_id > tab_counter) {
+		tab_counter = tab_id;
+	}
 	send_button->connect(SceneStringName(pressed), callable_mp(this, &UltimateAssistantPanel::_on_send_pressed).bind(tab_id));
 	steer_button->connect(SceneStringName(pressed), callable_mp(this, &UltimateAssistantPanel::_on_steer_pressed).bind(tab_id));
 	mode_selector->connect(SceneStringName(item_selected), callable_mp(this, &UltimateAssistantPanel::_on_tab_setting_changed).bind(tab_id));
@@ -456,6 +491,320 @@ void UltimateAssistantPanel::_add_chat_tab() {
 	_refresh_hub();
 }
 
+UltimateAssistantPanel::SharedChatTabState UltimateAssistantPanel::_build_shared_state_for_tab(const ChatTab &p_tab) const {
+	SharedChatTabState state;
+	state.id = p_tab.id;
+	state.display_name = p_tab.display_name;
+	state.transcript = p_tab.transcript;
+	state.mode_selected = p_tab.mode_selector ? p_tab.mode_selector->get_selected() : 0;
+	state.model_selected = p_tab.model_selector ? p_tab.model_selector->get_selected() : 0;
+	state.agent_mode_selected = p_tab.agent_mode_selector ? p_tab.agent_mode_selector->get_selected() : 0;
+	state.session_name_text = p_tab.session_name_input ? p_tab.session_name_input->get_text() : p_tab.display_name;
+	state.context_collapsed = p_tab.context_collapsed;
+	state.is_active = p_tab.is_active;
+	if (p_tab.context_list) {
+		int count = p_tab.context_list->get_item_count();
+		for (int i = 0; i < count; i++) {
+			state.context_items.push_back(p_tab.context_list->get_item_text(i));
+			state.context_metadata.push_back(p_tab.context_list->get_item_metadata(i));
+		}
+	}
+	return state;
+}
+
+void UltimateAssistantPanel::_capture_shared_state() {
+	s_shared_tabs.clear();
+	for (int i = 0; i < tabs.size(); i++) {
+		s_shared_tabs.push_back(_build_shared_state_for_tab(tabs[i]));
+	}
+	s_shared_archived_sessions = archived_sessions;
+	s_shared_models = available_models;
+	s_shared_tab_counter = tab_counter;
+	s_shared_current_tab = tab_container ? tab_container->get_current_tab() : 0;
+}
+
+void UltimateAssistantPanel::_clear_tabs_ui() {
+	tabs.clear();
+	hub_root = nullptr;
+	hub_agent_list = nullptr;
+	hub_previous_list = nullptr;
+	hub_reopen_button = nullptr;
+	hub_pending_list = nullptr;
+	hub_questions_list = nullptr;
+	if (!tab_container) {
+		return;
+	}
+	for (int i = tab_container->get_tab_count() - 1; i >= 0; i--) {
+		Control *tab_control = tab_container->get_tab_control(i);
+		if (!tab_control) {
+			continue;
+		}
+		tab_container->remove_child(tab_control);
+		tab_control->queue_free();
+	}
+}
+
+void UltimateAssistantPanel::_add_chat_tab_from_state(const SharedChatTabState &p_state) {
+	_add_chat_tab(p_state.id);
+	int tab_index = _find_tab_index_by_id(p_state.id);
+	if (tab_index < 0 || tab_index >= tabs.size()) {
+		return;
+	}
+	ChatTab &tab = tabs.write[tab_index];
+
+	tab.display_name = p_state.display_name;
+	tab.transcript = p_state.transcript;
+	tab.context_collapsed = p_state.context_collapsed;
+	tab.is_active = p_state.is_active;
+
+	if (tab.mode_selector && tab.mode_selector->get_item_count() > 0) {
+		int idx = p_state.mode_selected;
+		if (idx < 0) {
+			idx = 0;
+		} else if (idx >= tab.mode_selector->get_item_count()) {
+			idx = tab.mode_selector->get_item_count() - 1;
+		}
+		tab.mode_selector->select(idx);
+	}
+	if (tab.model_selector && tab.model_selector->get_item_count() > 0) {
+		int idx = p_state.model_selected;
+		if (idx < 0) {
+			idx = 0;
+		} else if (idx >= tab.model_selector->get_item_count()) {
+			idx = tab.model_selector->get_item_count() - 1;
+		}
+		tab.model_selector->select(idx);
+	}
+	if (tab.agent_mode_selector && tab.agent_mode_selector->get_item_count() > 0) {
+		int idx = p_state.agent_mode_selected;
+		if (idx < 0) {
+			idx = 0;
+		} else if (idx >= tab.agent_mode_selector->get_item_count()) {
+			idx = tab.agent_mode_selector->get_item_count() - 1;
+		}
+		tab.agent_mode_selector->select(idx);
+	}
+	if (tab.session_name_input) {
+		tab.session_name_input->set_text(p_state.session_name_text);
+	}
+	if (tab.context_toggle_button) {
+		tab.context_toggle_button->set_pressed(!p_state.context_collapsed);
+	}
+	if (tab.context_list) {
+		tab.context_list->set_visible(!p_state.context_collapsed);
+		tab.context_list->clear();
+		for (int i = 0; i < p_state.context_items.size(); i++) {
+			int item_idx = tab.context_list->add_item(p_state.context_items[i]);
+			Variant meta = p_state.context_metadata.size() > i ? p_state.context_metadata[i] : Variant();
+			if (meta.get_type() != Variant::NIL) {
+				tab.context_list->set_item_metadata(item_idx, meta);
+			}
+		}
+	}
+	if (tab.chat_display) {
+		tab.chat_display->set_text(p_state.transcript.is_empty() ? TTR("[b]New chat ready.[/b]\n") : p_state.transcript);
+		tab.transcript = tab.chat_display->get_text();
+	}
+	if (tab.send_button) {
+		tab.send_button->set_text(p_state.is_active ? TTR("Interrupt") : TTR("Send"));
+	}
+	if (tab.steer_button) {
+		tab.steer_button->set_visible(p_state.is_active);
+	}
+
+	int container_index = _find_tab_container_index(tab.root);
+	if (container_index >= 0) {
+		tab_container->set_tab_title(container_index, _get_tab_label(tab));
+	}
+}
+
+void UltimateAssistantPanel::_apply_shared_state() {
+	if (!s_shared_initialized) {
+		return;
+	}
+
+	applying_shared_state = true;
+	_clear_tabs_ui();
+
+	available_models = s_shared_models;
+	if (available_models.is_empty()) {
+		_ensure_default_models();
+	}
+	archived_sessions = s_shared_archived_sessions;
+	tab_counter = 0;
+
+	_build_hub_tab();
+	if (s_shared_tabs.is_empty()) {
+		_add_chat_tab();
+	} else {
+		for (int i = 0; i < s_shared_tabs.size(); i++) {
+			_add_chat_tab_from_state(s_shared_tabs[i]);
+		}
+	}
+
+	if (s_shared_tab_counter > tab_counter) {
+		tab_counter = s_shared_tab_counter;
+	}
+
+	int tab_count = tab_container ? tab_container->get_tab_count() : 0;
+	if (tab_container && tab_count > 0) {
+		int target_tab = s_shared_current_tab;
+		if (target_tab < 0) {
+			target_tab = 0;
+		} else if (target_tab >= tab_count) {
+			target_tab = tab_count - 1;
+		}
+		tab_container->set_current_tab(target_tab);
+	}
+
+	_refresh_hub();
+	_refresh_tab_close_icons();
+	applying_shared_state = false;
+	_sync_pixelpen_snapshot_to_tabs();
+}
+
+void UltimateAssistantPanel::_broadcast_shared_state() {
+	if (applying_shared_state) {
+		return;
+	}
+	_capture_shared_state();
+	s_shared_initialized = true;
+	for (int i = 0; i < s_instances.size(); i++) {
+		UltimateAssistantPanel *panel = s_instances[i];
+		if (!panel || panel == this) {
+			continue;
+		}
+		panel->_apply_shared_state();
+	}
+}
+
+void UltimateAssistantPanel::_upsert_pixelpen_snapshot(ChatTab &r_tab) {
+	if (!r_tab.context_list) {
+		return;
+	}
+
+	int existing = -1;
+	int count = r_tab.context_list->get_item_count();
+	for (int i = 0; i < count; i++) {
+		Variant meta = r_tab.context_list->get_item_metadata(i);
+		if (meta.get_type() != Variant::DICTIONARY) {
+			continue;
+		}
+		Dictionary meta_dict = meta;
+		if (meta_dict.get("kind", String()) == PIXELPEN_SNAPSHOT_KIND) {
+			existing = i;
+			break;
+		}
+	}
+
+	if (s_shared_pixelpen_snapshot.is_empty()) {
+		if (existing >= 0) {
+			r_tab.context_list->remove_item(existing);
+		}
+		return;
+	}
+
+	String label = "PixelPen Snapshot";
+	if (s_shared_pixelpen_snapshot.has("project_name")) {
+		String project_name = s_shared_pixelpen_snapshot["project_name"];
+		if (!project_name.is_empty()) {
+			label += ": " + project_name;
+		}
+	} else if (s_shared_pixelpen_snapshot.has("window_title")) {
+		String window_title = s_shared_pixelpen_snapshot["window_title"];
+		if (!window_title.is_empty()) {
+			label += ": " + window_title;
+		}
+	}
+
+	Dictionary context_metadata;
+	context_metadata["kind"] = PIXELPEN_SNAPSHOT_KIND;
+	context_metadata["source"] = "pixelpen";
+	context_metadata["snapshot"] = s_shared_pixelpen_snapshot;
+	context_metadata["layers"] = s_shared_pixelpen_layers;
+
+	if (existing >= 0) {
+		r_tab.context_list->set_item_text(existing, label);
+		r_tab.context_list->set_item_metadata(existing, context_metadata);
+	} else {
+		int idx = r_tab.context_list->add_item(label);
+		r_tab.context_list->set_item_metadata(idx, context_metadata);
+	}
+}
+
+void UltimateAssistantPanel::_sync_pixelpen_snapshot_to_tabs() {
+	for (int i = 0; i < tabs.size(); i++) {
+		ChatTab &tab = tabs.write[i];
+		_upsert_pixelpen_snapshot(tab);
+	}
+	if (context_dialog && context_dialog->is_visible()) {
+		String filter = context_search_input ? context_search_input->get_text() : String();
+		_populate_context_file_list(filter);
+		_sync_context_selected_list(context_dialog_tab_id);
+	}
+}
+
+void UltimateAssistantPanel::_populate_pixelpen_context_items(const String &p_filter) {
+	if (!context_file_list) {
+		return;
+	}
+	String filter = p_filter.strip_edges();
+
+	if (!s_shared_pixelpen_snapshot.is_empty()) {
+		String label = "[PixelPen] Snapshot";
+		String project_name = s_shared_pixelpen_snapshot.get("project_name", String());
+		if (!project_name.is_empty()) {
+			label += ": " + project_name;
+		}
+		if (filter.is_empty() || label.findn(filter) != -1) {
+			Dictionary snapshot_meta;
+			snapshot_meta["kind"] = PIXELPEN_SNAPSHOT_KIND;
+			snapshot_meta["source"] = "pixelpen";
+			snapshot_meta["snapshot"] = s_shared_pixelpen_snapshot;
+			snapshot_meta["layers"] = s_shared_pixelpen_layers;
+			int snapshot_idx = context_file_list->add_item(label);
+			context_file_list->set_item_metadata(snapshot_idx, snapshot_meta);
+		}
+	}
+
+	for (int i = 0; i < s_shared_pixelpen_layers.size(); i++) {
+		Variant entry = s_shared_pixelpen_layers[i];
+		if (entry.get_type() != Variant::DICTIONARY) {
+			continue;
+		}
+		Dictionary layer = entry;
+		String layer_label = layer.get("label", String("Layer"));
+		bool active = layer.get("active", false);
+		bool layer_visible = layer.get("visible", true);
+		String label = vformat("[PixelPen] Layer: %s%s%s", layer_label, active ? " (Active)" : "", layer_visible ? "" : " (Hidden)");
+		if (!filter.is_empty() && label.findn(filter) == -1) {
+			continue;
+		}
+		Dictionary layer_meta;
+		layer_meta["kind"] = PIXELPEN_LAYER_KIND;
+		layer_meta["source"] = "pixelpen";
+		layer_meta["layer"] = layer;
+		layer_meta["snapshot"] = s_shared_pixelpen_snapshot;
+		int idx = context_file_list->add_item(label);
+		context_file_list->set_item_metadata(idx, layer_meta);
+	}
+}
+
+void UltimateAssistantPanel::broadcast_pixelpen_context(const Dictionary &p_snapshot, const Array &p_layers) {
+	s_shared_pixelpen_snapshot = p_snapshot;
+	s_shared_pixelpen_layers = p_layers;
+	for (int i = 0; i < s_instances.size(); i++) {
+		UltimateAssistantPanel *panel = s_instances[i];
+		if (!panel) {
+			continue;
+		}
+		panel->_sync_pixelpen_snapshot_to_tabs();
+	}
+	if (!s_instances.is_empty()) {
+		s_instances[0]->_broadcast_shared_state();
+	}
+}
+
 void UltimateAssistantPanel::_append_message(int p_tab_id, const String &p_role, const String &p_content) {
 	int tab_index = _find_tab_index_by_id(p_tab_id);
 	if (tab_index < 0 || tab_index >= tabs.size()) {
@@ -478,10 +827,12 @@ void UltimateAssistantPanel::_append_message(int p_tab_id, const String &p_role,
 	display->append_text(line);
 	tab.transcript += line;
 	display->scroll_to_line(display->get_line_count());
+	_broadcast_shared_state();
 }
 
 void UltimateAssistantPanel::_on_new_tab_pressed() {
 	_add_chat_tab();
+	_broadcast_shared_state();
 }
 
 void UltimateAssistantPanel::_on_tab_close_requested(int p_tab_index) {
@@ -510,6 +861,7 @@ void UltimateAssistantPanel::_on_tab_close_requested(int p_tab_index) {
 	}
 	_refresh_tab_close_icons();
 	_refresh_hub();
+	_broadcast_shared_state();
 }
 
 void UltimateAssistantPanel::_refresh_tab_close_icons() {
@@ -586,6 +938,7 @@ void UltimateAssistantPanel::_on_send_pressed(int p_tab_id) {
 	if (tab.steer_button) {
 		tab.steer_button->set_visible(true);
 	}
+	_broadcast_shared_state();
 }
 
 void UltimateAssistantPanel::_on_input_submitted(const String &p_text, int p_tab_id) {
@@ -616,6 +969,7 @@ void UltimateAssistantPanel::_on_interrupt_pressed(int p_tab_id) {
 	if (tab.steer_button) {
 		tab.steer_button->set_visible(false);
 	}
+	_broadcast_shared_state();
 }
 
 void UltimateAssistantPanel::_on_steer_pressed(int p_tab_id) {
@@ -634,10 +988,12 @@ void UltimateAssistantPanel::_on_settings_confirmed() {
 	}
 	available_models = selected;
 	_refresh_model_selectors();
+	_broadcast_shared_state();
 }
 
 void UltimateAssistantPanel::_on_tab_setting_changed(int p_tab_id) {
 	_refresh_hub();
+	_broadcast_shared_state();
 }
 
 void UltimateAssistantPanel::_on_context_add_pressed(int p_tab_id) {
@@ -657,6 +1013,7 @@ void UltimateAssistantPanel::_on_context_remove_pressed(int p_tab_id) {
 	for (int i = selected.size() - 1; i >= 0; i--) {
 		list->remove_item(selected[i]);
 	}
+	_broadcast_shared_state();
 }
 
 void UltimateAssistantPanel::_on_context_toggle_toggled(bool p_pressed, int p_tab_id) {
@@ -669,6 +1026,7 @@ void UltimateAssistantPanel::_on_context_toggle_toggled(bool p_pressed, int p_ta
 	if (tab.context_list) {
 		tab.context_list->set_visible(p_pressed);
 	}
+	_broadcast_shared_state();
 }
 
 void UltimateAssistantPanel::_on_context_select_add_pressed() {
@@ -677,21 +1035,31 @@ void UltimateAssistantPanel::_on_context_select_add_pressed() {
 	}
 	PackedInt32Array indices = context_file_list->get_selected_items();
 	for (int i = 0; i < indices.size(); i++) {
-		Variant item_meta = context_file_list->get_item_metadata(indices[i]);
-		String value = item_meta.get_type() == Variant::STRING ? String(item_meta) : context_file_list->get_item_text(indices[i]);
+		int file_idx = indices[i];
+		String label = context_file_list->get_item_text(file_idx);
+		Variant item_meta = context_file_list->get_item_metadata(file_idx);
+		Variant store_meta = item_meta.get_type() == Variant::NIL ? Variant(label) : item_meta;
+		String display_text = item_meta.get_type() == Variant::STRING ? String(item_meta) : label;
+
 		bool exists = false;
 		int count = context_selected_list->get_item_count();
 		for (int j = 0; j < count; j++) {
 			Variant existing_meta = context_selected_list->get_item_metadata(j);
-			String existing = existing_meta.get_type() == Variant::STRING ? String(existing_meta) : context_selected_list->get_item_text(j);
-			if (existing == value) {
+			if (existing_meta.get_type() != Variant::NIL && store_meta.get_type() != Variant::NIL) {
+				if (existing_meta == store_meta) {
+					exists = true;
+					break;
+				}
+				continue;
+			}
+			if (context_selected_list->get_item_text(j) == display_text) {
 				exists = true;
 				break;
 			}
 		}
 		if (!exists) {
-			int idx = context_selected_list->add_item(value);
-			context_selected_list->set_item_metadata(idx, value);
+			int idx = context_selected_list->add_item(display_text);
+			context_selected_list->set_item_metadata(idx, store_meta);
 		}
 	}
 }
@@ -742,6 +1110,7 @@ void UltimateAssistantPanel::_on_context_dialog_confirmed() {
 			list->set_item_metadata(idx, meta);
 		}
 	}
+	_broadcast_shared_state();
 }
 
 void UltimateAssistantPanel::_on_previous_reopen_pressed() {
@@ -784,6 +1153,7 @@ void UltimateAssistantPanel::_on_session_name_changed(const String &p_text, int 
 		tab_container->set_tab_title(container_index, _get_tab_label(tab));
 	}
 	_refresh_hub();
+	_broadcast_shared_state();
 }
 
 void UltimateAssistantPanel::_open_context_dialog(int p_tab_id) {
@@ -804,6 +1174,9 @@ void UltimateAssistantPanel::_populate_context_file_list(const String &p_filter)
 		return;
 	}
 	context_file_list->clear();
+	String filter = p_filter.strip_edges();
+	_populate_pixelpen_context_items(filter);
+
 	Vector<String> files;
 	EditorFileSystem *fs = EditorFileSystem::get_singleton();
 	if (fs) {
@@ -812,7 +1185,6 @@ void UltimateAssistantPanel::_populate_context_file_list(const String &p_filter)
 			_collect_project_files(root_dir, files);
 		}
 	}
-	String filter = p_filter.strip_edges();
 	for (int i = 0; i < files.size(); i++) {
 		if (!filter.is_empty() && files[i].findn(filter) == -1) {
 			continue;
@@ -998,6 +1370,7 @@ void UltimateAssistantPanel::_restore_archived_session(int p_index) {
 		tab_container->set_tab_title(container_index, _get_tab_label(tab));
 	}
 	_refresh_hub();
+	_broadcast_shared_state();
 }
 
 String UltimateAssistantPanel::_get_tab_label(const ChatTab &p_tab) const {
