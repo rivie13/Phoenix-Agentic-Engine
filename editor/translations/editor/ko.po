@@ -1,5 +1,5 @@
-# Korean translation of the Godot Engine editor interface.
-# Copyright (c) 2014-present Godot Engine contributors.
+# Korean translation of the Phoenix Agentic Game Engine editor interface.
+# Copyright (c) 2014-present Phoenix Agentic Game Engine contributors.
 # Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur.
 # This file is distributed under the same license as the Godot source code.
 # Ch <ccwpc@hanmail.net>, 2017.
@@ -83,7 +83,7 @@
 # "A Thousand Ships (she/her)" <over999ships@gmail.com>, 2025.
 msgid ""
 msgstr ""
-"Project-Id-Version: Godot Engine editor interface\n"
+"Project-Id-Version: Phoenix Agentic Game Engine editor interface\n"
 "Report-Msgid-Bugs-To: https://github.com/godotengine/godot\n"
 "POT-Creation-Date: \n"
 "PO-Revision-Date: 2026-01-22 20:12+0000\n"
@@ -3734,7 +3734,7 @@ msgstr "%s 독을 엽니다."
 msgid "Focus on the %s dock."
 msgstr "%s 독을 포커스합니다."
 
-msgid "%s - Godot Engine"
+msgid "%s - Phoenix Agentic Game Engine"
 msgstr "%s - Godot 엔진"
 
 msgid "Move this dock right one tab."
@@ -6977,7 +6977,7 @@ msgstr "플래티넘 멤버"
 msgid "Gold Members"
 msgstr "골드 멤버"
 
-msgid "Thank you for choosing Godot Engine!"
+msgid "Thank you for choosing Phoenix Agentic Game Engine!"
 msgstr "Godot 엔진을 선택해주셔서 고맙습니다!"
 
 msgid "Name cannot be empty."
@@ -7030,7 +7030,7 @@ msgstr "기본 경로: %s"
 msgid "Folder name is valid."
 msgstr "폴더 이름이 올바릅니다."
 
-msgid "Godot Engine contributors"
+msgid "Phoenix Agentic Game Engine contributors"
 msgstr "Godot 엔진 기여자"
 
 msgid "Double-click to open in browser."
@@ -7052,7 +7052,7 @@ msgid "Third-party Licenses"
 msgstr "서드 파티 라이선스"
 
 msgid ""
-"Godot Engine relies on a number of third-party free and open source "
+"Phoenix Agentic Game Engine relies on a number of third-party free and open source "
 "libraries, all compatible with the terms of its MIT license. The following is "
 "an exhaustive list of all such third-party components with their respective "
 "copyright statements and license terms."

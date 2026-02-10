@@ -6,6 +6,7 @@ bounds:thirdparty/harfbuzz/src/OT/Layout/GPOS/../../../hb-ot-layout-gsubgpos.hh
 bounds:thirdparty/harfbuzz/src/OT/Layout/GSUB/LigatureSet.hh
 bounds:thirdparty/harfbuzz/src/OT/name/../../hb-open-type.hh
 bounds:thirdparty/icu4c/common/rbbi.cpp
+bounds:thirdparty/sdl/thread/SDL_thread.c
 enum:thirdparty/glslang/SPIRV/spirv.hpp
 float-divide-by-zero:thirdparty/amd-fsr2/ffx_fsr2.cpp
 float-divide-by-zero:thirdparty/misc/ok_color.h

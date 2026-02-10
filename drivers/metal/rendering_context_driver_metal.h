@@ -35,18 +35,42 @@
 #include "servers/rendering/rendering_context_driver.h"
 #include "servers/rendering/rendering_device_driver.h"
 
-#include <Metal/Metal.hpp>
-#include <QuartzCore/QuartzCore.hpp>
+#import <CoreGraphics/CGGeometry.h>
 
-namespace MTL3 {
+#ifdef __OBJC__
+#import "metal_objects.h"
+
+#import <Metal/Metal.h>
+#import <QuartzCore/CALayer.h>
+
+@class CAMetalLayer;
+@protocol CAMetalDrawable;
+#else
+typedef enum MTLPixelFormat {
+	MTLPixelFormatBGRA8Unorm = 80,
+} MTLPixelFormat;
 class MDCommandBuffer;
-}
+#endif
+
+class PixelFormats;
+
+#ifdef __OBJC__
+#define METAL_DEVICE id<MTLDevice>
+#define METAL_DRAWABLE id<MTLDrawable>
+#define METAL_LAYER CAMetalLayer *__unsafe_unretained
+#define METAL_RESIDENCY_SET id<MTLResidencySet>
+#else
+#define METAL_DEVICE void *
+#define METAL_DRAWABLE void *
+#define METAL_LAYER void *
+#define METAL_RESIDENCY_SET void *
+#endif
 
 class API_AVAILABLE(macos(11.0), ios(14.0), tvos(14.0)) RenderingContextDriverMetal : public RenderingContextDriver {
 	bool capture_available = false;
 
 protected:
-	MTL::Device *metal_device = nullptr;
+	METAL_DEVICE metal_device = nullptr;
 	Device device; // There is only one device on Apple Silicon.
 
 public:
@@ -71,12 +95,12 @@ public:
 
 	// Platform-specific data for the Windows embedded in this driver.
 	struct WindowPlatformData {
-		CA::MetalLayer *layer;
+		METAL_LAYER layer;
 	};
 
 	class API_AVAILABLE(macos(11.0), ios(14.0), tvos(14.0)) Surface {
 	protected:
-		MTL::Device *device;
+		METAL_DEVICE device;
 
 	public:
 		uint32_t width = 0;
@@ -85,21 +109,18 @@ public:
 		bool needs_resize = false;
 		double present_minimum_duration = 0.0;
 
-		Surface(MTL::Device *p_device) :
+		Surface(METAL_DEVICE p_device) :
 				device(p_device) {}
 		virtual ~Surface() = default;
 
-		MTL::PixelFormat get_pixel_format() const { return MTL::PixelFormatBGRA8Unorm; }
+		MTLPixelFormat get_pixel_format() const { return MTLPixelFormatBGRA8Unorm; }
 		virtual Error resize(uint32_t p_desired_framebuffer_count) = 0;
 		virtual RDD::FramebufferID acquire_next_frame_buffer() = 0;
-		virtual void present(MTL3::MDCommandBuffer *p_cmd_buffer) = 0;
-		virtual MTL::Drawable *next_drawable() = 0;
-		API_AVAILABLE(macos(26.0), ios(26.0))
-		virtual MTL::ResidencySet *get_residency_set() const = 0;
+		virtual void present(MDCommandBuffer *p_cmd_buffer) = 0;
 		void set_max_fps(int p_max_fps) { present_minimum_duration = p_max_fps ? 1.0 / p_max_fps : 0.0; }
 	};
 
-	MTL::Device *get_metal_device() const {
+	METAL_DEVICE get_metal_device() const {
 		return metal_device;
 	}
 

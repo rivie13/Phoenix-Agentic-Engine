@@ -854,7 +854,7 @@ void _import_text_editor_theme(const String &p_file) {
 	}
 	const String theme_name = p_file.get_file().get_basename();
 	if (EditorSettings::is_default_text_editor_theme(theme_name.to_lower())) {
-		EditorToaster::get_singleton()->popup_str(TTR("Importing theme failed. File name cannot be 'Default', 'Custom', or 'Godot 2'."), EditorToaster::SEVERITY_ERROR);
+		EditorToaster::get_singleton()->popup_str(TTR("Importing theme failed. File name cannot be 'Default', 'Custom', or 'Phoenix 2'."), EditorToaster::SEVERITY_ERROR);
 		return;
 	}
 
@@ -884,7 +884,7 @@ void _save_text_editor_theme_as(const String &p_file) {
 
 	const String theme_name = file.get_file().get_basename();
 	if (EditorSettings::is_default_text_editor_theme(theme_name.to_lower())) {
-		EditorToaster::get_singleton()->popup_str(TTR("Saving theme failed. File name cannot be 'Default', 'Custom', or 'Godot 2'."), EditorToaster::SEVERITY_ERROR);
+		EditorToaster::get_singleton()->popup_str(TTR("Saving theme failed. File name cannot be 'Default', 'Custom', or 'Phoenix 2'."), EditorToaster::SEVERITY_ERROR);
 		return;
 	}
 
@@ -3559,6 +3559,27 @@ void ScriptEditor::_help_search(const String &p_text) {
 	help_search_dialog->popup_dialog(p_text);
 }
 
+void ScriptEditor::_open_script_request(const String &p_path) {
+	Ref<Script> scr = ResourceLoader::load(p_path);
+	if (scr.is_valid()) {
+		script_editor->edit(scr, false);
+		return;
+	}
+
+	Ref<JSON> json = ResourceLoader::load(p_path);
+	if (json.is_valid()) {
+		script_editor->edit(json, false);
+		return;
+	}
+
+	Error err;
+	Ref<TextFile> text_file = script_editor->_load_text_file(p_path, &err);
+	if (text_file.is_valid()) {
+		script_editor->edit(text_file, false);
+		return;
+	}
+}
+
 void ScriptEditor::register_syntax_highlighter(const Ref<EditorSyntaxHighlighter> &p_syntax_highlighter) {
 	ERR_FAIL_COND(p_syntax_highlighter.is_null());
 
@@ -4059,7 +4080,7 @@ ScriptEditor::ScriptEditor(WindowWrapper *p_wrapper) {
 
 	disk_changed = memnew(ConfirmationDialog);
 	{
-		disk_changed->set_title(TTRC("Files have been modified outside Godot"));
+		disk_changed->set_title(TTRC("Files have been modified outside Phoenix Agentic Game Engine"));
 
 		VBoxContainer *vbc = memnew(VBoxContainer);
 		disk_changed->add_child(vbc);
@@ -4120,6 +4141,8 @@ ScriptEditor::ScriptEditor(WindowWrapper *p_wrapper) {
 	trim_final_newlines_on_save = EDITOR_GET("text_editor/behavior/files/trim_final_newlines_on_save");
 	convert_indent_on_save = EDITOR_GET("text_editor/behavior/files/convert_indent_on_save");
 
+	ScriptServer::edit_request_func = _open_script_request;
+
 	Ref<EditorJSONSyntaxHighlighter> json_syntax_highlighter;
 	json_syntax_highlighter.instantiate();
 	register_syntax_highlighter(json_syntax_highlighter);
@@ -4160,7 +4183,7 @@ void ScriptEditorPlugin::_window_visibility_changed(bool p_visible) {
 void ScriptEditorPlugin::_notification(int p_what) {
 	switch (p_what) {
 		case NOTIFICATION_TRANSLATION_CHANGED: {
-			window_wrapper->set_window_title(vformat(TTR("%s - Godot Engine"), TTR("Script Editor")));
+			window_wrapper->set_window_title(vformat(TTR("%s - Phoenix Agentic Game Engine"), TTR("Script Editor")));
 		} break;
 		case NOTIFICATION_ENTER_TREE: {
 			connect("main_screen_changed", callable_mp(this, &ScriptEditorPlugin::_save_last_editor));

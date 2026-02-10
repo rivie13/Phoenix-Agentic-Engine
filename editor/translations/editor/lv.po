@@ -1,5 +1,5 @@
-# Latvian translation of the Godot Engine editor interface.
-# Copyright (c) 2014-present Godot Engine contributors.
+# Latvian translation of the Phoenix Agentic Game Engine editor interface.
+# Copyright (c) 2014-present Phoenix Agentic Game Engine contributors.
 # Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur.
 # This file is distributed under the same license as the Godot source code.
 # Gustavs Porietis (pg829-) <porietisgustavs@gmail.com>, 2018.
@@ -18,7 +18,7 @@
 # "A Thousand Ships (she/her)" <over999ships@gmail.com>, 2025.
 msgid ""
 msgstr ""
-"Project-Id-Version: Godot Engine editor interface\n"
+"Project-Id-Version: Phoenix Agentic Game Engine editor interface\n"
 "Report-Msgid-Bugs-To: https://github.com/godotengine/godot\n"
 "POT-Creation-Date: \n"
 "PO-Revision-Date: 2025-12-10 05:35+0000\n"
@@ -2393,7 +2393,7 @@ msgstr "Zelta Sponsori"
 msgid "Silver Sponsors"
 msgstr "Sudraba Sponsors"
 
-msgid "Godot Engine contributors"
+msgid "Phoenix Agentic Game Engine contributors"
 msgstr "Godot Dzinēja ieguldītāji"
 
 msgid "Thanks from the Godot community!"
@@ -2409,7 +2409,7 @@ msgid "Third-party Licenses"
 msgstr "Trešās partijas Licences"
 
 msgid ""
-"Godot Engine relies on a number of third-party free and open source "
+"Phoenix Agentic Game Engine relies on a number of third-party free and open source "
 "libraries, all compatible with the terms of its MIT license. The following is "
 "an exhaustive list of all such third-party components with their respective "
 "copyright statements and license terms."

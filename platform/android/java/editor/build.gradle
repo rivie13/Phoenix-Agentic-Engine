@@ -1,4 +1,4 @@
-// Gradle build config for Godot Engine's Android port.
+// Gradle build config for Phoenix Agentic Game Engine's Android port.
 plugins {
     id 'com.android.application'
     id 'org.jetbrains.kotlin.android'
@@ -86,7 +86,7 @@ android {
 
         missingDimensionStrategy 'products', 'editor'
         manifestPlaceholders += [
-            editorAppName: "Godot Engine 4",
+            editorAppName: "Phoenix Agentic Game Engine 4",
             editorBuildSuffix: ""
         ]
 

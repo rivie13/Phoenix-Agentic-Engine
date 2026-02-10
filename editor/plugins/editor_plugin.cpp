@@ -99,6 +99,9 @@ void EditorPlugin::add_control_to_dock(DockSlot p_slot, Control *p_control, cons
 	legacy_docks[p_control] = dock;
 
 	EditorDockManager::get_singleton()->add_dock(dock);
+	if (p_control->has_meta("_phoenix_focus_dock") && bool(p_control->get_meta("_phoenix_focus_dock"))) {
+		EditorDockManager::get_singleton()->focus_dock(dock);
+	}
 }
 
 void EditorPlugin::remove_control_from_docks(Control *p_control) {

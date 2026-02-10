@@ -1,5 +1,5 @@
-# Japanese translation of the Godot Engine editor interface.
-# Copyright (c) 2014-present Godot Engine contributors.
+# Japanese translation of the Phoenix Agentic Game Engine editor interface.
+# Copyright (c) 2014-present Phoenix Agentic Game Engine contributors.
 # Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur.
 # This file is distributed under the same license as the Godot source code.
 # akirakido <achts.y@gmail.com>, 2016-2017, 2018, 2019.
@@ -94,7 +94,7 @@
 # Acotto <perc.fg.music@gmail.com>, 2025.
 msgid ""
 msgstr ""
-"Project-Id-Version: Godot Engine editor interface\n"
+"Project-Id-Version: Phoenix Agentic Game Engine editor interface\n"
 "Report-Msgid-Bugs-To: https://github.com/godotengine/godot\n"
 "POT-Creation-Date: \n"
 "PO-Revision-Date: 2026-01-15 02:11+0000\n"
@@ -3499,7 +3499,7 @@ msgstr "%sドックを開く。"
 msgid "Focus on the %s dock."
 msgstr "%sドックにフォーカスする。"
 
-msgid "%s - Godot Engine"
+msgid "%s - Phoenix Agentic Game Engine"
 msgstr "%s - Godot エンジン"
 
 msgid "Move this dock right one tab."
@@ -6577,7 +6577,7 @@ msgstr "プレミアムメンバー"
 msgid "Gold Members"
 msgstr "ゴールドメンバー"
 
-msgid "Thank you for choosing Godot Engine!"
+msgid "Thank you for choosing Phoenix Agentic Game Engine!"
 msgstr "Godotをご利用いただきありがとうございます！"
 
 msgid "Name cannot be empty."
@@ -6630,7 +6630,7 @@ msgstr "ベースパス: %s"
 msgid "Folder name is valid."
 msgstr "フォルダ名は有効です。"
 
-msgid "Godot Engine contributors"
+msgid "Phoenix Agentic Game Engine contributors"
 msgstr "Godot エンジンに貢献した人々"
 
 msgid "Double-click to open in browser."
@@ -6649,7 +6649,7 @@ msgid "Third-party Licenses"
 msgstr "サードパーティーライセンス"
 
 msgid ""
-"Godot Engine relies on a number of third-party free and open source "
+"Phoenix Agentic Game Engine relies on a number of third-party free and open source "
 "libraries, all compatible with the terms of its MIT license. The following is "
 "an exhaustive list of all such third-party components with their respective "
 "copyright statements and license terms."

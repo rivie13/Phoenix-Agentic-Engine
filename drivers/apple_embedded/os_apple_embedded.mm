@@ -51,7 +51,6 @@
 #import <UIKit/UIKit.h>
 #import <dlfcn.h>
 #include <sys/sysctl.h>
-#include <iterator>
 
 #if defined(RD_ENABLED)
 #include "servers/rendering/renderer_rd/renderer_compositor_rd.h"

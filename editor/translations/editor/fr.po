@@ -1,5 +1,5 @@
-# French translation of the Godot Engine editor interface.
-# Copyright (c) 2014-present Godot Engine contributors.
+# French translation of the Phoenix Agentic Game Engine editor interface.
+# Copyright (c) 2014-present Phoenix Agentic Game Engine contributors.
 # Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur.
 # This file is distributed under the same license as the Godot source code.
 # Antoine Carrier <ac.g392@gmail.com>, 2017-2018.
@@ -211,7 +211,7 @@
 # Axel Rousseau <axel584@gmail.com>, 2026.
 msgid ""
 msgstr ""
-"Project-Id-Version: Godot Engine editor interface\n"
+"Project-Id-Version: Phoenix Agentic Game Engine editor interface\n"
 "Report-Msgid-Bugs-To: https://github.com/godotengine/godot\n"
 "POT-Creation-Date: \n"
 "PO-Revision-Date: 2026-01-18 16:02+0000\n"
@@ -3920,8 +3920,8 @@ msgstr "Ouvrir le dock %s."
 msgid "Focus on the %s dock."
 msgstr "Focus sur le dock %s."
 
-msgid "%s - Godot Engine"
-msgstr "%s - Godot Engine"
+msgid "%s - Phoenix Agentic Game Engine"
+msgstr "%s - Phoenix Agentic Game Engine"
 
 msgid "Move this dock right one tab."
 msgstr "Déplacer cette barre d’outils d’un onglet vers la droite."
@@ -7255,8 +7255,8 @@ msgstr "Membres platine"
 msgid "Gold Members"
 msgstr "Membres or"
 
-msgid "Thank you for choosing Godot Engine!"
-msgstr "Merci d'avoir choisi Godot Engine !"
+msgid "Thank you for choosing Phoenix Agentic Game Engine!"
+msgstr "Merci d'avoir choisi Phoenix Agentic Game Engine !"
 
 msgid "Name cannot be empty."
 msgstr "Le nom ne peut pas être vide."
@@ -7309,8 +7309,8 @@ msgstr "Chemin de base : %s"
 msgid "Folder name is valid."
 msgstr "Le nom du dossier est valide."
 
-msgid "Godot Engine contributors"
-msgstr "Contributeurs de Godot Engine"
+msgid "Phoenix Agentic Game Engine contributors"
+msgstr "Contributeurs de Phoenix Agentic Game Engine"
 
 msgid "Double-click to open in browser."
 msgstr "Double cliquer pour ouvrir le navigateur."
@@ -7331,7 +7331,7 @@ msgid "Third-party Licenses"
 msgstr "Licences tierces"
 
 msgid ""
-"Godot Engine relies on a number of third-party free and open source "
+"Phoenix Agentic Game Engine relies on a number of third-party free and open source "
 "libraries, all compatible with the terms of its MIT license. The following is "
 "an exhaustive list of all such third-party components with their respective "
 "copyright statements and license terms."

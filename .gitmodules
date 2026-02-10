@@ -1,0 +1,3 @@
+[submodule "modules/ultimate_ai/external/pixelpen"]
+	path = modules/ultimate_ai/external/pixelpen
+	url = https://github.com/rivie13/pixelpen.git

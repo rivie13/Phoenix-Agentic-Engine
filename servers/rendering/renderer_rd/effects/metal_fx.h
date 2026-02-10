@@ -41,28 +41,32 @@
 #include "core/templates/paged_allocator.h"
 #include "servers/rendering/renderer_scene_render.h"
 
-namespace MTLFX {
-class SpatialScalerBase;
-class TemporalScalerBase;
-} //namespace MTLFX
+#ifdef __OBJC__
+@protocol MTLFXSpatialScaler;
+@protocol MTLFXTemporalScaler;
+#endif
 
 namespace RendererRD {
 
 struct MFXSpatialContext {
-	MTLFX::SpatialScalerBase *scaler = nullptr;
+#ifdef __OBJC__
+	id<MTLFXSpatialScaler> scaler = nullptr;
+#else
+	void *scaler = nullptr;
+#endif
 	MFXSpatialContext() = default;
 	~MFXSpatialContext();
 };
 
 class MFXSpatialEffect : public SpatialUpscaler {
 	struct CallbackArgs {
-		MFXSpatialEffect *owner = nullptr;
-		MTLFX::SpatialScalerBase *scaler = nullptr;
+		MFXSpatialEffect *owner;
 		RDD::TextureID src;
 		RDD::TextureID dst;
+		MFXSpatialContext ctx;
 
-		CallbackArgs(MFXSpatialEffect *p_owner, RDD::TextureID p_src, RDD::TextureID p_dst, const MFXSpatialContext &p_ctx) :
-				owner(p_owner), scaler(p_ctx.scaler), src(p_src), dst(p_dst) {}
+		CallbackArgs(MFXSpatialEffect *p_owner, RDD::TextureID p_src, RDD::TextureID p_dst, MFXSpatialContext p_ctx) :
+				owner(p_owner), src(p_src), dst(p_dst), ctx(p_ctx) {}
 
 		static void free(CallbackArgs **p_args) {
 			(*p_args)->owner->args_allocator.free(*p_args);
@@ -94,21 +98,25 @@ public:
 #ifdef METAL_MFXTEMPORAL_ENABLED
 
 struct MFXTemporalContext {
-	MTLFX::TemporalScalerBase *scaler = nullptr;
+#ifdef __OBJC__
+	id<MTLFXTemporalScaler> scaler = nullptr;
+#else
+	void *scaler = nullptr;
+#endif
 	MFXTemporalContext() = default;
 	~MFXTemporalContext();
 };
 
 class MFXTemporalEffect {
 	struct CallbackArgs {
-		MFXTemporalEffect *owner = nullptr;
-		MTLFX::TemporalScalerBase *scaler = nullptr;
+		MFXTemporalEffect *owner;
 		RDD::TextureID src;
 		RDD::TextureID depth;
 		RDD::TextureID motion;
 		RDD::TextureID exposure;
 		Vector2 jitter_offset;
 		RDD::TextureID dst;
+		MFXTemporalContext ctx;
 		bool reset = false;
 
 		CallbackArgs(
@@ -119,16 +127,16 @@ class MFXTemporalEffect {
 				RDD::TextureID p_exposure,
 				Vector2 p_jitter_offset,
 				RDD::TextureID p_dst,
-				const MFXTemporalContext &p_ctx,
+				MFXTemporalContext p_ctx,
 				bool p_reset) :
 				owner(p_owner),
-				scaler(p_ctx.scaler),
 				src(p_src),
 				depth(p_depth),
 				motion(p_motion),
 				exposure(p_exposure),
 				jitter_offset(p_jitter_offset),
 				dst(p_dst),
+				ctx(p_ctx),
 				reset(p_reset) {}
 
 		static void free(CallbackArgs **p_args) {

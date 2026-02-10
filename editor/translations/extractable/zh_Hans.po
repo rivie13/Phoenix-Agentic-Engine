@@ -1,10 +1,10 @@
-# Chinese (Simplified Han script) translation of the Godot Engine extractable strings.
-# Copyright (c) 2014-present Godot Engine contributors.
+# Chinese (Simplified Han script) translation of the Phoenix Agentic Game Engine extractable strings.
+# Copyright (c) 2014-present Phoenix Agentic Game Engine contributors.
 # Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur.
 # This file is distributed under the same license as the Godot source code.
 msgid ""
 msgstr ""
-"Project-Id-Version: Chinese (Simplified) (Godot Engine)\n"
+"Project-Id-Version: Chinese (Simplified) (Phoenix Agentic Game Engine)\n"
 "Report-Msgid-Bugs-To: https://github.com/godotengine/godot\n"
 "POT-Creation-Date: 2018-01-20 12:15+0200\n"
 "PO-Revision-Date: 2024-02-23 09:02+0000\n"

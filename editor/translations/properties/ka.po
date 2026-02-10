@@ -1,5 +1,5 @@
-# Georgian translation of the Godot Engine properties.
-# Copyright (c) 2014-present Godot Engine contributors.
+# Georgian translation of the Phoenix Agentic Game Engine properties.
+# Copyright (c) 2014-present Phoenix Agentic Game Engine contributors.
 # Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur.
 # This file is distributed under the same license as the Godot source code.
 # Giorgi Beriashvili <giorgi.beriashvili@outlook.com>, 2018.
@@ -9,7 +9,7 @@
 # Temuri Doghonadze <temuri.doghonadze@gmail.com>, 2023, 2024, 2025.
 msgid ""
 msgstr ""
-"Project-Id-Version: Godot Engine properties\n"
+"Project-Id-Version: Phoenix Agentic Game Engine properties\n"
 "Report-Msgid-Bugs-To: https://github.com/godotengine/godot\n"
 "POT-Creation-Date: \n"
 "PO-Revision-Date: 2025-10-30 13:39+0000\n"

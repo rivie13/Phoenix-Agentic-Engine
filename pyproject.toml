@@ -15,10 +15,8 @@ python_version = "3.8"
 [tool.ruff]
 extend-exclude = ["thirdparty"]
 extend-include = ["*SConstruct", "*SCsub"]
-target-version = "py38"
 line-length = 120
-preview = true
-fix = true
+target-version = "py38"
 
 [tool.ruff.lint]
 extend-select = [
@@ -67,6 +65,12 @@ skip = [
 	"core/string/locales.h",
 	"DONORS.md",
 	"editor/project_converter_3_to_4.cpp",
+	"editor/icons/GodotMonochrome.svg",
+	"editor/icons/Godot.svg",
+	"editor/icons/GodotFile.svg",
+	"editor/icons/Logo.svg",
+	"editor/icons/TitleBarLogo.svg",
+	"logo.svg",
 	"platform/android/java/lib/src/main/java/com/*",
 	"platform/web/package-lock.json",
 ]

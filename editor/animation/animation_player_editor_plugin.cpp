@@ -2473,6 +2473,9 @@ AnimationPlayerEditorPlugin::AnimationPlayerEditorPlugin() {
 }
 
 AnimationPlayerEditorPlugin::~AnimationPlayerEditorPlugin() {
+	if (dummy_player) {
+		memdelete(dummy_player);
+	}
 }
 
 // AnimationTrackKeyEditEditorPlugin

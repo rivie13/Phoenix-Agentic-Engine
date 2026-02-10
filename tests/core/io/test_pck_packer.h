@@ -86,19 +86,21 @@ TEST_CASE("[PCKPacker] Pack a PCK file with some files and directories") {
 			pck_packer.pck_start(output_pck_path) == OK,
 			"Starting a PCK file should return an OK error code.");
 
-	const String base_dir = OS::get_singleton()->get_executable_path().get_base_dir();
+	const String lf_path = TestUtils::get_data_path("line_endings_lf.test.txt");
+	const String crlf_path = TestUtils::get_data_path("line_endings_crlf.test.txt");
+	const String cr_path = TestUtils::get_data_path("line_endings_cr.test.txt");
 
 	CHECK_MESSAGE(
-			pck_packer.add_file("version.py", base_dir.path_join("../version.py"), "version.py") == OK,
+			pck_packer.add_file("version.txt", lf_path, "version.txt") == OK,
 			"Adding a file to the PCK should return an OK error code.");
 	CHECK_MESSAGE(
-			pck_packer.add_file("some/directories with spaces/to/create/icon.png", base_dir.path_join("../icon.png")) == OK,
+			pck_packer.add_file("some/directories with spaces/to/create/lf.txt", lf_path) == OK,
 			"Adding a file to a new subdirectory in the PCK should return an OK error code.");
 	CHECK_MESSAGE(
-			pck_packer.add_file("some/directories with spaces/to/create/icon.svg", base_dir.path_join("../icon.svg")) == OK,
+			pck_packer.add_file("some/directories with spaces/to/create/crlf.txt", crlf_path) == OK,
 			"Adding a file to an existing subdirectory in the PCK should return an OK error code.");
 	CHECK_MESSAGE(
-			pck_packer.add_file("some/directories with spaces/to/create/icon.png", base_dir.path_join("../logo.png")) == OK,
+			pck_packer.add_file("some/directories with spaces/to/create/lf.txt", cr_path) == OK,
 			"Overriding a non-flushed file to an existing subdirectory in the PCK should return an OK error code.");
 	CHECK_MESSAGE(
 			pck_packer.add_file_from_buffer("buffer/new.txt", String("Hello world!").to_utf8_buffer()) == OK,
@@ -113,10 +115,10 @@ TEST_CASE("[PCKPacker] Pack a PCK file with some files and directories") {
 			err == OK,
 			"The generated non-empty PCK file should be opened successfully.");
 	CHECK_MESSAGE(
-			f->get_length() >= 18000,
+			f->get_length() >= 400,
 			"The generated non-empty PCK file should be large enough to actually hold the contents specified above.");
 	CHECK_MESSAGE(
-			f->get_length() <= 27000,
+			f->get_length() <= 5000,
 			"The generated non-empty PCK file shouldn't be too large.");
 }
 } // namespace TestPCKPacker

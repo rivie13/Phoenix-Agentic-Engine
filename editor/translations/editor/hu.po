@@ -1,5 +1,5 @@
-# Hungarian translation of the Godot Engine editor interface.
-# Copyright (c) 2014-present Godot Engine contributors.
+# Hungarian translation of the Phoenix Agentic Game Engine editor interface.
+# Copyright (c) 2014-present Phoenix Agentic Game Engine contributors.
 # Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur.
 # This file is distributed under the same license as the Godot source code.
 # Árpád Horváth <horvatha4@googlemail.com>, 2018.
@@ -48,7 +48,7 @@
 # Tallyrald <tally.github@gmail.com>, 2026.
 msgid ""
 msgstr ""
-"Project-Id-Version: Godot Engine editor interface\n"
+"Project-Id-Version: Phoenix Agentic Game Engine editor interface\n"
 "Report-Msgid-Bugs-To: https://github.com/godotengine/godot\n"
 "POT-Creation-Date: \n"
 "PO-Revision-Date: 2026-01-23 09:49+0000\n"
@@ -2576,8 +2576,8 @@ msgstr "Ez a tag elavultként van megjelölve."
 msgid "This member is marked as experimental."
 msgstr "Ez a tag kísérletiként van megjelölve."
 
-msgid "%s - Godot Engine"
-msgstr "%s - Godot Engine"
+msgid "%s - Phoenix Agentic Game Engine"
+msgstr "%s - Phoenix Agentic Game Engine"
 
 msgid "This dock can't be closed."
 msgstr "Ezt a dokk nem zárható be."
@@ -4659,8 +4659,8 @@ msgstr "Gyémánt Tagok"
 msgid "Titanium Members"
 msgstr "Titánium Tagok"
 
-msgid "Thank you for choosing Godot Engine!"
-msgstr "Köszönjük, hogy a Godot Engine-t választotta!"
+msgid "Thank you for choosing Phoenix Agentic Game Engine!"
+msgstr "Köszönjük, hogy a Phoenix Agentic Game Engine-t választotta!"
 
 msgid "Using slashes in folder names will create subfolders recursively."
 msgstr ""
@@ -4673,8 +4673,8 @@ msgstr ""
 "Az útvonalban perjeleket használva a fájl almappában fog létrejönni, köztes "
 "mappákat is létrehozva, ha szükséges."
 
-msgid "Godot Engine contributors"
-msgstr "Godot Engine közreműködők"
+msgid "Phoenix Agentic Game Engine contributors"
+msgstr "Phoenix Agentic Game Engine közreműködők"
 
 msgid "Double-click to open in browser."
 msgstr "Dupla kattintással megnyitható a böngészőben."
@@ -4695,12 +4695,12 @@ msgid "Third-party Licenses"
 msgstr "Harmadik féltől származó licencek"
 
 msgid ""
-"Godot Engine relies on a number of third-party free and open source "
+"Phoenix Agentic Game Engine relies on a number of third-party free and open source "
 "libraries, all compatible with the terms of its MIT license. The following is "
 "an exhaustive list of all such third-party components with their respective "
 "copyright statements and license terms."
 msgstr ""
-"A Godot Engine több harmadik fél ingyenes és nyílt forráskódú könyvtáraira "
+"A Phoenix Agentic Game Engine több harmadik fél ingyenes és nyílt forráskódú könyvtáraira "
 "támaszkodik, amelyek mindegyike kompatibilis az MIT licenc feltételeivel. Az "
 "alábbiakban felsoroljuk az összes ilyen harmadik fél összetevőjét, a "
 "vonatkozó szerzői jogi nyilatkozatokkal és licencfeltételekkel együtt."

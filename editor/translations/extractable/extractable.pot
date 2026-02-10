@@ -1,5 +1,5 @@
-# LANGUAGE translation of the Godot Engine extractable strings.
-# Copyright (c) 2014-present Godot Engine contributors (see AUTHORS.md).
+# LANGUAGE translation of the Phoenix Agentic Game Engine extractable strings.
+# Copyright (c) 2014-present Phoenix Agentic Game Engine contributors (see AUTHORS.md).
 # Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur.
 # This file is distributed under the same license as the Godot source code.
 #
@@ -8,7 +8,7 @@
 #, fuzzy
 msgid ""
 msgstr ""
-"Project-Id-Version: Godot Engine extractable strings\n"
+"Project-Id-Version: Phoenix Agentic Game Engine extractable strings\n"
 "Report-Msgid-Bugs-To: https://github.com/godotengine/godot\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"

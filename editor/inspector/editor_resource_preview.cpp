@@ -273,7 +273,9 @@ void EditorResourcePreview::_generate_preview(Ref<ImageTexture> &r_texture, Ref<
 }
 
 const Dictionary EditorResourcePreview::get_preview_metadata(const String &p_path) const {
-	ERR_FAIL_COND_V(!cache.has(p_path), Dictionary());
+	if (!cache.has(p_path)) {
+		return Dictionary();
+	}
 	return cache[p_path].preview_metadata;
 }
 
