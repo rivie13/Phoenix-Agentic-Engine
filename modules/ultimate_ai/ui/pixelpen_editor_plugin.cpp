@@ -58,7 +58,7 @@ const char *const PIXELPEN_MENU_OPEN_WINDOW = "PixelPen: Open Window";
 const char *const PIXELPEN_LAYER_LIST_PATH = "Background/VBoxContainer/MarginContainer/Layout/LayerPanel/VBoxContainer/Layers/MarginContainer/ScrollContainer/Layers";
 const uint64_t PIXELPEN_CONTEXT_SYNC_INTERVAL_MSEC = 350;
 const char *const PIXELPEN_SYNC_MARKER_FILE = ".phoenix_sync_revision";
-const char *const PIXELPEN_SYNC_REVISION = "2026-02-09-pixelpen-addon-classname-fix";
+const char *const PIXELPEN_SYNC_REVISION = "2026-02-10-pixelpen-addon-preload-order-fix";
 } //namespace
 
 String PixelPenEditorPlugin::get_plugin_name() const {
@@ -91,6 +91,13 @@ void PixelPenEditorPlugin::_notification(int p_what) {
 			set_process(true);
 		} break;
 		case NOTIFICATION_PROCESS: {
+			if (open_window_pending) {
+				EditorFileSystem *efs = EditorFileSystem::get_singleton();
+				if (!efs || !efs->is_scanning()) {
+					open_window_pending = false;
+					_open_window();
+				}
+			}
 			_sync_context_from_window();
 		} break;
 		case NOTIFICATION_EXIT_TREE: {
@@ -111,6 +118,7 @@ void PixelPenEditorPlugin::_notification(int p_what) {
 				GDExtensionManager::get_singleton()->unload_extension(PIXELPEN_EXTENSION_PATH);
 				extension_loaded = false;
 			}
+			open_window_pending = false;
 			preloaded_scripts.clear();
 			class_scripts_preloaded = false;
 			set_process(false);
@@ -131,18 +139,34 @@ void PixelPenEditorPlugin::make_visible(bool p_visible) {
 }
 
 void PixelPenEditorPlugin::_open_window() {
+	EditorFileSystem *efs = EditorFileSystem::get_singleton();
+	if (efs && efs->is_scanning()) {
+		open_window_pending = true;
+		return;
+	}
+	open_window_pending = false;
+
 	if (!_ensure_addon_installed()) {
 		return;
 	}
+
+	efs = EditorFileSystem::get_singleton();
+	if (efs && efs->is_scanning()) {
+		open_window_pending = true;
+		return;
+	}
+
 	GDExtensionManager::LoadStatus status = GDExtensionManager::get_singleton()->load_extension(PIXELPEN_EXTENSION_PATH);
-	if (status == GDExtensionManager::LOAD_STATUS_FAILED) {
+	if (status != GDExtensionManager::LOAD_STATUS_OK && status != GDExtensionManager::LOAD_STATUS_ALREADY_LOADED) {
 		ERR_PRINT("PixelPen extension failed to load. Build PixelPen binaries in modules/ultimate_ai/external/pixelpen first.");
 		return;
 	}
-	if (status == GDExtensionManager::LOAD_STATUS_OK || status == GDExtensionManager::LOAD_STATUS_ALREADY_LOADED) {
-		extension_loaded = true;
-	}
+	extension_loaded = true;
 	_preload_class_scripts();
+	if (!class_scripts_preloaded) {
+		open_window_pending = true;
+		return;
+	}
 
 	if (window_instance) {
 		window_instance->show();
@@ -344,36 +368,55 @@ void PixelPenEditorPlugin::_sync_context_from_window() {
 	UltimateAssistantPanel::broadcast_pixelpen_context(snapshot, layers);
 }
 
-void PixelPenEditorPlugin::_preload_script(const char *p_path) {
+bool PixelPenEditorPlugin::_preload_script(const char *p_path) {
 	Ref<Resource> res = ResourceLoader::load(p_path);
 	if (res.is_valid()) {
 		preloaded_scripts.push_back(res);
-		return;
+		return true;
 	}
 	ERR_PRINT(vformat("PixelPen class preload failed: %s", p_path));
+	return false;
 }
 
 void PixelPenEditorPlugin::_preload_class_scripts() {
 	if (class_scripts_preloaded) {
 		return;
 	}
-	class_scripts_preloaded = true;
+	preloaded_scripts.clear();
 
-	_preload_script("res://addons/net.yarvis.pixel_pen/classes/pixelpen_state.gd");
-	_preload_script("res://addons/net.yarvis.pixel_pen/classes/pixelpen.gd");
-	_preload_script("res://addons/net.yarvis.pixel_pen/classes/pixelpen_enum.gd");
-	_preload_script("res://addons/net.yarvis.pixel_pen/classes/pixel_pen_project.gd");
-	_preload_script("res://addons/net.yarvis.pixel_pen/classes/theme_config.gd");
-	_preload_script("res://addons/net.yarvis.pixel_pen/classes/undo_redo_manager.gd");
-	_preload_script("res://addons/net.yarvis.pixel_pen/classes/project_packer.gd");
-	_preload_script("res://addons/net.yarvis.pixel_pen/classes/mask_selection.gd");
-	_preload_script("res://addons/net.yarvis.pixel_pen/classes/animation_cell.gd");
-	_preload_script("res://addons/net.yarvis.pixel_pen/classes/frame.gd");
-	_preload_script("res://addons/net.yarvis.pixel_pen/classes/indexed_color_image.gd");
-	_preload_script("res://addons/net.yarvis.pixel_pen/classes/indexed_palette.gd");
-	_preload_script("res://addons/net.yarvis.pixel_pen/classes/user_config.gd");
-	_preload_script("res://addons/net.yarvis.pixel_pen/ui/layout_split/branch.gd");
-	_preload_script("res://addons/net.yarvis.pixel_pen/ui/layout_split/data_branch.gd");
+	const char *const scripts[] = {
+		"res://addons/net.yarvis.pixel_pen/classes/pixelpen_enum.gd",
+		"res://addons/net.yarvis.pixel_pen/classes/editor_shorcut.gd",
+		"res://addons/net.yarvis.pixel_pen/classes/mask_selection.gd",
+		"res://addons/net.yarvis.pixel_pen/classes/undo_redo_manager.gd",
+		"res://addons/net.yarvis.pixel_pen/classes/indexed_palette.gd",
+		"res://addons/net.yarvis.pixel_pen/classes/indexed_color_image.gd",
+		"res://addons/net.yarvis.pixel_pen/classes/frame.gd",
+		"res://addons/net.yarvis.pixel_pen/classes/animation_cell.gd",
+		"res://addons/net.yarvis.pixel_pen/classes/pixel_pen_project.gd",
+		"res://addons/net.yarvis.pixel_pen/classes/project_packer.gd",
+		"res://addons/net.yarvis.pixel_pen/classes/user_config.gd",
+		"res://addons/net.yarvis.pixel_pen/classes/pixelpen_state.gd",
+		"res://addons/net.yarvis.pixel_pen/classes/pixelpen.gd",
+		"res://addons/net.yarvis.pixel_pen/classes/theme_config.gd",
+		"res://addons/net.yarvis.pixel_pen/ui/layout_split/branch.gd",
+		"res://addons/net.yarvis.pixel_pen/ui/layout_split/data_branch.gd",
+		"res://addons/net.yarvis.pixel_pen/ui/layout_split/layout_split.gd",
+		"res://addons/net.yarvis.pixel_pen/ui/tree_properties/tree_row.gd",
+		"res://addons/net.yarvis.pixel_pen/ui/tree_properties/toggle_button.gd",
+		"res://addons/net.yarvis.pixel_pen/ui/tree_properties/tree_properties.gd",
+	};
+
+	bool all_loaded = true;
+	for (uint32_t i = 0; i < sizeof(scripts) / sizeof(scripts[0]); i++) {
+		all_loaded = _preload_script(scripts[i]) && all_loaded;
+	}
+
+	class_scripts_preloaded = all_loaded;
+	if (!class_scripts_preloaded) {
+		preloaded_scripts.clear();
+		ERR_PRINT("PixelPen class preload incomplete, will retry once filesystem scanning finishes.");
+	}
 }
 
 void PixelPenEditorPlugin::_on_window_exited() {
@@ -401,6 +444,7 @@ bool PixelPenEditorPlugin::_ensure_addon_installed() {
 	const String dst_marker = dst_path.path_join(PIXELPEN_SYNC_MARKER_FILE);
 	String marker_revision;
 	uint64_t marker_mtime = 0;
+	bool did_copy = false;
 	const bool has_marker = _read_sync_marker(dst_marker, marker_revision, marker_mtime);
 	const String src_path = _find_source_addon_path();
 	if (src_path.is_empty()) {
@@ -425,13 +469,22 @@ bool PixelPenEditorPlugin::_ensure_addon_installed() {
 		ERR_PRINT("PixelPen addon copy failed.");
 		return false;
 	}
+	did_copy = true;
 
 	EditorFileSystem *efs = EditorFileSystem::get_singleton();
 	if (efs) {
 		efs->scan_changes();
 	}
 
+	preloaded_scripts.clear();
+	class_scripts_preloaded = false;
+
 	_write_sync_marker(dst_marker, PIXELPEN_SYNC_REVISION, src_mtime);
+
+	if (did_copy) {
+		open_window_pending = true;
+		return false;
+	}
 
 	return FileAccess::exists(dst_plugin_cfg);
 }
