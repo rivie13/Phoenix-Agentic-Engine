@@ -1,5 +1,5 @@
-# Polish translation of the Godot Engine properties.
-# Copyright (c) 2014-present Godot Engine contributors.
+# Polish translation of the Phoenix Agentic Game Engine properties.
+# Copyright (c) 2014-present Phoenix Agentic Game Engine contributors.
 # Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur.
 # This file is distributed under the same license as the Godot source code.
 # 8-bit Pixel <dawdejw@gmail.com>, 2016, 2023.
@@ -59,7 +59,7 @@
 # Katarzyna Twardowska <katarina.twardowska@gmail.com>, 2022.
 # Mateusz Zdrzałek <matjozohd@gmail.com>, 2022.
 # Konrad <kobe-interactive@protonmail.com>, 2022.
-# Pixel Zone - Godot Engine Tutorials <karoltomaszewskimusic@gmail.com>, 2022.
+# Pixel Zone - Phoenix Agentic Game Engine Tutorials <karoltomaszewskimusic@gmail.com>, 2022.
 # DK0492 <doriankaczmarek28@gmail.com>, 2022, 2023.
 # Dawid Skubij <davidsd@tlen.pl>, 2022.
 # kingofsponges <q.patex.q@gmail.com>, 2022, 2023.
@@ -102,7 +102,7 @@
 # Pcniado <bratuspro2137@gmail.com>, 2025.
 msgid ""
 msgstr ""
-"Project-Id-Version: Godot Engine properties\n"
+"Project-Id-Version: Phoenix Agentic Game Engine properties\n"
 "Report-Msgid-Bugs-To: https://github.com/godotengine/godot\n"
 "POT-Creation-Date: \n"
 "PO-Revision-Date: 2026-01-20 09:04+0000\n"

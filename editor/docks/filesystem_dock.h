@@ -385,7 +385,6 @@ private:
 
 public:
 	static FileSystemDock *get_singleton() { return singleton; }
-	static DependencyEditorOwners *get_owners_dialog() { return singleton->owners_editor; }
 
 protected:
 	void _notification(int p_what);

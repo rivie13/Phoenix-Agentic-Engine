@@ -1,0 +1,48 @@
+name: Upstream Sync
+
+on:
+  workflow_dispatch:
+    inputs:
+      upstream_branch:
+        description: "Upstream branch to mirror"
+        required: true
+        default: "master"
+      sync_branch:
+        description: "Fork branch to update"
+        required: true
+        default: "upstream-sync"
+  schedule:
+    - cron: "0 6 * * 1" # Weekly on Monday
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    env:
+      UPSTREAM_BRANCH: ${{ inputs.upstream_branch || 'master' }}
+      SYNC_BRANCH: ${{ inputs.sync_branch || 'upstream-sync' }}
+    steps:
+      - name: Checkout fork
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Add upstream remote
+        run: |
+          git remote add upstream https://github.com/godotengine/godot.git
+          git remote -v
+
+      - name: Fetch upstream
+        run: |
+          git fetch upstream
+
+      - name: Update sync branch
+        run: |
+          git checkout -B "${SYNC_BRANCH}"
+          git reset --hard "upstream/${UPSTREAM_BRANCH}"
+
+      - name: Push sync branch
+        run: |
+          git push origin "${SYNC_BRANCH}" --force

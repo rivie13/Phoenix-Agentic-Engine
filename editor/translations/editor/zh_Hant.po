@@ -1,5 +1,5 @@
-# Chinese (Traditional Han script) translation of the Godot Engine editor interface.
-# Copyright (c) 2014-present Godot Engine contributors.
+# Chinese (Traditional Han script) translation of the Phoenix Agentic Game Engine editor interface.
+# Copyright (c) 2014-present Phoenix Agentic Game Engine contributors.
 # Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur.
 # This file is distributed under the same license as the Godot source code.
 # Allen H <w84miracle@gmail.com>, 2017.
@@ -71,7 +71,7 @@
 # Wei-Fu Chen <410477jimmy@gmail.com>, 2026.
 msgid ""
 msgstr ""
-"Project-Id-Version: Godot Engine editor interface\n"
+"Project-Id-Version: Phoenix Agentic Game Engine editor interface\n"
 "Report-Msgid-Bugs-To: https://github.com/godotengine/godot\n"
 "POT-Creation-Date: \n"
 "PO-Revision-Date: 2026-01-25 00:39+0000\n"
@@ -3503,7 +3503,7 @@ msgstr "開啟 %s 面板。"
 msgid "Focus on the %s dock."
 msgstr "將焦點移到「%s」停靠視窗。"
 
-msgid "%s - Godot Engine"
+msgid "%s - Phoenix Agentic Game Engine"
 msgstr "%s - Godot 引擎"
 
 msgid "Move this dock right one tab."
@@ -6436,8 +6436,8 @@ msgstr "白金級贊助"
 msgid "Gold Members"
 msgstr "黃金級贊助"
 
-msgid "Thank you for choosing Godot Engine!"
-msgstr "感謝你選擇 Godot Engine！"
+msgid "Thank you for choosing Phoenix Agentic Game Engine!"
+msgstr "感謝你選擇 Phoenix Agentic Game Engine！"
 
 msgid "Name cannot be empty."
 msgstr "名稱不能為空。"
@@ -6486,8 +6486,8 @@ msgstr "基礎路徑：%s"
 msgid "Folder name is valid."
 msgstr "資料夾名稱有效。"
 
-msgid "Godot Engine contributors"
-msgstr "Godot Engine 貢獻者"
+msgid "Phoenix Agentic Game Engine contributors"
+msgstr "Phoenix Agentic Game Engine 貢獻者"
 
 msgid "Double-click to open in browser."
 msgstr "雙擊以在瀏覽器中開啟。"
@@ -6505,7 +6505,7 @@ msgid "Third-party Licenses"
 msgstr "第三方授權條款"
 
 msgid ""
-"Godot Engine relies on a number of third-party free and open source "
+"Phoenix Agentic Game Engine relies on a number of third-party free and open source "
 "libraries, all compatible with the terms of its MIT license. The following is "
 "an exhaustive list of all such third-party components with their respective "
 "copyright statements and license terms."

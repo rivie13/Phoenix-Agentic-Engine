@@ -266,7 +266,7 @@ def detect_modules(search_path, recursive=False):
         version_path = os.path.join(path, "version.py")
         if os.path.exists(version_path):
             with open(version_path, "r", encoding="utf-8") as f:
-                if 'short_name = "godot"' in f.read():
+                if 'short_name = "phoenix_agentic"' in f.read():
                     return True
         return False
 
@@ -673,8 +673,7 @@ def is_apple_clang(env):
         return False
     try:
         version = (
-            subprocess
-            .check_output(shlex.split(env.subst(env["CXX"]), posix=False) + ["--version"])
+            subprocess.check_output(shlex.split(env.subst(env["CXX"]), posix=False) + ["--version"])
             .strip()
             .decode("utf-8")
         )
@@ -1522,11 +1521,13 @@ def generate_copyright_header(filename: str) -> str:
 /*  %s*/
 /**************************************************************************/
 /*                         This file is part of:                          */
-/*                             GODOT ENGINE                               */
-/*                        https://godotengine.org                         */
+/*                     PHOENIX AGENTIC GAME ENGINE                        */
+/*                     Based on the Godot Engine                          */
+/*                       https://godotengine.org                         */
 /**************************************************************************/
 /* Copyright (c) 2014-present Godot Engine contributors (see AUTHORS.md). */
 /* Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur.                  */
+/* Copyright (c) 2026-present Phoenix Agentic Game Engine contributors (see AUTHORS.md). */
 /*                                                                        */
 /* Permission is hereby granted, free of charge, to any person obtaining  */
 /* a copy of this software and associated documentation files (the        */

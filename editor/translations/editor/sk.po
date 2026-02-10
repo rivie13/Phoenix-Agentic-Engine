@@ -1,5 +1,5 @@
-# Slovak translation of the Godot Engine editor interface.
-# Copyright (c) 2014-present Godot Engine contributors.
+# Slovak translation of the Phoenix Agentic Game Engine editor interface.
+# Copyright (c) 2014-present Phoenix Agentic Game Engine contributors.
 # Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur.
 # This file is distributed under the same license as the Godot source code.
 # J08nY <johnenter@gmail.com>, 2016.
@@ -28,7 +28,7 @@
 # Martin Sinansky <martin.sinansky@gmail.com>, 2026.
 msgid ""
 msgstr ""
-"Project-Id-Version: Godot Engine editor interface\n"
+"Project-Id-Version: Phoenix Agentic Game Engine editor interface\n"
 "Report-Msgid-Bugs-To: https://github.com/godotengine/godot\n"
 "POT-Creation-Date: \n"
 "PO-Revision-Date: 2026-01-18 16:02+0000\n"
@@ -2534,8 +2534,8 @@ msgstr "Tento člen je označený ako zastaraný."
 msgid "This member is marked as experimental."
 msgstr "Tento člen je označený ako experimentálny."
 
-msgid "%s - Godot Engine"
-msgstr "%s - Godot Engine"
+msgid "%s - Phoenix Agentic Game Engine"
+msgstr "%s - Phoenix Agentic Game Engine"
 
 msgid "Dock Position"
 msgstr "Pozícia Dock-u"
@@ -3820,8 +3820,8 @@ msgstr "Použitie lomiek v názvoch priečinkov vytvorí podpriečinky rekurzív
 msgid "Folder name is valid."
 msgstr "Názov priečinku je platný."
 
-msgid "Godot Engine contributors"
-msgstr "Godot Engine prispievatelia"
+msgid "Phoenix Agentic Game Engine contributors"
+msgstr "Phoenix Agentic Game Engine prispievatelia"
 
 msgid "Thanks from the Godot community!"
 msgstr "Vďaka z Godot komunity!"
@@ -3836,12 +3836,12 @@ msgid "Third-party Licenses"
 msgstr "Thirdparty Licencie"
 
 msgid ""
-"Godot Engine relies on a number of third-party free and open source "
+"Phoenix Agentic Game Engine relies on a number of third-party free and open source "
 "libraries, all compatible with the terms of its MIT license. The following is "
 "an exhaustive list of all such third-party components with their respective "
 "copyright statements and license terms."
 msgstr ""
-"Godot Engine sa spolieha na množstvo bezplatných a otvorených knižníc tretích "
+"Phoenix Agentic Game Engine sa spolieha na množstvo bezplatných a otvorených knižníc tretích "
 "strán, ktoré sú kompatibilné s podmienkami licencie MIT. Nasleduje "
 "vyčerpávajúci zoznam všetkých takýchto komponentov tretích strán s ich "
 "príslušnými prehláseniami o autorských právach a licenčnými podmienkami."

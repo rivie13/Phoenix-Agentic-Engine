@@ -1,5 +1,5 @@
-# Persian translation of the Godot Engine editor interface.
-# Copyright (c) 2014-present Godot Engine contributors.
+# Persian translation of the Phoenix Agentic Game Engine editor interface.
+# Copyright (c) 2014-present Phoenix Agentic Game Engine contributors.
 # Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur.
 # This file is distributed under the same license as the Godot source code.
 # alabd14313 <alabd14313@yahoo.com>, 2016.
@@ -63,7 +63,7 @@
 # Mazdak Parnian <mazdak.parniandg@gmail.com>, 2025.
 msgid ""
 msgstr ""
-"Project-Id-Version: Godot Engine editor interface\n"
+"Project-Id-Version: Phoenix Agentic Game Engine editor interface\n"
 "Report-Msgid-Bugs-To: https://github.com/godotengine/godot\n"
 "POT-Creation-Date: \n"
 "PO-Revision-Date: 2025-12-10 16:35+0000\n"
@@ -3443,7 +3443,7 @@ msgstr "گشودن لنگرگاه %s."
 msgid "Focus on the %s dock."
 msgstr "تمرکز روی لنگرگاه %s."
 
-msgid "%s - Godot Engine"
+msgid "%s - Phoenix Agentic Game Engine"
 msgstr "%s - موتور گودوت"
 
 msgid "Move this dock right one tab."
@@ -6498,7 +6498,7 @@ msgstr "اعضای پلاتینیومی"
 msgid "Gold Members"
 msgstr "اعضای طلایی"
 
-msgid "Thank you for choosing Godot Engine!"
+msgid "Thank you for choosing Phoenix Agentic Game Engine!"
 msgstr "از ما متشکرم برای انتخواب کردن موتور گودوت!"
 
 msgid "Name cannot be empty."
@@ -6551,7 +6551,7 @@ msgstr "مسیر پایه: %s"
 msgid "Folder name is valid."
 msgstr "نام پوشه معتبر است."
 
-msgid "Godot Engine contributors"
+msgid "Phoenix Agentic Game Engine contributors"
 msgstr "مشارکت‌کنندگان موتور گودوت"
 
 msgid "Double-click to open in browser."
@@ -6570,7 +6570,7 @@ msgid "Third-party Licenses"
 msgstr "پروانه‌های شخص ثالث"
 
 msgid ""
-"Godot Engine relies on a number of third-party free and open source "
+"Phoenix Agentic Game Engine relies on a number of third-party free and open source "
 "libraries, all compatible with the terms of its MIT license. The following is "
 "an exhaustive list of all such third-party components with their respective "
 "copyright statements and license terms."

@@ -43,12 +43,18 @@
 #include <SDL3/SDL_iostream.h>
 #include <SDL3/SDL_joystick.h>
 
+JoypadSDL *JoypadSDL::singleton = nullptr;
+
 // Macro to skip the SDL joystick event handling if the device is an SDL gamepad, because
 // there are separate events for SDL gamepads
-#define SKIP_EVENT_FOR_GAMEPAD \
+#define SKIP_EVENT_FOR_GAMEPAD                    \
 	if (SDL_IsGamepad(sdl_event.jdevice.which)) { \
-		continue; \
+		continue;                                 \
 	}
+
+JoypadSDL::JoypadSDL() {
+	singleton = this;
+}
 
 JoypadSDL::~JoypadSDL() {
 	// Process any remaining input events
@@ -59,6 +65,11 @@ JoypadSDL::~JoypadSDL() {
 		}
 	}
 	SDL_Quit();
+	singleton = nullptr;
+}
+
+JoypadSDL *JoypadSDL::get_singleton() {
+	return singleton;
 }
 
 Error JoypadSDL::initialize() {

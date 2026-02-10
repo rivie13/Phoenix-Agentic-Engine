@@ -1,0 +1,72 @@
+name: Build Phoenix Agentic Engine
+
+on:
+  push:
+    branches: [main, 'feature/**']
+  pull_request:
+    branches: [main]
+
+env:
+  SCONS_CACHE_PATH: ${{ github.workspace }}/.scons_cache/
+  SCONS_CACHE_NAME: windows-editor
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Restore SCons cache
+        uses: ./.github/actions/godot-cache-restore
+        with:
+          cache-name: ${{ env.SCONS_CACHE_NAME }}
+          scons-cache: ${{ env.SCONS_CACHE_PATH }}
+        continue-on-error: true
+
+      - name: Restore build artifacts cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            bin/obj
+            bin/.sconsign.dblite
+            bin/.sconsign64.dblite
+            .sconsign.dblite
+          key: ${{ env.SCONS_CACHE_NAME }}-artifacts|${{ github.ref_name }}|${{ github.sha }}
+          restore-keys: |
+            ${{ env.SCONS_CACHE_NAME }}-artifacts|${{ github.ref_name }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      - name: Install SCons
+        run: pip install scons
+
+      - name: Build Editor
+        run: scons platform=windows target=editor module_ultimate_ai_enabled=yes d3d12=no cache_path=${{ env.SCONS_CACHE_PATH }} redirect_build_objects=yes
+
+      - name: Save SCons cache
+        uses: ./.github/actions/godot-cache-save
+        with:
+          cache-name: ${{ env.SCONS_CACHE_NAME }}
+          scons-cache: ${{ env.SCONS_CACHE_PATH }}
+        continue-on-error: true
+
+      - name: Save build artifacts cache
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            bin/obj
+            bin/.sconsign.dblite
+            bin/.sconsign64.dblite
+            .sconsign.dblite
+          key: ${{ env.SCONS_CACHE_NAME }}-artifacts|${{ github.ref_name }}|${{ github.run_id }}|${{ github.run_attempt }}
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: phoenix-agentic-engine-windows
+          path: bin/phoenix_agentic.windows.editor.x86_64.exe

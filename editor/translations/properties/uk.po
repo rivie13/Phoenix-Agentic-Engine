@@ -1,5 +1,5 @@
-# Ukrainian translation of the Godot Engine properties.
-# Copyright (c) 2014-present Godot Engine contributors.
+# Ukrainian translation of the Phoenix Agentic Game Engine properties.
+# Copyright (c) 2014-present Phoenix Agentic Game Engine contributors.
 # Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur.
 # This file is distributed under the same license as the Godot source code.
 # Aleksandr <XpycT.TOP@gmail.com>, 2017.
@@ -41,7 +41,7 @@
 # Максим Горпиніч <gorpinicmaksim0@gmail.com>, 2025, 2026.
 msgid ""
 msgstr ""
-"Project-Id-Version: Ukrainian (Godot Engine)\n"
+"Project-Id-Version: Ukrainian (Phoenix Agentic Game Engine)\n"
 "Report-Msgid-Bugs-To: https://github.com/godotengine/godot\n"
 "POT-Creation-Date: \n"
 "PO-Revision-Date: 2026-01-20 09:04+0000\n"

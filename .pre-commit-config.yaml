@@ -41,14 +41,13 @@ repos:
         stages: [manual] # Not automatically triggered, invoked via `pre-commit run --hook-stage manual clang-tidy`
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.15.0
+    rev: v0.14.7
     hooks:
       - id: ruff-check
-        args: [--color=always]
+        args: [--fix]
         files: (\.py|SConstruct|SCsub)$
         types_or: [text]
       - id: ruff-format
-        args: [--color=always]
         files: (\.py|SConstruct|SCsub)$
         types_or: [text]
 
@@ -150,6 +149,12 @@ repos:
         files: \.svg$
         args: [--quiet, --config, misc/utility/svgo.config.mjs]
         additional_dependencies: [svgo@3.3.2]
+
+      - id: check-svg-integrity
+        name: check-svg-integrity
+        language: python
+        entry: python misc/scripts/check_svg_integrity.py
+        files: \.svg$
 
       - id: copyright-headers
         name: copyright-headers

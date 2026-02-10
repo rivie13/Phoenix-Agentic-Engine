@@ -1,5 +1,5 @@
-# Chinese (Simplified Han script) translation of the Godot Engine editor interface.
-# Copyright (c) 2014-present Godot Engine contributors.
+# Chinese (Simplified Han script) translation of the Phoenix Agentic Game Engine editor interface.
+# Copyright (c) 2014-present Phoenix Agentic Game Engine contributors.
 # Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur.
 # This file is distributed under the same license as the Godot source code.
 # 360119124 <360119124@qq.com>, 2018.
@@ -115,7 +115,7 @@
 # Owen Wang <owenwangwyx@gmail.com>, 2026.
 msgid ""
 msgstr ""
-"Project-Id-Version: Chinese (Simplified) (Godot Engine)\n"
+"Project-Id-Version: Chinese (Simplified) (Phoenix Agentic Game Engine)\n"
 "Report-Msgid-Bugs-To: https://github.com/godotengine/godot\n"
 "POT-Creation-Date: 2018-01-20 12:15+0200\n"
 "PO-Revision-Date: 2026-01-24 01:46+0000\n"
@@ -3717,7 +3717,7 @@ msgstr "打开 %s 面板。"
 msgid "Focus on the %s dock."
 msgstr "聚焦 %s 面板。"
 
-msgid "%s - Godot Engine"
+msgid "%s - Phoenix Agentic Game Engine"
 msgstr "%s - Godot 引擎"
 
 msgid "Move this dock right one tab."
@@ -6850,7 +6850,7 @@ msgstr "白金会员"
 msgid "Gold Members"
 msgstr "黄金会员"
 
-msgid "Thank you for choosing Godot Engine!"
+msgid "Thank you for choosing Phoenix Agentic Game Engine!"
 msgstr "感谢选择 Godot 引擎！"
 
 msgid "Name cannot be empty."
@@ -6900,8 +6900,8 @@ msgstr "基础路径：%s"
 msgid "Folder name is valid."
 msgstr "文件夹名称有效。"
 
-msgid "Godot Engine contributors"
-msgstr "Godot Engine 贡献者"
+msgid "Phoenix Agentic Game Engine contributors"
+msgstr "Phoenix Agentic Game Engine 贡献者"
 
 msgid "Double-click to open in browser."
 msgstr "双击在浏览器中打开。"
@@ -6922,7 +6922,7 @@ msgid "Third-party Licenses"
 msgstr "第三方许可证"
 
 msgid ""
-"Godot Engine relies on a number of third-party free and open source "
+"Phoenix Agentic Game Engine relies on a number of third-party free and open source "
 "libraries, all compatible with the terms of its MIT license. The following is "
 "an exhaustive list of all such third-party components with their respective "
 "copyright statements and license terms."

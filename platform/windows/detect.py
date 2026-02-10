@@ -527,8 +527,7 @@ def get_ar_version(env):
     }
     try:
         output = (
-            subprocess
-            .check_output([env.subst(env["AR"]), "--version"], shell=(os.name == "nt"))
+            subprocess.check_output([env.subst(env["AR"]), "--version"], shell=(os.name == "nt"))
             .strip()
             .decode("utf-8")
         )

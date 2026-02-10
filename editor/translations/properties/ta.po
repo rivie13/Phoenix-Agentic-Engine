@@ -1,5 +1,5 @@
-# Tamil translation of the Godot Engine editor properties.
-# Copyright (c) 2014-present Godot Engine contributors (see AUTHORS.md).
+# Tamil translation of the Phoenix Agentic Game Engine editor properties.
+# Copyright (c) 2014-present Phoenix Agentic Game Engine contributors (see AUTHORS.md).
 # Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur.
 # This file is distributed under the same license as the Godot source code.
 #
@@ -7,7 +7,7 @@
 # தமிழ்நேரம் <tamilneram247@gmail.com>, 2025.
 msgid ""
 msgstr ""
-"Project-Id-Version: Godot Engine editor properties\n"
+"Project-Id-Version: Phoenix Agentic Game Engine editor properties\n"
 "Report-Msgid-Bugs-To: https://github.com/godotengine/godot\n"
 "PO-Revision-Date: 2025-09-21 16:34+0000\n"
 "Last-Translator: தமிழ்நேரம் <tamilneram247@gmail.com>\n"

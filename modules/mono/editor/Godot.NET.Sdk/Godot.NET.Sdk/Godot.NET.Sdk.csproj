@@ -4,7 +4,7 @@
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
 
     <Description>MSBuild .NET Sdk for Godot projects.</Description>
-    <Authors>Godot Engine contributors</Authors>
+    <Authors>Phoenix Agentic Game Engine contributors</Authors>
 
     <PackageId>Godot.NET.Sdk</PackageId>
     <Version>4.7.0</Version>
@@ -14,7 +14,7 @@
     <PackageType>MSBuildSdk</PackageType>
     <PackageTags>MSBuildSdk</PackageTags>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <Copyright>Copyright (c) Godot Engine contributors</Copyright>
+    <Copyright>Copyright (c) Phoenix Agentic Game Engine contributors</Copyright>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
 
     <!-- Exclude target framework from the package dependencies as we don't include the build output -->

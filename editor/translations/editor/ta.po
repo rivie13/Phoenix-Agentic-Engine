@@ -1,5 +1,5 @@
-# Tamil translation of the Godot Engine editor interface.
-# Copyright (c) 2014-present Godot Engine contributors (see AUTHORS.md).
+# Tamil translation of the Phoenix Agentic Game Engine editor interface.
+# Copyright (c) 2014-present Phoenix Agentic Game Engine contributors (see AUTHORS.md).
 # Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur.
 # This file is distributed under the same license as the Godot source code.
 #
@@ -8,7 +8,7 @@
 # "A Thousand Ships (she/her)" <over999ships@gmail.com>, 2025.
 msgid ""
 msgstr ""
-"Project-Id-Version: Godot Engine editor interface\n"
+"Project-Id-Version: Phoenix Agentic Game Engine editor interface\n"
 "Report-Msgid-Bugs-To: https://github.com/godotengine/godot\n"
 "PO-Revision-Date: 2025-10-13 10:09+0000\n"
 "Last-Translator: \"A Thousand Ships (she/her)\" <over999ships@gmail.com>\n"
@@ -3339,7 +3339,7 @@ msgstr "%s கப்பல்துறையைத் திறக்கவு�
 msgid "Focus on the %s dock."
 msgstr "%s கப்பல்துறையில் கவனம் செலுத்துங்கள்."
 
-msgid "%s - Godot Engine"
+msgid "%s - Phoenix Agentic Game Engine"
 msgstr "%s - கோடோட் எஞ்சின்"
 
 msgid "Move this dock right one tab."
@@ -6370,7 +6370,7 @@ msgstr "பிளாட்டினம் உறுப்பினர்கள�
 msgid "Gold Members"
 msgstr "தங்க உறுப்பினர்கள்"
 
-msgid "Thank you for choosing Godot Engine!"
+msgid "Thank you for choosing Phoenix Agentic Game Engine!"
 msgstr "கோடோட் எஞ்சின் தேர்ந்தெடுத்ததற்கு நன்றி!"
 
 msgid "Name cannot be empty."
@@ -6423,7 +6423,7 @@ msgstr "அடிப்படை பாதை: %s"
 msgid "Folder name is valid."
 msgstr "கோப்புறை பெயர் செல்லுபடியாகும்."
 
-msgid "Godot Engine contributors"
+msgid "Phoenix Agentic Game Engine contributors"
 msgstr "கோடோட் எஞ்சின் பங்களிப்பாளர்கள்"
 
 msgid "Double-click to open in browser."
@@ -6442,7 +6442,7 @@ msgid "Third-party Licenses"
 msgstr "மூன்றாம் தரப்பு உரிமங்கள்"
 
 msgid ""
-"Godot Engine relies on a number of third-party free and open source "
+"Phoenix Agentic Game Engine relies on a number of third-party free and open source "
 "libraries, all compatible with the terms of its MIT license. The following is "
 "an exhaustive list of all such third-party components with their respective "
 "copyright statements and license terms."

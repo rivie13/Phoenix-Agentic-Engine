@@ -532,38 +532,45 @@ Vector<String> OS_LinuxBSD::lspci_get_device_value(Vector<String> vendor_device_
 }
 
 Error OS_LinuxBSD::shell_open(const String &p_uri) {
+	Error ok;
+	int err_code;
 	List<String> args;
 	args.push_back(p_uri);
 
-	// Use create_process() instead of execute() to avoid blocking the main thread.
-	// This prevents the UI from freezing when opening file managers or other applications.
-	Error ok = create_process("xdg-open", args);
-	if (ok == OK) {
+	// Agnostic
+	ok = execute("xdg-open", args, nullptr, &err_code);
+	if (ok == OK && !err_code) {
 		return OK;
+	} else if (err_code == 2) {
+		return ERR_FILE_NOT_FOUND;
 	}
 	// GNOME
 	args.push_front("open"); // The command is `gio open`, so we need to add it to args
-	ok = create_process("gio", args);
-	if (ok == OK) {
+	ok = execute("gio", args, nullptr, &err_code);
+	if (ok == OK && !err_code) {
 		return OK;
+	} else if (err_code == 2) {
+		return ERR_FILE_NOT_FOUND;
 	}
 	args.pop_front();
-	ok = create_process("gvfs-open", args);
-	if (ok == OK) {
+	ok = execute("gvfs-open", args, nullptr, &err_code);
+	if (ok == OK && !err_code) {
 		return OK;
+	} else if (err_code == 2) {
+		return ERR_FILE_NOT_FOUND;
 	}
 	// KDE
-	ok = create_process("kde-open5", args);
-	if (ok == OK) {
+	ok = execute("kde-open5", args, nullptr, &err_code);
+	if (ok == OK && !err_code) {
 		return OK;
 	}
-	ok = create_process("kde-open", args);
-	if (ok == OK) {
+	ok = execute("kde-open", args, nullptr, &err_code);
+	if (ok == OK && !err_code) {
 		return OK;
 	}
 	// XFCE
-	ok = create_process("exo-open", args);
-	if (ok == OK) {
+	ok = execute("exo-open", args, nullptr, &err_code);
+	if (ok == OK && !err_code) {
 		return OK;
 	}
 	return FAILED;

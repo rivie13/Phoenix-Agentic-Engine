@@ -1,5 +1,5 @@
-short_name = "godot"
-name = "Godot Engine"
+short_name = "phoenix_agentic"
+name = "Phoenix Agentic Game Engine"
 major = 4
 minor = 7
 patch = 0

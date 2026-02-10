@@ -1,5 +1,5 @@
-# Romanian translation of the Godot Engine editor interface.
-# Copyright (c) 2014-present Godot Engine contributors.
+# Romanian translation of the Phoenix Agentic Game Engine editor interface.
+# Copyright (c) 2014-present Phoenix Agentic Game Engine contributors.
 # Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur.
 # This file is distributed under the same license as the Godot source code.
 # Calin Sopterean <csopterean@gmail.com>, 2018.
@@ -43,7 +43,7 @@
 # ADV <alex.devien@gmail.com>, 2026.
 msgid ""
 msgstr ""
-"Project-Id-Version: Godot Engine editor interface\n"
+"Project-Id-Version: Phoenix Agentic Game Engine editor interface\n"
 "Report-Msgid-Bugs-To: https://github.com/godotengine/godot\n"
 "POT-Creation-Date: \n"
 "PO-Revision-Date: 2026-01-14 05:00+0000\n"
@@ -2825,7 +2825,7 @@ msgstr "Sponsori Aur"
 msgid "Silver Sponsors"
 msgstr "Sponsori de argint"
 
-msgid "Godot Engine contributors"
+msgid "Phoenix Agentic Game Engine contributors"
 msgstr "Contribuabili Motor Godot"
 
 msgid "Thanks from the Godot community!"
@@ -2841,7 +2841,7 @@ msgid "Third-party Licenses"
 msgstr "Licenţe Thirdparty"
 
 msgid ""
-"Godot Engine relies on a number of third-party free and open source "
+"Phoenix Agentic Game Engine relies on a number of third-party free and open source "
 "libraries, all compatible with the terms of its MIT license. The following is "
 "an exhaustive list of all such third-party components with their respective "
 "copyright statements and license terms."

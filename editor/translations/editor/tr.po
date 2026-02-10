@@ -1,5 +1,5 @@
-# Turkish translation of the Godot Engine editor interface.
-# Copyright (c) 2014-present Godot Engine contributors.
+# Turkish translation of the Phoenix Agentic Game Engine editor interface.
+# Copyright (c) 2014-present Phoenix Agentic Game Engine contributors.
 # Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur.
 # This file is distributed under the same license as the Godot source code.
 # Aprın Çor Tigin <kabusturk38@gmail.com>, 2016-2017.
@@ -130,7 +130,7 @@
 # Hasan Kara <hasanbeytullahkara@gmail.com>, 2026.
 msgid ""
 msgstr ""
-"Project-Id-Version: Godot Engine editor interface\n"
+"Project-Id-Version: Phoenix Agentic Game Engine editor interface\n"
 "Report-Msgid-Bugs-To: https://github.com/godotengine/godot\n"
 "POT-Creation-Date: \n"
 "PO-Revision-Date: 2026-01-23 01:57+0000\n"
@@ -3743,7 +3743,7 @@ msgstr "%s yuvasını aç."
 msgid "Focus on the %s dock."
 msgstr "%s yuvasını odakla."
 
-msgid "%s - Godot Engine"
+msgid "%s - Phoenix Agentic Game Engine"
 msgstr "%s - Godot Motoru"
 
 msgid "Move this dock right one tab."
@@ -6850,7 +6850,7 @@ msgstr "Platin Üyeler"
 msgid "Gold Members"
 msgstr "Altın Üyeler"
 
-msgid "Thank you for choosing Godot Engine!"
+msgid "Thank you for choosing Phoenix Agentic Game Engine!"
 msgstr "Godot Oyun Motorunu seçtiğiniz için teşekkür ederiz!"
 
 msgid "Name cannot be empty."
@@ -6904,7 +6904,7 @@ msgstr "Temel yol: %s"
 msgid "Folder name is valid."
 msgstr "Klasör adı geçerli."
 
-msgid "Godot Engine contributors"
+msgid "Phoenix Agentic Game Engine contributors"
 msgstr "Godot Oyun Motoru katkı sağlayanlar"
 
 msgid "Double-click to open in browser."
@@ -6923,7 +6923,7 @@ msgid "Third-party Licenses"
 msgstr "Üçüncü-Şahıs Lisanslar"
 
 msgid ""
-"Godot Engine relies on a number of third-party free and open source "
+"Phoenix Agentic Game Engine relies on a number of third-party free and open source "
 "libraries, all compatible with the terms of its MIT license. The following is "
 "an exhaustive list of all such third-party components with their respective "
 "copyright statements and license terms."

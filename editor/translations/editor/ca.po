@@ -1,5 +1,5 @@
-# Catalan translation of the Godot Engine editor interface.
-# Copyright (c) 2014-present Godot Engine contributors.
+# Catalan translation of the Phoenix Agentic Game Engine editor interface.
+# Copyright (c) 2014-present Phoenix Agentic Game Engine contributors.
 # Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur.
 # This file is distributed under the same license as the Godot source code.
 # BennyBeat <bennybeat@gmail.com>, 2017.
@@ -39,7 +39,7 @@
 # "Drussentis@gmail.com" <drussentis@gmail.com>, 2026.
 msgid ""
 msgstr ""
-"Project-Id-Version: Godot Engine editor interface\n"
+"Project-Id-Version: Phoenix Agentic Game Engine editor interface\n"
 "Report-Msgid-Bugs-To: https://github.com/godotengine/godot\n"
 "POT-Creation-Date: \n"
 "PO-Revision-Date: 2026-01-25 00:39+0000\n"
@@ -2736,7 +2736,7 @@ msgstr "Obre l'acoblador %s."
 msgid "Focus on the %s dock."
 msgstr "Enfocar l'acoblador %s."
 
-msgid "%s - Godot Engine"
+msgid "%s - Phoenix Agentic Game Engine"
 msgstr "%s - Motor Godot"
 
 msgid "Move this dock right one tab."
@@ -3903,7 +3903,7 @@ msgstr "Membres Platí"
 msgid "Gold Members"
 msgstr "Membres Or"
 
-msgid "Thank you for choosing Godot Engine!"
+msgid "Thank you for choosing Phoenix Agentic Game Engine!"
 msgstr "Gràcies per triar Godot !"
 
 msgid "Name cannot be empty."
@@ -3957,8 +3957,8 @@ msgstr "Camí base: %s"
 msgid "Folder name is valid."
 msgstr "El nom de la carpeta és vàlid."
 
-msgid "Godot Engine contributors"
-msgstr "Col·laboradors de Godot Engine"
+msgid "Phoenix Agentic Game Engine contributors"
+msgstr "Col·laboradors de Phoenix Agentic Game Engine"
 
 msgid "Double-click to open in browser."
 msgstr "Fes doble clic per obrir-ho al navegador."
@@ -3976,12 +3976,12 @@ msgid "Third-party Licenses"
 msgstr "Llicències de Tercers"
 
 msgid ""
-"Godot Engine relies on a number of third-party free and open source "
+"Phoenix Agentic Game Engine relies on a number of third-party free and open source "
 "libraries, all compatible with the terms of its MIT license. The following is "
 "an exhaustive list of all such third-party components with their respective "
 "copyright statements and license terms."
 msgstr ""
-"Godot Engine compta amb diverses biblioteques gratuïtes i de codi obert de "
+"Phoenix Agentic Game Engine compta amb diverses biblioteques gratuïtes i de codi obert de "
 "tercers, totes compatibles amb els termes de la seva llicència MIT. A "
 "continuació, es mostra una llista exhaustiva de tots aquests components de "
 "tercers amb les seves respectives declaracions de copyright i termes de "

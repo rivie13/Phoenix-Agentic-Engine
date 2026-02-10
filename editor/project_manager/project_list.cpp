@@ -130,6 +130,7 @@ void ProjectListItemControl::_notification(int p_what) {
 				if (idx >= 0) {
 					// has_focus(true) is false on mouse-initiated focus, true on keyboard navigation.
 					pl->select_project(idx, !has_focus(true));
+					pl->ensure_project_visible(idx);
 
 					pl->emit_signal(SNAME(ProjectList::SIGNAL_SELECTION_CHANGED));
 				}
@@ -273,7 +274,7 @@ void ProjectListItemControl::set_unsupported_features(PackedStringArray p_featur
 				}
 				if (GODOT_VERSION_MAJOR != project_version_major || GODOT_VERSION_MINOR <= project_version_minor) {
 					// Don't show a warning if the project was last edited in a previous minor version.
-					tooltip_text += TTR("This project was last edited in a different Godot version: ") + p_features[i] + "\n";
+					tooltip_text += TTR("This project was last edited in a different Phoenix Agentic Game Engine version: ") + p_features[i] + "\n";
 				}
 				p_features.remove_at(i);
 				i--;
@@ -748,10 +749,25 @@ void ProjectList::_load_project_icon(int p_index) {
 
 	Ref<Texture2D> default_icon = get_editor_theme_icon(SNAME("DefaultProjectIcon"));
 	Ref<Texture2D> icon;
-	if (!item.icon.is_empty()) {
+	bool use_default_icon = item.icon.is_empty();
+	String icon_path;
+	if (!use_default_icon) {
+		icon_path = item.icon.replace_first("res://", item.path + "/");
+		if (item.icon == "res://icon.svg" || item.icon == "res://icon.png") {
+			const String exe_dir = OS::get_singleton()->get_executable_path().get_base_dir();
+			const String engine_root = exe_dir.get_base_dir();
+			const String engine_icon_path = engine_root.path_join(item.icon.get_file());
+			if (FileAccess::exists(icon_path) && FileAccess::exists(engine_icon_path)) {
+				if (FileAccess::get_file_as_bytes(icon_path) == FileAccess::get_file_as_bytes(engine_icon_path)) {
+					use_default_icon = true;
+				}
+			}
+		}
+	}
+	if (!use_default_icon) {
 		Ref<Image> img;
 		img.instantiate();
-		Error err = img->load(item.icon.replace_first("res://", item.path + "/"));
+		Error err = img->load(icon_path);
 		if (err == OK) {
 			img->resize(default_icon->get_width(), default_icon->get_height(), Image::INTERPOLATE_LANCZOS);
 			icon = ImageTexture::create_from_image(img);
@@ -1209,7 +1225,7 @@ void ProjectList::_open_menu(const Vector2 &p_at, Control *p_hb) {
 		project_context_menu->connect(SceneStringName(id_pressed), callable_mp(this, &ProjectList::_menu_option));
 		_update_menu_icons();
 	}
-	clicked_project.control->grab_focus(true);
+	select_project(clicked_index, true);
 
 	for (int id : Vector<int>{
 				 MENU_EDIT,
@@ -1295,6 +1311,9 @@ void ProjectList::_select_project_range(int p_begin, int p_end) {
 void ProjectList::select_project(int p_index, bool p_hide_focus) {
 	// This method keeps only one project selected.
 	_clear_project_selection();
+
+	Item &item = _projects.write[p_index];
+	item.control->grab_focus(p_hide_focus);
 	_select_project_nocheck(p_index, p_hide_focus);
 }
 

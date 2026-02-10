@@ -1,5 +1,5 @@
-# Finnish translation of the Godot Engine editor interface.
-# Copyright (c) 2014-present Godot Engine contributors.
+# Finnish translation of the Phoenix Agentic Game Engine editor interface.
+# Copyright (c) 2014-present Phoenix Agentic Game Engine contributors.
 # Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur.
 # This file is distributed under the same license as the Godot source code.
 # basse <basse@roiske.org>, 2017.
@@ -34,7 +34,7 @@
 # sevonj <100710152+sevonj@users.noreply.github.com>, 2025.
 msgid ""
 msgstr ""
-"Project-Id-Version: Godot Engine editor interface\n"
+"Project-Id-Version: Phoenix Agentic Game Engine editor interface\n"
 "Report-Msgid-Bugs-To: https://github.com/godotengine/godot\n"
 "POT-Creation-Date: \n"
 "PO-Revision-Date: 2025-12-23 01:00+0000\n"
@@ -3508,7 +3508,7 @@ msgstr "Avaa %s telakka."
 msgid "Focus on the %s dock."
 msgstr "Kohdista %s telakkaan."
 
-msgid "%s - Godot Engine"
+msgid "%s - Phoenix Agentic Game Engine"
 msgstr "%s - Godot Pelimoottori"
 
 msgid "Move this dock right one tab."
@@ -6428,7 +6428,7 @@ msgstr "Platinajäsenet"
 msgid "Gold Members"
 msgstr "Kultajäsenet"
 
-msgid "Thank you for choosing Godot Engine!"
+msgid "Thank you for choosing Phoenix Agentic Game Engine!"
 msgstr "Kiitos, että valitsit Godot Pelimoottorin!"
 
 msgid "Name cannot be empty."
@@ -6462,7 +6462,7 @@ msgstr ""
 msgid "Folder name is valid."
 msgstr "Kansion nimi on validi."
 
-msgid "Godot Engine contributors"
+msgid "Phoenix Agentic Game Engine contributors"
 msgstr "Godot moottorin kehittäjät"
 
 msgid "Thanks from the Godot community!"
@@ -6478,7 +6478,7 @@ msgid "Third-party Licenses"
 msgstr "Kolmannen osapuolen lisenssit"
 
 msgid ""
-"Godot Engine relies on a number of third-party free and open source "
+"Phoenix Agentic Game Engine relies on a number of third-party free and open source "
 "libraries, all compatible with the terms of its MIT license. The following is "
 "an exhaustive list of all such third-party components with their respective "
 "copyright statements and license terms."
