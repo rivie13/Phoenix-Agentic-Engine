@@ -554,7 +554,7 @@ bool PixelPenEditorPlugin::_read_sync_marker(const String &p_marker_path, String
 			r_revision = line.substr(String("revision=").length()).strip_edges();
 		} else if (line.begins_with("mtime=")) {
 			String value = line.substr(String("mtime=").length()).strip_edges();
-			r_mtime = value.to_uint64();
+			r_mtime = static_cast<uint64_t>(value.to_int());
 		}
 	}
 
