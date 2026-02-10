@@ -36,6 +36,12 @@ This file tracks intentional Phoenix-specific changes that are expected to diver
 - Why: iOS Metal builds were producing duplicate object targets for `metal_fx`, failing SCons with “Multiple ways to build the same target”.
 - Merge note: keep the conditional filter or align with upstream if they change MetalFX build selection.
 
+### `drivers/metal/SCsub`
+
+- Avoid building both `metal_device_properties.cpp` and `metal_device_properties.mm` by filtering the cpp list.
+- Why: iOS Metal builds were producing duplicate object targets for `metal_device_properties`, failing SCons with “Multiple ways to build the same target”.
+- Merge note: keep the conditional filter or align with upstream if they change the driver file selection.
+
 ## `modules/ultimate_ai` Integration Changes
 
 ### Submodule wiring
