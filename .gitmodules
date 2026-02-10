@@ -1,3 +1,10 @@
 [submodule "modules/ultimate_ai/external/pixelpen"]
 	path = modules/ultimate_ai/external/pixelpen
 	url = https://github.com/rivie13/pixelpen.git
+
+[submodule "modules/ultimate_ai/external/godot-diff-margin"]
+	path = modules/ultimate_ai/external/godot-diff-margin
+	url = https://github.com/rivie13/godot-diff-margin.git
+[submodule "modules/ultimate_ai/external/godot-git-plugin"]
+	path = modules/ultimate_ai/external/godot-git-plugin
+	url = https://github.com/rivie13/godot-git-plugin.git
