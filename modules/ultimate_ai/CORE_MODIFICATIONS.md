@@ -18,7 +18,17 @@ This file tracks intentional Phoenix-specific changes that are expected to diver
 - Why: avoids log spam when tooltips request preview metadata before the preview cache is populated.
 - Merge note: safe behavior change; re-evaluate if upstream changes how tooltip previews are fetched.
 
-No additional core engine files outside `modules/ultimate_ai` were modified as part of the PixelPen integration work.
+### `drivers/metal/pixel_formats.cpp`
+
+- Whitespace-only: `clang-format` realigned macro continuation backslashes (`\`) in `addDataFormatDescFull`, `addMTLPixelFormatDescFull`, `addMTLPixelFormatDescSRGB`, and `addMTLVertexFormatDesc` macro definitions.
+- Why: pre-commit `clang-format` hook reformatted these lines automatically; no logic changes.
+- Merge note: trivially resolved — accept either side during upstream merges.
+
+### `drivers/metal/rendering_device_driver_metal.cpp`
+
+- Whitespace-only: `clang-format` realigned macro continuation backslashes in `ADD_USAGE` and `UNKNOWN` macro definitions.
+- Why: pre-commit `clang-format` hook reformatted these lines automatically; no logic changes.
+- Merge note: trivially resolved — accept either side during upstream merges.
 
 ## `modules/ultimate_ai` Integration Changes
 
@@ -56,10 +66,11 @@ Current behavior:
 
 - `modules/ultimate_ai/ui/pixelpen_editor_plugin.cpp` now writes a sync marker inside the copied project addon:
   - marker file: `res://addons/net.yarvis.pixel_pen/.phoenix_sync_revision`
-  - revision value: `2026-02-09-pixelpen-addon-classname-fix`
+  - revision value: `2026-02-10-pixelpen-addon-preload-order-fix`
 - Behavior:
   - If addon + marker match current revision, skip recopy.
   - If marker missing or revision mismatch, recopy addon from submodule source and rescan filesystem.
+  - After recopy, defer opening PixelPen until the filesystem scan completes.
 - Why:
   - Ensures script compatibility fixes actually roll out to existing projects.
   - Avoids recopying addon every startup once project addon is in sync.
@@ -96,6 +107,10 @@ The following files were patched under:
   - `ui/layout_split/data_branch.gd`
   - `ui/layout_split/layout_split.gd`
   - `pixelpen_plugin.gd`
+
+- Ensured editor class registration for tool scripts:
+  - `classes/pixelpen_enum.gd` (`@tool`)
+  - `classes/mask_selection.gd` (`@tool`)
 
 ### Parse-order cycle reductions
 

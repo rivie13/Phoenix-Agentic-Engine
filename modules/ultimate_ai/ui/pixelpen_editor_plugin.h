@@ -43,6 +43,7 @@ class PixelPenEditorPlugin : public EditorPlugin {
 	Window *window_instance = nullptr;
 	Control *window_main_ui = nullptr;
 	UltimateAssistantPanel *window_assistant_panel = nullptr;
+	bool open_window_pending = false;
 	bool class_scripts_preloaded = false;
 	bool extension_loaded = false;
 	String last_main_screen = "3D";
@@ -56,7 +57,7 @@ class PixelPenEditorPlugin : public EditorPlugin {
 	bool _ensure_addon_installed();
 	String _find_source_addon_path() const;
 	Error _copy_dir_recursive(const String &p_src, const String &p_dst);
-	void _preload_script(const char *p_path);
+	bool _preload_script(const char *p_path);
 	void _preload_class_scripts();
 	void _open_window();
 	void _ensure_window_layout();
