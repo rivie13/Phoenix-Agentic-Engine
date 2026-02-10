@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 from misc.utility.scons_hints import *
 
+import os
+
 import methods
 
 Import("env")
@@ -68,7 +70,10 @@ env.servers_sources += thirdparty_obj
 
 module_obj = []
 
-env_effects.add_source_files(module_obj, "*.cpp")
+cpp_files = env_effects.Glob("*.cpp")
+if env["metal"]:
+    cpp_files = [f for f in cpp_files if os.path.basename(str(f)) != "metal_fx.cpp"]
+env_effects.add_source_files(module_obj, cpp_files)
 if env["metal"]:
     env_effects.add_source_files(module_obj, "metal_fx.mm")
 env.servers_sources += module_obj
