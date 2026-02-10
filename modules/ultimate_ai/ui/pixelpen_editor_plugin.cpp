@@ -47,8 +47,8 @@
 #include "scene/gui/label.h"
 #include "scene/gui/split_container.h"
 #include "scene/main/window.h"
-#include "scene/scene_string_names.h"
 #include "scene/resources/packed_scene.h"
+#include "scene/scene_string_names.h"
 
 namespace {
 const char *const PIXELPEN_ADDON_PATH = "res://addons/net.yarvis.pixel_pen";
@@ -59,7 +59,7 @@ const char *const PIXELPEN_LAYER_LIST_PATH = "Background/VBoxContainer/MarginCon
 const uint64_t PIXELPEN_CONTEXT_SYNC_INTERVAL_MSEC = 350;
 const char *const PIXELPEN_SYNC_MARKER_FILE = ".phoenix_sync_revision";
 const char *const PIXELPEN_SYNC_REVISION = "2026-02-09-pixelpen-addon-classname-fix";
-}
+} //namespace
 
 String PixelPenEditorPlugin::get_plugin_name() const {
 	return "PixelPen";

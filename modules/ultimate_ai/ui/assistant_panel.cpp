@@ -65,7 +65,7 @@ bool UltimateAssistantPanel::s_shared_initialized = false;
 namespace {
 const char *const PIXELPEN_SNAPSHOT_KIND = "pixelpen_snapshot";
 const char *const PIXELPEN_LAYER_KIND = "pixelpen_layer";
-}
+} //namespace
 
 void UltimateAssistantPanel::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_new_tab_pressed"), &UltimateAssistantPanel::_on_new_tab_pressed);
