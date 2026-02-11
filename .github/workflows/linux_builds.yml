@@ -208,6 +208,23 @@ jobs:
           fi
           bash ./misc/scripts/build_godot_git_plugin.sh linux "$PWD" "$api_dir/extension_api.json"
 
+      - name: Build PixelPen addon
+        if: matrix.target == 'editor' && matrix.proj-test == true
+        run: |
+          api_dir="${RUNNER_TEMP:-/tmp}/pixelpen_extension_api"
+          mkdir -p "$api_dir"
+          bin_path="${{ matrix.bin }}"
+          bin_path="${bin_path#./}"
+          editor_exe="${GITHUB_WORKSPACE}/${bin_path}"
+          pushd "$api_dir" >/dev/null
+          "$editor_exe" --headless --dump-extension-api
+          popd >/dev/null
+          if [ ! -f "$api_dir/extension_api.json" ]; then
+            echo "extension_api.json was not generated" >&2
+            exit 1
+          fi
+          python3 -m SCons -C ./modules/ultimate_ai/external/pixelpen platform=linux target=template_debug generate_bindings=yes custom_api_file="$api_dir/extension_api.json"
+
       - name: Compilation (godot-cpp)
         uses: ./.github/actions/godot-cpp-build
         if: matrix.godot-cpp
