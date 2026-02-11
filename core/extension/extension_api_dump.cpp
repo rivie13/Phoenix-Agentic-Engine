@@ -598,10 +598,7 @@ Dictionary GDExtensionAPIDump::generate_extension_api(bool p_include_docs) {
 				//no default value support in utility functions
 				arguments.push_back(arg);
 			}
-
-			if (arguments.size()) {
-				func["arguments"] = arguments;
-			}
+			func["arguments"] = arguments;
 
 			if (p_include_docs) {
 				for (const DocData::MethodDoc &method_doc : global_scope_doc->methods) {
@@ -731,15 +728,10 @@ Dictionary GDExtensionAPIDump::generate_extension_api(bool p_include_docs) {
 						}
 					}
 
-					if (values.size()) {
-						enum_dict["values"] = values;
-					}
+					enum_dict["values"] = values;
 					enums.push_back(enum_dict);
 				}
-
-				if (enums.size()) {
-					d["enums"] = enums;
-				}
+				d["enums"] = enums;
 			}
 			{
 				//operators
@@ -823,10 +815,7 @@ Dictionary GDExtensionAPIDump::generate_extension_api(bool p_include_docs) {
 						}
 						arguments.push_back(d3);
 					}
-
-					if (arguments.size()) {
-						d2["arguments"] = arguments;
-					}
+					d2["arguments"] = arguments;
 
 					if (p_include_docs) {
 						for (const DocData::MethodDoc &method_doc : builtin_doc->methods) {
@@ -839,9 +828,7 @@ Dictionary GDExtensionAPIDump::generate_extension_api(bool p_include_docs) {
 
 					methods.push_back(d2);
 				}
-				if (methods.size()) {
-					d["methods"] = methods;
-				}
+				d["methods"] = methods;
 			}
 			{
 				//constructors
@@ -859,9 +846,7 @@ Dictionary GDExtensionAPIDump::generate_extension_api(bool p_include_docs) {
 						d3["type"] = get_builtin_or_variant_type_name(Variant::get_constructor_argument_type(type, j, k));
 						arguments.push_back(d3);
 					}
-					if (arguments.size()) {
-						d2["arguments"] = arguments;
-					}
+					d2["arguments"] = arguments;
 
 					if (p_include_docs && builtin_doc) {
 						for (const DocData::MethodDoc &constructor_doc : builtin_doc->constructors) {
@@ -886,10 +871,7 @@ Dictionary GDExtensionAPIDump::generate_extension_api(bool p_include_docs) {
 
 					constructors.push_back(d2);
 				}
-
-				if (constructors.size()) {
-					d["constructors"] = constructors;
-				}
+				d["constructors"] = constructors;
 			}
 			{
 				//destructor
@@ -1013,9 +995,7 @@ Dictionary GDExtensionAPIDump::generate_extension_api(bool p_include_docs) {
 					enums.push_back(d2);
 				}
 
-				if (enums.size()) {
-					d["enums"] = enums;
-				}
+				d["enums"] = enums;
 			}
 			{
 				//methods
@@ -1077,9 +1057,7 @@ Dictionary GDExtensionAPIDump::generate_extension_api(bool p_include_docs) {
 							arguments.push_back(d3);
 						}
 
-						if (arguments.size()) {
-							d2["arguments"] = arguments;
-						}
+						d2["arguments"] = arguments;
 
 						if (p_include_docs) {
 							for (const DocData::MethodDoc &method_doc : class_doc->methods) {
@@ -1154,9 +1132,7 @@ Dictionary GDExtensionAPIDump::generate_extension_api(bool p_include_docs) {
 							}
 						}
 
-						if (arguments.size()) {
-							d2["arguments"] = arguments;
-						}
+						d2["arguments"] = arguments;
 
 						if (p_include_docs) {
 							for (const DocData::MethodDoc &method_doc : class_doc->methods) {
@@ -1171,9 +1147,7 @@ Dictionary GDExtensionAPIDump::generate_extension_api(bool p_include_docs) {
 					}
 				}
 
-				if (methods.size()) {
-					d["methods"] = methods;
-				}
+				d["methods"] = methods;
 			}
 
 			{
@@ -1201,9 +1175,7 @@ Dictionary GDExtensionAPIDump::generate_extension_api(bool p_include_docs) {
 						}
 						arguments.push_back(d3);
 					}
-					if (arguments.size()) {
-						d2["arguments"] = arguments;
-					}
+					d2["arguments"] = arguments;
 
 					if (p_include_docs) {
 						for (const DocData::MethodDoc &signal_doc : class_doc->signals) {
@@ -1217,9 +1189,7 @@ Dictionary GDExtensionAPIDump::generate_extension_api(bool p_include_docs) {
 					signals.push_back(d2);
 				}
 
-				if (signals.size()) {
-					d["signals"] = signals;
-				}
+				d["signals"] = signals;
 			}
 			{
 				//properties
