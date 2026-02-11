@@ -10,12 +10,12 @@ API_FILE="$ENGINE_ROOT/extension_api.json"
 if [ -n "$API_FILE_OVERRIDE" ]; then
   API_FILE="$API_FILE_OVERRIDE"
 fi
-API_FILE_DIR="$(cd "$(dirname "$API_FILE")" && pwd)"
-API_FILE="$API_FILE_DIR/$(basename "$API_FILE")"
+API_FILE="$(python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$API_FILE")"
 if [ ! -f "$API_FILE" ]; then
   echo "Missing extension_api.json at $API_FILE" >&2
   exit 1
 fi
+echo "[git-plugin] Using extension API: $API_FILE"
 GODOT_CPP_BRANCH=$(API_FILE="$API_FILE" python3 - <<'PY'
 import json
 import os
