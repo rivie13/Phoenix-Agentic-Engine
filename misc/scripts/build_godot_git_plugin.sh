@@ -44,6 +44,21 @@ if ! command -v cmake >/dev/null 2>&1; then
   exit 1
 fi
 
+ensure_third_party_repo() {
+  local repo_url="$1"
+  local dest_path="$2"
+  local commit="$3"
+
+  if [ ! -d "$dest_path/.git" ]; then
+    rm -rf "$dest_path"
+    mkdir -p "$(dirname "$dest_path")"
+    git clone --depth 1 "$repo_url" "$dest_path"
+  fi
+
+  git -C "$dest_path" fetch --depth 1 origin "$commit"
+  git -C "$dest_path" checkout --detach "$commit"
+}
+
 BUILD_ROOT="${RUNNER_TEMP:-/tmp}/phoenix-git-plugin-build"
 rm -rf "$BUILD_ROOT"
 
@@ -55,6 +70,16 @@ git clone --depth 1 https://github.com/rivie13/godot-git-plugin.git "$BUILD_ROOT
 
 pushd "$BUILD_ROOT" >/dev/null
 git submodule update --init --recursive --depth 1
+ensure_third_party_repo "https://github.com/openssl/openssl.git" "$BUILD_ROOT/thirdparty/openssl" "26baecb28ce461696966dac9ac889629db0b3b96"
+ensure_third_party_repo "https://github.com/libgit2/libgit2.git" "$BUILD_ROOT/thirdparty/git2/libgit2" "b7bad55e4bb0a285b073ba5e02b01d3f522fc95d"
+ensure_third_party_repo "https://github.com/libssh2/libssh2.git" "$BUILD_ROOT/thirdparty/ssh2/libssh2" "635caa90787220ac3773c1d5ba11f1236c22eae8"
+
+LOCAL_PLUGIN_SOURCE="$ENGINE_ROOT/modules/ultimate_ai/external/godot-git-plugin/godot-git-plugin/src/git_plugin.cpp"
+TEMP_PLUGIN_SOURCE="$BUILD_ROOT/godot-git-plugin/src/git_plugin.cpp"
+if [ -f "$LOCAL_PLUGIN_SOURCE" ]; then
+  cp -f "$LOCAL_PLUGIN_SOURCE" "$TEMP_PLUGIN_SOURCE"
+fi
+
 pushd "$BUILD_ROOT/godot-cpp" >/dev/null
 git fetch origin
 if git show-ref --verify --quiet "refs/remotes/origin/$GODOT_CPP_BRANCH"; then
