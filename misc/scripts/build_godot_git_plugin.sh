@@ -74,6 +74,26 @@ ensure_third_party_repo "https://github.com/openssl/openssl.git" "$BUILD_ROOT/th
 ensure_third_party_repo "https://github.com/libgit2/libgit2.git" "$BUILD_ROOT/thirdparty/git2/libgit2" "b7bad55e4bb0a285b073ba5e02b01d3f522fc95d"
 ensure_third_party_repo "https://github.com/libssh2/libssh2.git" "$BUILD_ROOT/thirdparty/ssh2/libssh2" "635caa90787220ac3773c1d5ba11f1236c22eae8"
 
+if [ "$PLATFORM" = "macos" ]; then
+  python3 - <<'PY'
+from pathlib import Path
+
+path = Path("tools/git2.py")
+text = path.read_text(encoding="utf-8")
+needle = "    if env[\"platform\"] != \"windows\":\n        config[\"CMAKE_C_FLAGS\"] = \"-fPIC\"\n    else:\n        config[\"OPENSSL_ROOT_DIR\"] = env[\"SSL_BUILD\"]\n"
+if "single-bit-bitfield-constant-conversion" not in text and needle in text:
+    replacement = (
+        "    if env[\"platform\"] != \"windows\":\n"
+        "        config[\"CMAKE_C_FLAGS\"] = \"-fPIC\"\n"
+        "        if env[\"platform\"] == \"macos\":\n"
+        "            config[\"CMAKE_C_FLAGS\"] += \" -Wno-single-bit-bitfield-constant-conversion\"\n"
+        "    else:\n"
+        "        config[\"OPENSSL_ROOT_DIR\"] = env[\"SSL_BUILD\"]\n"
+    )
+    path.write_text(text.replace(needle, replacement), encoding="utf-8")
+PY
+fi
+
 LOCAL_PLUGIN_SOURCE="$ENGINE_ROOT/modules/ultimate_ai/external/godot-git-plugin/godot-git-plugin/src/git_plugin.cpp"
 TEMP_PLUGIN_SOURCE="$BUILD_ROOT/godot-git-plugin/src/git_plugin.cpp"
 if [ -f "$LOCAL_PLUGIN_SOURCE" ]; then

@@ -55,6 +55,7 @@ jobs:
               linker=mold
             bin: ./bin/godot.linuxbsd.editor.dev.double.x86_64.san
             proj-test: true
+            proj-test-args: --recovery-mode
             build-git-plugin: false
 
           - name: Editor with clang sanitizers (target=editor, dev_build=yes, use_asan=yes, use_ubsan=yes, use_llvm=yes, linker=lld)
@@ -185,7 +186,7 @@ jobs:
           target: ${{ matrix.target }}
 
       - name: Build Git Plugin addon
-        if: matrix.build-git-plugin == true
+        if: matrix.build-git-plugin == true || (matrix.target == 'editor' && matrix.artifact == true)
         run: |
           if [ "${{ matrix.build-mono }}" = "true" ]; then
             "${{ matrix.bin }}" --headless --generate-mono-glue ./modules/mono/glue
@@ -275,6 +276,7 @@ jobs:
         if: matrix.proj-test
         with:
           bin: ${{ matrix.bin }}
+          extra-args: ${{ matrix.proj-test-args }}
 
       # Test the project converter
       - name: Test project converter
