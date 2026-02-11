@@ -123,8 +123,21 @@ jobs:
           Push-Location $apiDir
           & $editorExe --headless --dump-extension-api
           Pop-Location
-          if (!(Test-Path (Join-Path $apiDir "extension_api.json"))) { throw "extension_api.json was not generated" }
-          ./misc/scripts/build_godot_git_plugin.ps1 -Platform windows -ApiFile "$apiDir\extension_api.json"
+          $apiFile = Join-Path $apiDir "extension_api.json"
+          if (!(Test-Path $apiFile)) {
+            $exeDir = Split-Path $editorExe -Parent
+            $exeApiFile = Join-Path $exeDir "extension_api.json"
+            if (Test-Path $exeApiFile) {
+              Copy-Item -Force $exeApiFile $apiFile
+            }
+          }
+          if (!(Test-Path $apiFile)) {
+            Write-Host "extension_api.json was not generated" -ForegroundColor Red
+            Write-Host "API dir: $apiDir" -ForegroundColor Yellow
+            Write-Host "Editor dir: $(Split-Path $editorExe -Parent)" -ForegroundColor Yellow
+            throw "extension_api.json was not generated"
+          }
+          ./misc/scripts/build_godot_git_plugin.ps1 -Platform windows -ApiFile "$apiFile"
         shell: pwsh
 
       - name: Save Godot build cache
