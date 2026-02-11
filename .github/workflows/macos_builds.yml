@@ -91,8 +91,9 @@ jobs:
         run: |
           api_dir="${RUNNER_TEMP:-/tmp}/extension_api"
           mkdir -p "$api_dir"
+          editor_exe="${GITHUB_WORKSPACE}/bin/godot.macos.editor.x86_64"
           pushd "$api_dir" >/dev/null
-          "${{ matrix.bin }}" --dump-extension-api
+          "$editor_exe" --headless --dump-extension-api
           popd >/dev/null
           if [ ! -f "$api_dir/extension_api.json" ]; then
             echo "extension_api.json was not generated" >&2
