@@ -10,6 +10,8 @@ API_FILE="$ENGINE_ROOT/extension_api.json"
 if [ -n "$API_FILE_OVERRIDE" ]; then
   API_FILE="$API_FILE_OVERRIDE"
 fi
+API_FILE_DIR="$(cd "$(dirname "$API_FILE")" && pwd)"
+API_FILE="$API_FILE_DIR/$(basename "$API_FILE")"
 if [ ! -f "$API_FILE" ]; then
   echo "Missing extension_api.json at $API_FILE" >&2
   exit 1
@@ -44,6 +46,10 @@ fi
 
 BUILD_ROOT="${RUNNER_TEMP:-/tmp}/phoenix-git-plugin-build"
 rm -rf "$BUILD_ROOT"
+
+if [ "$PLATFORM" = "linuxbsd" ]; then
+  PLATFORM="linux"
+fi
 
 git clone --depth 1 https://github.com/rivie13/godot-git-plugin.git "$BUILD_ROOT"
 
