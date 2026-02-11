@@ -14,9 +14,13 @@ if [ ! -f "$API_FILE" ]; then
   echo "Missing extension_api.json at $API_FILE" >&2
   exit 1
 fi
-GODOT_CPP_BRANCH=$(python3 - <<'PY'
+GODOT_CPP_BRANCH=$(API_FILE="$API_FILE" python3 - <<'PY'
 import json
-with open(r"$API_FILE", "r", encoding="utf-8") as fh:
+import os
+api_file = os.environ.get("API_FILE")
+if not api_file:
+    raise SystemExit("API_FILE env var not set")
+with open(api_file, "r", encoding="utf-8") as fh:
     data = json.load(fh)
 header = data.get("header", {})
 major = header.get("version_major")
