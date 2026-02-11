@@ -558,24 +558,24 @@ bool PixelPenEditorPlugin::_ensure_addon_installed(bool p_allow_open) {
 
 bool PixelPenEditorPlugin::_addon_has_extension_binary(const String &p_addon_path) const {
 #if defined(LINUXBSD_ENABLED) || defined(WINDOWS_ENABLED) || defined(MACOS_ENABLED)
-#	if defined(LINUXBSD_ENABLED)
+#if defined(LINUXBSD_ENABLED)
 	const char *const candidates[] = {
 		"bin/libpixelpen.linux.debug.x86_64.so",
 		"bin/libpixelpen.linux.release.x86_64.so",
 	};
-#	elif defined(WINDOWS_ENABLED)
+#elif defined(WINDOWS_ENABLED)
 	const char *const candidates[] = {
 		"bin/libpixelpen.windows.debug.x86_64.dll",
 		"bin/libpixelpen.windows.release.x86_64.dll",
 		"bin/libpixelpen.windows.debug.x86_32.dll",
 		"bin/libpixelpen.windows.release.x86_32.dll",
 	};
-#	elif defined(MACOS_ENABLED)
+#elif defined(MACOS_ENABLED)
 	const char *const candidates[] = {
 		"bin/libpixelpen.macos.debug.framework",
 		"bin/libpixelpen.macos.release.framework",
 	};
-#	endif
+#endif
 
 	for (uint32_t i = 0; i < sizeof(candidates) / sizeof(candidates[0]); i++) {
 		const String library_path = p_addon_path.path_join(candidates[i]);
