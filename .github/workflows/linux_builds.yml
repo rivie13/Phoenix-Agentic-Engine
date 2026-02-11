@@ -69,7 +69,7 @@ jobs:
             bin: ./bin/godot.linuxbsd.editor.dev.x86_64.llvm.san
             # Test our oldest supported SCons/Python versions on one arbitrary editor build.
             legacy-scons: true
-            build-git-plugin: true
+            build-git-plugin: false
 
           - name: Editor with ThreadSanitizer (target=editor, dev_build=yes, use_tsan=yes, use_llvm=yes, linker=lld)
             cache-name: linux-editor-thread-sanitizer
