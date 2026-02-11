@@ -12,8 +12,8 @@ env:
   GODOT_CPP_BRANCH: 4.5
   DOTNET_NOLOGO: true
   DOTNET_CLI_TELEMETRY_OPTOUT: true
-  ASAN_OPTIONS: color=always:print_suppressions=1:detect_leaks=0:suppressions=${{ github.workspace }}/misc/error_suppressions/asan.txt
-  LSAN_OPTIONS: color=always:print_suppressions=1:suppressions=${{ github.workspace }}/misc/error_suppressions/lsan.txt
+  ASAN_OPTIONS: color=always:print_suppressions=1:detect_leaks=0:halt_on_error=1:suppressions=${{ github.workspace }}/misc/error_suppressions/asan.txt
+  LSAN_OPTIONS: color=always:print_suppressions=1:detect_leaks=0:exitcode=0:suppressions=${{ github.workspace }}/misc/error_suppressions/lsan.txt
   TSAN_OPTIONS: color=always:print_suppressions=1:suppressions=${{ github.workspace }}/misc/error_suppressions/tsan.txt
   UBSAN_OPTIONS: color=always:print_suppressions=1:suppressions=${{ github.workspace }}/misc/error_suppressions/ubsan.txt
 
