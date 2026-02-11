@@ -86,6 +86,11 @@ jobs:
           platform: macos
           target: ${{ matrix.target }}
 
+      - name: Build Git Plugin addon
+        if: matrix.target == 'editor'
+        run: |
+          bash ./misc/scripts/build_godot_git_plugin.sh macos
+
       - name: Save Godot build cache
         uses: ./.github/actions/godot-cache-save
         with:

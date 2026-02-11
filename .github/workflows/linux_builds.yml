@@ -180,6 +180,11 @@ jobs:
           platform: linuxbsd
           target: ${{ matrix.target }}
 
+      - name: Build Git Plugin addon
+        if: matrix.target == 'editor'
+        run: |
+          bash ./misc/scripts/build_godot_git_plugin.sh linuxbsd
+
       - name: Compilation (godot-cpp)
         uses: ./.github/actions/godot-cpp-build
         if: matrix.godot-cpp

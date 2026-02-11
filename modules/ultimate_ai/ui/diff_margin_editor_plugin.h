@@ -1,5 +1,5 @@
 /**************************************************************************/
-/*  pixelpen_editor_plugin.h                                              */
+/*  diff_margin_editor_plugin.h                                           */
 /**************************************************************************/
 /*                         This file is part of:                          */
 /*                             GODOT ENGINE                               */
@@ -32,54 +32,29 @@
 
 #include "editor/plugins/editor_plugin.h"
 
-class Control;
-class Resource;
-class UltimateAssistantPanel;
-class Window;
+class DiffMarginEditorPlugin : public EditorPlugin {
+	GDCLASS(DiffMarginEditorPlugin, EditorPlugin);
 
-class PixelPenEditorPlugin : public EditorPlugin {
-	GDCLASS(PixelPenEditorPlugin, EditorPlugin);
-
-	Window *window_instance = nullptr;
-	Control *window_main_ui = nullptr;
-	UltimateAssistantPanel *window_assistant_panel = nullptr;
-	bool open_window_pending = false;
-	bool addon_preload_pending = false;
-	bool addon_preload_failed = false;
-	bool class_scripts_preloaded = false;
-	bool extension_loaded = false;
-	String last_main_screen = "3D";
-	Vector<Ref<Resource>> preloaded_scripts;
-	uint64_t last_context_sync_msec = 0;
-	Dictionary last_context_snapshot;
-	Array last_context_layers;
+	bool enable_pending = false;
+	bool addon_ready = false;
 
 	void _notification(int p_what);
+	void _maybe_enable_plugin();
+	void _ensure_git_path_setting();
+	String _find_git_executable() const;
+	bool _is_addon_enabled_in_project() const;
 
-	bool _ensure_addon_installed(bool p_allow_open);
+	bool _ensure_addon_installed();
 	String _find_source_addon_path() const;
 	Error _copy_dir_recursive(const String &p_src, const String &p_dst);
-	bool _preload_script(const char *p_path);
-	void _preload_class_scripts();
-	void _preload_addon_if_ready();
-	void _open_window();
-	void _ensure_window_layout();
-	void _sync_context_from_window();
-	Array _collect_layer_snapshot() const;
-	Dictionary _build_snapshot() const;
 	uint64_t _get_latest_mtime(const String &p_path) const;
 	bool _read_sync_marker(const String &p_marker_path, String &r_revision, uint64_t &r_mtime) const;
 	void _write_sync_marker(const String &p_marker_path, const String &p_revision, uint64_t p_mtime) const;
 	Error _remove_dir_contents(const String &p_path) const;
-	void _on_window_exited();
-	void _on_main_screen_changed(const String &p_screen_name);
 
 public:
 	String get_plugin_name() const override;
-	bool has_main_screen() const override;
-	const Ref<Texture2D> get_plugin_icon() const override;
-	void make_visible(bool p_visible) override;
 
-	PixelPenEditorPlugin();
-	~PixelPenEditorPlugin();
+	DiffMarginEditorPlugin();
+	~DiffMarginEditorPlugin();
 };
