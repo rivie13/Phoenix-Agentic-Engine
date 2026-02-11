@@ -502,10 +502,24 @@ bool PixelPenEditorPlugin::_ensure_addon_installed(bool p_allow_open) {
 		ERR_PRINT("PixelPen addon source not found. Clone the submodule into modules/ultimate_ai/external/pixelpen.");
 		return false;
 	}
+
+	const bool dst_exists = FileAccess::exists(dst_plugin_cfg);
+	const bool dst_has_binary = _addon_has_extension_binary(dst_path);
+	const bool src_has_binary = _addon_has_extension_binary(src_path);
+
 	const uint64_t src_mtime = _get_latest_mtime(src_path);
 	const bool marker_valid = has_marker && marker_revision == PIXELPEN_SYNC_REVISION && marker_mtime >= src_mtime;
-	if (FileAccess::exists(dst_plugin_cfg) && marker_valid) {
+	if (dst_exists && marker_valid && dst_has_binary) {
 		return true;
+	}
+
+	// If source binaries are unavailable, keep a previously installed working addon if present.
+	if (!src_has_binary) {
+		if (dst_exists && dst_has_binary) {
+			return true;
+		}
+		ERR_PRINT("PixelPen addon binaries are missing. Build PixelPen binaries in modules/ultimate_ai/external/pixelpen first.");
+		return false;
 	}
 
 	if (DirAccess::dir_exists_absolute(dst_path)) {
@@ -540,6 +554,38 @@ bool PixelPenEditorPlugin::_ensure_addon_installed(bool p_allow_open) {
 	}
 
 	return FileAccess::exists(dst_plugin_cfg);
+}
+
+bool PixelPenEditorPlugin::_addon_has_extension_binary(const String &p_addon_path) const {
+#if defined(LINUXBSD_ENABLED)
+	const char *const candidates[] = {
+		"bin/libpixelpen.linux.debug.x86_64.so",
+		"bin/libpixelpen.linux.release.x86_64.so",
+	};
+#elif defined(WINDOWS_ENABLED)
+	const char *const candidates[] = {
+		"bin/libpixelpen.windows.debug.x86_64.dll",
+		"bin/libpixelpen.windows.release.x86_64.dll",
+		"bin/libpixelpen.windows.debug.x86_32.dll",
+		"bin/libpixelpen.windows.release.x86_32.dll",
+	};
+#elif defined(MACOS_ENABLED)
+	const char *const candidates[] = {
+		"bin/libpixelpen.macos.debug.framework",
+		"bin/libpixelpen.macos.release.framework",
+	};
+#else
+	return true;
+#endif
+
+	for (uint32_t i = 0; i < sizeof(candidates) / sizeof(candidates[0]); i++) {
+		const String library_path = p_addon_path.path_join(candidates[i]);
+		if (FileAccess::exists(library_path) || DirAccess::dir_exists_absolute(library_path)) {
+			return true;
+		}
+	}
+
+	return false;
 }
 
 String PixelPenEditorPlugin::_find_source_addon_path() const {

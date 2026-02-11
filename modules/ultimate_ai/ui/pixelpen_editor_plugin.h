@@ -57,6 +57,7 @@ class PixelPenEditorPlugin : public EditorPlugin {
 	void _notification(int p_what);
 
 	bool _ensure_addon_installed(bool p_allow_open);
+	bool _addon_has_extension_binary(const String &p_addon_path) const;
 	String _find_source_addon_path() const;
 	Error _copy_dir_recursive(const String &p_src, const String &p_dst);
 	bool _preload_script(const char *p_path);
