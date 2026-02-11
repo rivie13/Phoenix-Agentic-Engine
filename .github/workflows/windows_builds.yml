@@ -121,7 +121,7 @@ jobs:
           $binPath = "${{ matrix.bin }}" -replace '^\./', ''
           $editorExe = Join-Path $env:GITHUB_WORKSPACE $binPath
           Push-Location $apiDir
-          & $editorExe --dump-extension-api
+          & $editorExe --headless --dump-extension-api
           Pop-Location
           if (!(Test-Path (Join-Path $apiDir "extension_api.json"))) { throw "extension_api.json was not generated" }
           ./misc/scripts/build_godot_git_plugin.ps1 -Platform windows -ApiFile "$apiDir\extension_api.json"
