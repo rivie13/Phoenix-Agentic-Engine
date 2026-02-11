@@ -3,9 +3,13 @@ set -euo pipefail
 
 PLATFORM="${1:-linuxbsd}"
 ENGINE_ROOT="${2:-"$(cd "$(dirname "$0")/../.." && pwd)"}"
+API_FILE_OVERRIDE="${3:-""}"
 KEEP_BUILD="${KEEP_BUILD:-0}"
 
 API_FILE="$ENGINE_ROOT/extension_api.json"
+if [ -n "$API_FILE_OVERRIDE" ]; then
+  API_FILE="$API_FILE_OVERRIDE"
+fi
 if [ ! -f "$API_FILE" ]; then
   echo "Missing extension_api.json at $API_FILE" >&2
   exit 1
@@ -49,13 +53,7 @@ else
   git checkout master
 fi
 popd >/dev/null
-TEMP_ROOT="${RUNNER_TEMP:-/tmp}"
-cp -f "$API_FILE" "$TEMP_ROOT/extension_api.json"
-if [ ! -f "$TEMP_ROOT/extension_api.json" ]; then
-  echo "Failed to stage extension_api.json at $TEMP_ROOT/extension_api.json" >&2
-  exit 1
-fi
-python3 -m SCons platform="$PLATFORM" target=editor dev_build=yes generate_bindings=yes custom_api_file="extension_api.json"
+python3 -m SCons platform="$PLATFORM" target=editor dev_build=yes generate_bindings=yes custom_api_file="$API_FILE"
 popd >/dev/null
 
 DST="$ENGINE_ROOT/bin/addons/godot-git-plugin"

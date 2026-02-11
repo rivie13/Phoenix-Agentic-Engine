@@ -183,7 +183,16 @@ jobs:
       - name: Build Git Plugin addon
         if: matrix.target == 'editor'
         run: |
-          bash ./misc/scripts/build_godot_git_plugin.sh linuxbsd
+          api_dir="${RUNNER_TEMP:-/tmp}/extension_api"
+          mkdir -p "$api_dir"
+          pushd "$api_dir" >/dev/null
+          "${{ matrix.bin }}" --dump-extension-api
+          popd >/dev/null
+          if [ ! -f "$api_dir/extension_api.json" ]; then
+            echo "extension_api.json was not generated" >&2
+            exit 1
+          fi
+          bash ./misc/scripts/build_godot_git_plugin.sh linuxbsd "$PWD" "$api_dir/extension_api.json"
 
       - name: Compilation (godot-cpp)
         uses: ./.github/actions/godot-cpp-build

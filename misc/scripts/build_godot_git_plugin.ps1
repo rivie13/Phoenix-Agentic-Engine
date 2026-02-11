@@ -1,6 +1,7 @@
 param(
     [string]$Platform = "windows",
     [string]$EngineRoot = "",
+    [string]$ApiFile = "",
     [switch]$KeepBuild,
     [switch]$ReuseBuild,
     [switch]$ForceClean
@@ -16,11 +17,14 @@ if ([string]::IsNullOrWhiteSpace($EngineRoot)) {
     $EngineRoot = (Resolve-Path $EngineRoot).Path
 }
 
-$apiFile = Join-Path $EngineRoot "extension_api.json"
-if (!(Test-Path $apiFile)) {
-    throw "Missing extension_api.json at $apiFile"
+$apiFilePath = $ApiFile
+if ([string]::IsNullOrWhiteSpace($apiFilePath)) {
+    $apiFilePath = Join-Path $EngineRoot "extension_api.json"
 }
-$apiJson = Get-Content $apiFile -Raw | ConvertFrom-Json
+if (!(Test-Path $apiFilePath)) {
+    throw "Missing extension_api.json at $apiFilePath"
+}
+$apiJson = Get-Content $apiFilePath -Raw | ConvertFrom-Json
 $versionStatus = $apiJson.header.version_status
 $godotCppBranch = "master"
 if ($versionStatus -eq "stable") {
@@ -131,16 +135,12 @@ if ($LASTEXITCODE -ne 0) {
 Write-Host "[git-plugin] godot-cpp branch: $desiredBranch" -ForegroundColor Cyan
 Write-Host "[git-plugin] godot-cpp commit: $(& $git rev-parse HEAD)" -ForegroundColor Cyan
 Pop-Location
-$tempApiFile = Join-Path $tempRoot "extension_api.json"
-Copy-Item -Force $apiFile $tempApiFile
-if (!(Test-Path $tempApiFile)) {
-    throw "Failed to stage extension_api.json at $tempApiFile"
-}
+$customApiFile = (Resolve-Path $apiFilePath).Path
 $buildLog = Join-Path $buildRoot "phoenix_git_plugin_build.log"
 $previousErrorAction = $ErrorActionPreference
 $ErrorActionPreference = "Continue"
 Write-Host "[git-plugin] SCons build running..." -ForegroundColor Cyan
-& C:\Python313\python.exe -m SCons platform=$Platform target=editor dev_build=yes generate_bindings=yes custom_api_file="extension_api.json" 2>&1 | Tee-Object -FilePath $buildLog
+& C:\Python313\python.exe -m SCons platform=$Platform target=editor dev_build=yes generate_bindings=yes custom_api_file="$customApiFile" 2>&1 | Tee-Object -FilePath $buildLog
 $ErrorActionPreference = $previousErrorAction
 $sconsExit = $LASTEXITCODE
 if ($sconsExit -ne 0) {

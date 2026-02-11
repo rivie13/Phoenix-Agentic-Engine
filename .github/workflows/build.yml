@@ -48,8 +48,18 @@ jobs:
       - name: Build Editor
         run: scons platform=windows target=editor module_ultimate_ai_enabled=yes d3d12=no cache_path=${{ env.SCONS_CACHE_PATH }} redirect_build_objects=yes
 
+      - name: Dump extension API
+        run: |
+          $apiDir = Join-Path $env:RUNNER_TEMP "extension_api"
+          New-Item -ItemType Directory -Force -Path $apiDir | Out-Null
+          Push-Location $apiDir
+          .\bin\phoenix_agentic.windows.editor.x86_64.exe --dump-extension-api
+          Pop-Location
+          if (!(Test-Path (Join-Path $apiDir "extension_api.json"))) { throw "extension_api.json was not generated" }
+        shell: pwsh
+
       - name: Build Git Plugin addon
-        run: ./misc/scripts/build_godot_git_plugin.ps1 -Platform windows
+        run: ./misc/scripts/build_godot_git_plugin.ps1 -Platform windows -ApiFile "${{ runner.temp }}\extension_api\extension_api.json"
 
       - name: Save SCons cache
         uses: ./.github/actions/godot-cache-save
