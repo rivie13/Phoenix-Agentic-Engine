@@ -150,7 +150,7 @@ $buildLog = Join-Path $buildRoot "phoenix_git_plugin_build.log"
 $previousErrorAction = $ErrorActionPreference
 $ErrorActionPreference = "Continue"
 Write-Host "[git-plugin] SCons build running..." -ForegroundColor Cyan
-& C:\Python313\python.exe -m SCons platform=$Platform target=editor dev_build=yes generate_bindings=yes custom_api_file="$stagedApiGodotCpp" 2>&1 | Tee-Object -FilePath $buildLog
+& C:\Python313\python.exe -m SCons platform=$Platform target=editor dev_build=yes generate_bindings=yes custom_api_file="extension_api.json" 2>&1 | Tee-Object -FilePath $buildLog
 $ErrorActionPreference = $previousErrorAction
 $sconsExit = $LASTEXITCODE
 if ($sconsExit -ne 0) {
