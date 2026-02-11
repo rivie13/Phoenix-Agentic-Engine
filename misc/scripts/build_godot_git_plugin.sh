@@ -74,6 +74,19 @@ ensure_third_party_repo "https://github.com/openssl/openssl.git" "$BUILD_ROOT/th
 ensure_third_party_repo "https://github.com/libgit2/libgit2.git" "$BUILD_ROOT/thirdparty/git2/libgit2" "b7bad55e4bb0a285b073ba5e02b01d3f522fc95d"
 ensure_third_party_repo "https://github.com/libssh2/libssh2.git" "$BUILD_ROOT/thirdparty/ssh2/libssh2" "635caa90787220ac3773c1d5ba11f1236c22eae8"
 
+python3 - <<'PY'
+from pathlib import Path
+
+path = Path("tools/git2.py")
+text = path.read_text(encoding="utf-8")
+if "BUILD_CLAR" not in text:
+  text = text.replace(
+    "\"BUILD_TESTS\": 0,\n",
+    "\"BUILD_TESTS\": 0,\n        \"BUILD_CLAR\": 0,\n",
+  )
+  path.write_text(text, encoding="utf-8")
+PY
+
 if [ "$PLATFORM" = "macos" ]; then
   python3 - <<'PY'
 from pathlib import Path

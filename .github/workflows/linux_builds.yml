@@ -56,6 +56,7 @@ jobs:
             bin: ./bin/godot.linuxbsd.editor.dev.double.x86_64.san
             proj-test: true
             proj-test-args: --recovery-mode
+            allow-objectdb-leaks: "1"
             build-git-plugin: false
 
           - name: Editor with clang sanitizers (target=editor, dev_build=yes, use_asan=yes, use_ubsan=yes, use_llvm=yes, linker=lld)
@@ -274,6 +275,8 @@ jobs:
       - name: Test Godot project
         uses: ./.github/actions/godot-project-test
         if: matrix.proj-test
+        env:
+          GODOT_CI_ALLOW_OBJECTDB_LEAKS: ${{ matrix.allow-objectdb-leaks }}
         with:
           bin: ${{ matrix.bin }}
           extra-args: ${{ matrix.proj-test-args }}

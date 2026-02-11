@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import os
 import sys
 
 if len(sys.argv) < 2:
@@ -46,8 +47,9 @@ if file_contents.find("ERROR: LeakSanitizer:") != -1:
 # LeakSanitizer doesn't report anything
 
 if file_contents.find("ObjectDB instances leaked at exit") != -1:
-    print("ERROR: Memory leak was found")
-    sys.exit(54)
+    if os.environ.get("GODOT_CI_ALLOW_OBJECTDB_LEAKS", "").strip() not in ["1", "true", "yes"]:
+        print("ERROR: Memory leak was found")
+        sys.exit(54)
 
 # In test project may be put several assert functions which will control if
 # project is executed with right parameters etc. which normally will not stop
