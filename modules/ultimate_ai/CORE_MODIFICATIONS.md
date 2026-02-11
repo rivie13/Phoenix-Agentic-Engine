@@ -22,6 +22,25 @@ This file tracks intentional Phoenix-specific changes that are expected to diver
 - Why: keep project tests running while temporarily ignoring the known ObjectDB leak warning in that configuration.
 - Merge note: drop the flag when the leak is resolved.
 
+### `misc/scripts/validate_extension_api.sh`
+
+- Normalized validation output to treat `ERROR: Validate extension JSON:` the same as `Validate extension JSON:`.
+- Why: Godot's logger prefixes some validation lines with `ERROR:`, which made the compatibility checker ignore real incompatibilities and pass while printing errors.
+- Merge note: keep normalization unless upstream standardizes the output prefix again.
+
+### `core/extension/extension_api_dump.cpp`
+
+- Always emit required array keys (`methods`, `signals`, `enums`, `constructors`) and always emit `arguments` arrays (even when empty) in `extension_api.json`.
+- Why: `--validate-extension-api` expects these fields to exist; omitting them caused spurious validation errors (e.g. missing `arguments`, missing base arrays).
+- Merge note: if upstream changes the extension API schema, revisit which keys are required vs optional.
+
+### `.github/workflows/macos_builds.yml`
+
+- Made Xcode selection resilient (falls back to `/Applications/Xcode.app` when the pinned path isn't present).
+- Installed dependencies needed by `build_godot_git_plugin.sh` (cmake/perl/nasm) on editor builds.
+- Why: macOS CI can fail if a specific Xcode isn't installed or if required tools aren't present.
+- Merge note: prefer upstream CI approach if they standardize Xcode selection and dependency installation.
+
 ### `editor/icons/DefaultProjectIcon.svg`
 
 - Replaced upstream icon SVG (PNG embedded in `<image>`) with vector paths from `branding/Phoenix_app_icon.svg`.
