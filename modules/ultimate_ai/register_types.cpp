@@ -31,6 +31,8 @@
 #include "register_types.h"
 
 #ifdef TOOLS_ENABLED
+#include "ui/diff_margin_editor_plugin.h"
+#include "ui/git_plugin_editor_plugin.h"
 #include "ui/pixelpen_editor_plugin.h"
 #include "ui/ultimate_ai_editor_plugin.h"
 #endif
@@ -42,6 +44,8 @@ void initialize_ultimate_ai_module(ModuleInitializationLevel p_level) {
 
 #ifdef TOOLS_ENABLED
 	EditorPlugins::add_by_type<UltimateAIEditorPlugin>();
+	EditorPlugins::add_by_type<DiffMarginEditorPlugin>();
+	EditorPlugins::add_by_type<GitPluginEditorPlugin>();
 	EditorPlugins::add_by_type<PixelPenEditorPlugin>();
 #endif
 }

@@ -88,9 +88,13 @@ void PixelPenEditorPlugin::_notification(int p_what) {
 		case NOTIFICATION_ENTER_TREE: {
 			add_tool_menu_item(TTR(PIXELPEN_MENU_OPEN_WINDOW), callable_mp(this, &PixelPenEditorPlugin::_open_window));
 			connect(SNAME("main_screen_changed"), callable_mp(this, &PixelPenEditorPlugin::_on_main_screen_changed));
+			addon_preload_pending = true;
 			set_process(true);
 		} break;
 		case NOTIFICATION_PROCESS: {
+			if (addon_preload_pending && !addon_preload_failed) {
+				_preload_addon_if_ready();
+			}
 			if (open_window_pending) {
 				EditorFileSystem *efs = EditorFileSystem::get_singleton();
 				if (!efs || !efs->is_scanning()) {
@@ -119,6 +123,8 @@ void PixelPenEditorPlugin::_notification(int p_what) {
 				extension_loaded = false;
 			}
 			open_window_pending = false;
+			addon_preload_pending = false;
+			addon_preload_failed = false;
 			preloaded_scripts.clear();
 			class_scripts_preloaded = false;
 			set_process(false);
@@ -146,7 +152,7 @@ void PixelPenEditorPlugin::_open_window() {
 	}
 	open_window_pending = false;
 
-	if (!_ensure_addon_installed()) {
+	if (!_ensure_addon_installed(true)) {
 		return;
 	}
 
@@ -196,6 +202,51 @@ void PixelPenEditorPlugin::_open_window() {
 	last_context_sync_msec = 0;
 	last_context_snapshot.clear();
 	last_context_layers.clear();
+}
+
+void PixelPenEditorPlugin::_preload_addon_if_ready() {
+	EditorFileSystem *efs = EditorFileSystem::get_singleton();
+	if (efs && efs->is_scanning()) {
+		return;
+	}
+	if (_find_source_addon_path().is_empty()) {
+		ERR_PRINT("PixelPen addon source not found. Clone the submodule into modules/ultimate_ai/external/pixelpen.");
+		addon_preload_failed = true;
+		addon_preload_pending = false;
+		return;
+	}
+
+	if (!_ensure_addon_installed(false)) {
+		if (efs && efs->is_scanning()) {
+			return;
+		}
+		addon_preload_failed = true;
+		addon_preload_pending = false;
+		return;
+	}
+
+	GDExtensionManager::LoadStatus status = GDExtensionManager::get_singleton()->load_extension(PIXELPEN_EXTENSION_PATH);
+	if (status != GDExtensionManager::LOAD_STATUS_OK && status != GDExtensionManager::LOAD_STATUS_ALREADY_LOADED) {
+		ERR_PRINT("PixelPen extension failed to preload. Build PixelPen binaries in modules/ultimate_ai/external/pixelpen first.");
+		addon_preload_failed = true;
+		return;
+	}
+	if (!extension_loaded) {
+		extension_loaded = true;
+	}
+
+	_preload_class_scripts();
+	if (!class_scripts_preloaded) {
+		if (efs && efs->is_scanning()) {
+			addon_preload_pending = true;
+		} else {
+			addon_preload_failed = true;
+			addon_preload_pending = false;
+		}
+		return;
+	}
+
+	addon_preload_pending = false;
 }
 
 void PixelPenEditorPlugin::_ensure_window_layout() {
@@ -438,7 +489,7 @@ void PixelPenEditorPlugin::_on_main_screen_changed(const String &p_screen_name) 
 	}
 }
 
-bool PixelPenEditorPlugin::_ensure_addon_installed() {
+bool PixelPenEditorPlugin::_ensure_addon_installed(bool p_allow_open) {
 	const String dst_path = ProjectSettings::get_singleton()->globalize_path(String(PIXELPEN_ADDON_PATH));
 	const String dst_plugin_cfg = dst_path.path_join("plugin.cfg");
 	const String dst_marker = dst_path.path_join(PIXELPEN_SYNC_MARKER_FILE);
@@ -482,7 +533,9 @@ bool PixelPenEditorPlugin::_ensure_addon_installed() {
 	_write_sync_marker(dst_marker, PIXELPEN_SYNC_REVISION, src_mtime);
 
 	if (did_copy) {
-		open_window_pending = true;
+		if (p_allow_open) {
+			open_window_pending = true;
+		}
 		return false;
 	}
 

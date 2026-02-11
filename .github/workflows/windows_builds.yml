@@ -113,6 +113,11 @@ jobs:
           platform: windows
           target: ${{ matrix.target }}
 
+      - name: Build Git Plugin addon
+        if: matrix.target == 'editor'
+        run: |
+          ./misc/scripts/build_godot_git_plugin.ps1 -Platform windows
+
       - name: Save Godot build cache
         uses: ./.github/actions/godot-cache-save
         with:

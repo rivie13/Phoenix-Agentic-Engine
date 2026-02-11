@@ -36,11 +36,47 @@ This file tracks intentional Phoenix-specific changes that are expected to diver
 - Why: iOS Metal builds were producing duplicate object targets for `metal_fx`, failing SCons with “Multiple ways to build the same target”.
 - Merge note: keep the conditional filter or align with upstream if they change MetalFX build selection.
 
+### `doc/tools/make_rst.py`
+
+- Skip walking into `modules/**/external` when collecting `doc_classes` XML files.
+- Why: avoid duplicate class definitions from third-party submodules (e.g., nested `godot-cpp` tests) that break `make-rst` in pre-commit.
+- Merge note: keep exclusion or upstream-ignore rules if external submodules are used there too.
+
 ### `drivers/metal/SCsub`
 
 - Avoid building both `.cpp` and `.mm` siblings by filtering out any `.cpp` with a matching `.mm` basename.
 - Why: iOS Metal builds were producing duplicate object targets (e.g., `metal_device_properties`, `pixel_formats`), failing SCons with “Multiple ways to build the same target”.
 - Merge note: keep the conditional filter or align with upstream if they change the driver file selection.
+
+### `editor/version_control/version_control_editor_plugin.h`
+
+- Added `ensure_vcs_plugin_loaded(...)` public helper.
+- Why: allow Phoenix editor plugins to auto-load the VCS UI once a VCS plugin is available.
+- Merge note: if upstream adds a similar hook, prefer upstream API and drop this helper.
+- Added per-file VCS action button ids for diff/unstage/gitignore.
+- Why: support new per-file actions in the VCS dock UI.
+- Merge note: align with upstream button ids if they introduce equivalent actions.
+
+### `editor/version_control/version_control_editor_plugin.cpp`
+
+- Implemented `ensure_vcs_plugin_loaded(...)` to load a named VCS plugin and persist autoload settings.
+- Why: auto-connect the Git VCS interface and show the standard Version Control docks without manual setup.
+- Merge note: reapply or replace with upstream autoload mechanism if introduced.
+- Set the Version Control commit dock default slot to `DOCK_SLOT_LEFT_BR` and auto-open it after registration.
+- Why: keep the Git UI next to the FileSystem dock and visible by default.
+- Merge note: adjust to upstream docking defaults if they add configurable placement.
+- Block in-editor branch checkout when Phoenix worktree mode is required.
+- Why: Phoenix workflow mandates separate worktrees per branch to avoid stale editor caches and cross-branch asset state.
+- Merge note: keep or replace with upstream worktree-safe branch switching if added.
+- Added a Phoenix worktree switch dialog that creates/opens worktrees and relaunches the editor.
+- Why: enable low-friction branch viewing while keeping each branch isolated in its own worktree.
+- Merge note: keep or replace with upstream worktree UI if added.
+- Default worktree root now points to `user://.phoenix_worktrees` and auto-adds in-repo roots to `.gitignore`.
+- Why: keep worktree folders out of Git status by default while still allowing per-project overrides.
+- Merge note: preserve this behavior unless upstream provides a first-class worktree manager.
+- Added per-file VCS list buttons for diff, unstage, and add-to-gitignore actions.
+- Why: expose common per-file actions directly in the VCS dock without extra steps.
+- Merge note: reapply if upstream adds similar per-file actions in the VCS UI.
 
 ## `modules/ultimate_ai` Integration Changes
 
@@ -48,6 +84,8 @@ This file tracks intentional Phoenix-specific changes that are expected to diver
 
 - `.gitmodules` now includes:
   - `modules/ultimate_ai/external/pixelpen` -> `https://github.com/rivie13/pixelpen.git`
+  - `modules/ultimate_ai/external/godot-diff-margin` -> `https://github.com/rivie13/godot-diff-margin.git`
+  - `modules/ultimate_ai/external/godot-git-plugin` -> `https://github.com/rivie13/godot-git-plugin.git`
 - Nested submodule under PixelPen:
   - `modules/ultimate_ai/external/pixelpen/godot-cpp`
 
@@ -55,7 +93,10 @@ This file tracks intentional Phoenix-specific changes that are expected to diver
 
 - `modules/ultimate_ai/register_types.cpp`
   - Registers `UltimateAIEditorPlugin`
+  - Registers `DiffMarginEditorPlugin`
+  - Registers `GitPluginEditorPlugin`
   - Registers `PixelPenEditorPlugin`
+  - Registers `GitPluginEditorPlugin`
 
 No edits were required in `editor/editor_node.cpp` for this module plugin path.
 
@@ -146,6 +187,17 @@ The following files were patched under:
   - `Could not find type "PixelPenProject" in the current scope`
   - `Identifier "PixelPen" not declared in the current scope`
   - `Could not find type "DataBranch" in the current scope`
+
+## Diff Margin Addon Compatibility Patches (Submodule)
+
+The following file was patched under:
+`modules/ultimate_ai/external/godot-diff-margin/addons/diff-margin`
+
+- `plugin.gd`
+  - Use `EditorSettings.set_setting(...)` API (was `set_settings`)
+  - Fix `_diffs_map` declaration syntax (`:=`)
+  - Treat empty string metadata as unset for gutter rendering
+  - Skip gutter setup when the current editor is not a script or when viewing Phoenix diff files
 
 ## Build and Runtime Validation Notes
 

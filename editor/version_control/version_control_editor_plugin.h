@@ -32,6 +32,7 @@
 
 #include "editor/plugins/editor_plugin.h"
 #include "editor/version_control/editor_vcs_interface.h"
+#include "scene/gui/check_box.h"
 #include "scene/gui/check_button.h"
 #include "scene/gui/file_dialog.h"
 #include "scene/gui/menu_button.h"
@@ -48,6 +49,9 @@ public:
 	enum ButtonType {
 		BUTTON_TYPE_OPEN = 0,
 		BUTTON_TYPE_DISCARD = 1,
+		BUTTON_TYPE_GITIGNORE = 2,
+		BUTTON_TYPE_UNSTAGE = 3,
+		BUTTON_TYPE_DIFF = 4,
 	};
 
 	enum DiffViewType {
@@ -59,12 +63,15 @@ public:
 		EXTRA_OPTION_FORCE_PUSH,
 		EXTRA_OPTION_CREATE_BRANCH,
 		EXTRA_OPTION_CREATE_REMOTE,
+		EXTRA_OPTION_SWITCH_WORKTREE,
 	};
 
 private:
 	static VersionControlEditorPlugin *singleton;
 
 	List<StringName> available_plugins;
+	bool vcs_autoload_pending = false;
+	String vcs_autoload_plugin;
 
 	PopupMenu *version_control_actions = nullptr;
 	ConfirmationDialog *metadata_dialog = nullptr;
@@ -97,6 +104,16 @@ private:
 	LineEdit *remote_create_name_input = nullptr;
 	LineEdit *remote_create_url_input = nullptr;
 	Button *remote_create_ok = nullptr;
+
+	AcceptDialog *worktree_switch_dialog = nullptr;
+	OptionButton *worktree_branch_select = nullptr;
+	LineEdit *worktree_root_path = nullptr;
+	LineEdit *worktree_target_path = nullptr;
+	Button *worktree_switch_ok = nullptr;
+	CheckBox *worktree_keep_open = nullptr;
+	CheckBox *worktree_create_branch = nullptr;
+	LineEdit *worktree_new_branch_name = nullptr;
+	bool worktree_normalizing = false;
 
 	HashMap<EditorVCSInterface::ChangeType, String> change_type_to_strings;
 	HashMap<EditorVCSInterface::ChangeType, Color> change_type_to_color;
@@ -172,6 +189,7 @@ private:
 	int _get_item_count(Tree *p_tree);
 	void _item_activated(Object *p_tree);
 	void _create_branch();
+	void _on_branch_create_name_changed(const String &p_text);
 	void _create_remote();
 	void _update_branch_create_button(const String &p_new_text);
 	void _update_remote_create_button(const String &p_new_text);
@@ -190,6 +208,14 @@ private:
 	void _update_commit_button();
 	void _commit_message_gui_input(const Ref<InputEvent> &p_event);
 	void _extra_option_selected(int p_index);
+	void _open_worktree_switch_dialog();
+	void _confirm_worktree_switch();
+	void _update_worktree_target_path();
+	void _on_worktree_branch_selected(int p_index);
+	void _on_worktree_create_branch_toggled(bool p_pressed);
+	void _on_worktree_root_changed(const String &p_text);
+	void _on_worktree_new_branch_changed(const String &p_text);
+	String _normalize_branch_name(const String &p_name) const;
 	bool _is_staging_area_empty();
 	String _get_date_string_from(int64_t p_unix_timestamp, int64_t p_offset_minutes) const;
 	void _create_vcs_metadata_files();
@@ -212,6 +238,7 @@ public:
 	void register_editor();
 	void fetch_available_vcs_plugin_names();
 	void shut_down();
+	bool ensure_vcs_plugin_loaded(const String &p_plugin_name, bool p_set_autoload);
 
 	VersionControlEditorPlugin();
 	~VersionControlEditorPlugin();

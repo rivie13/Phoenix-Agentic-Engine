@@ -48,6 +48,9 @@ jobs:
       - name: Build Editor
         run: scons platform=windows target=editor module_ultimate_ai_enabled=yes d3d12=no cache_path=${{ env.SCONS_CACHE_PATH }} redirect_build_objects=yes
 
+      - name: Build Git Plugin addon
+        run: ./misc/scripts/build_godot_git_plugin.ps1 -Platform windows
+
       - name: Save SCons cache
         uses: ./.github/actions/godot-cache-save
         with:
@@ -69,4 +72,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: phoenix-agentic-engine-windows
-          path: bin/phoenix_agentic.windows.editor.x86_64.exe
+          path: bin/**
