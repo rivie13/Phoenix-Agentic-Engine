@@ -209,7 +209,11 @@ jobs:
           bash ./misc/scripts/build_godot_git_plugin.sh linux "$PWD" "$api_dir/extension_api.json"
 
       - name: Build PixelPen addon
-        if: matrix.target == 'editor' && matrix.proj-test == true
+        # PixelPen's current build defaults to precision=single, but this workflow's
+        # "doubles + GCC sanitizers" job builds Godot with precision=double and dumps
+        # a double-precision extension_api.json, which the PixelPen binding generator
+        # rejects for single-precision builds.
+        if: matrix.target == 'editor' && matrix.proj-test == true && !contains(matrix.scons-flags, 'precision=double')
         run: |
           api_dir="${RUNNER_TEMP:-/tmp}/pixelpen_extension_api"
           mkdir -p "$api_dir"

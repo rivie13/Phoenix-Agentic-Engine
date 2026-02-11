@@ -140,6 +140,48 @@ jobs:
           ./misc/scripts/build_godot_git_plugin.ps1 -Platform windows -ApiFile "$apiFile"
         shell: pwsh
 
+      - name: Build PixelPen addon
+        # Only stage PixelPen for the primary MSVC editor artifact.
+        if: matrix.target == 'editor' && matrix.compiler == 'msvc'
+        run: |
+          $apiDir = Join-Path $env:RUNNER_TEMP "pixelpen_extension_api"
+          New-Item -ItemType Directory -Force -Path $apiDir | Out-Null
+          $binPath = "${{ matrix.bin }}" -replace '^\./', ''
+          $editorExe = Join-Path $env:GITHUB_WORKSPACE $binPath
+
+          Push-Location $apiDir
+          & $editorExe --headless --dump-extension-api
+          Pop-Location
+
+          $apiFile = Join-Path $apiDir "extension_api.json"
+          if (!(Test-Path $apiFile)) {
+            $exeDir = Split-Path $editorExe -Parent
+            $exeApiFile = Join-Path $exeDir "extension_api.json"
+            if (Test-Path $exeApiFile) {
+              Copy-Item -Force $exeApiFile $apiFile
+            }
+          }
+          if (!(Test-Path $apiFile)) {
+            Write-Host "extension_api.json was not generated" -ForegroundColor Red
+            Write-Host "API dir: $apiDir" -ForegroundColor Yellow
+            Write-Host "Editor dir: $(Split-Path $editorExe -Parent)" -ForegroundColor Yellow
+            throw "extension_api.json was not generated"
+          }
+
+          python -m SCons -C ./modules/ultimate_ai/external/pixelpen platform=windows arch=x86_64 target=template_debug generate_bindings=yes custom_api_file="$apiFile"
+
+          $srcAddon = Join-Path $env:GITHUB_WORKSPACE "modules\ultimate_ai\external\pixelpen\project\addons\net.yarvis.pixel_pen"
+          if (!(Test-Path $srcAddon)) {
+            throw "PixelPen addon source not found at $srcAddon"
+          }
+          $dstAddon = Join-Path $env:GITHUB_WORKSPACE "bin\addons\net.yarvis.pixel_pen"
+          if (Test-Path $dstAddon) {
+            Remove-Item -Recurse -Force $dstAddon
+          }
+          New-Item -ItemType Directory -Force -Path $dstAddon | Out-Null
+          Copy-Item -Recurse -Force (Join-Path $srcAddon '*') $dstAddon
+        shell: pwsh
+
       - name: Save Godot build cache
         uses: ./.github/actions/godot-cache-save
         with:
