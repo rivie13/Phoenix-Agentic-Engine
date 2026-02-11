@@ -64,11 +64,16 @@ else
 fi
 popd >/dev/null
 cp -f "$API_FILE" "$BUILD_ROOT/extension_api.json"
+cp -f "$API_FILE" "$BUILD_ROOT/godot-cpp/extension_api.json"
 if [ ! -f "$BUILD_ROOT/extension_api.json" ]; then
   echo "Failed to stage extension_api.json at $BUILD_ROOT/extension_api.json" >&2
   exit 1
 fi
-python3 -m SCons platform="$PLATFORM" target=editor dev_build=yes generate_bindings=yes custom_api_file="extension_api.json"
+if [ ! -f "$BUILD_ROOT/godot-cpp/extension_api.json" ]; then
+  echo "Failed to stage extension_api.json at $BUILD_ROOT/godot-cpp/extension_api.json" >&2
+  exit 1
+fi
+python3 -m SCons platform="$PLATFORM" target=editor dev_build=yes generate_bindings=yes custom_api_file="$BUILD_ROOT/godot-cpp/extension_api.json"
 popd >/dev/null
 
 DST="$ENGINE_ROOT/bin/addons/godot-git-plugin"
