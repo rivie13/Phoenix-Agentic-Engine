@@ -92,6 +92,17 @@ if "single-bit-bitfield-constant-conversion" not in text and needle in text:
     )
     path.write_text(text.replace(needle, replacement), encoding="utf-8")
 PY
+
+  python3 - <<'PY'
+from pathlib import Path
+
+path = Path("thirdparty/git2/libgit2/deps/zlib/zutil.h")
+text = path.read_text(encoding="utf-8")
+needle = "#        define fdopen(fd,mode) NULL /* No fdopen() */"
+if needle in text:
+  replacement = "#        if !defined(__APPLE__)\n#          define fdopen(fd,mode) NULL /* No fdopen() */\n#        endif"
+  path.write_text(text.replace(needle, replacement), encoding="utf-8")
+PY
 fi
 
 LOCAL_PLUGIN_SOURCE="$ENGINE_ROOT/modules/ultimate_ai/external/godot-git-plugin/godot-git-plugin/src/git_plugin.cpp"
