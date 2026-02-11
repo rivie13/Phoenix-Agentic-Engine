@@ -137,7 +137,8 @@ Write-Host "[git-plugin] godot-cpp commit: $(& $git rev-parse HEAD)" -Foreground
 Pop-Location
 $customApiFile = (Resolve-Path $apiFilePath).Path
 $stagedApiRoot = Join-Path $buildRoot "extension_api.json"
-$stagedApiGodotCpp = Join-Path $buildRoot "godot-cpp\extension_api.json"
+$stagedApiGodotCpp = Join-Path $buildRoot "godot-cpp\gdextension\extension_api.json"
+New-Item -ItemType Directory -Force -Path (Split-Path -Parent $stagedApiGodotCpp) | Out-Null
 Copy-Item -Force $customApiFile $stagedApiRoot
 Copy-Item -Force $customApiFile $stagedApiGodotCpp
 if (!(Test-Path $stagedApiRoot)) {
@@ -150,7 +151,7 @@ $buildLog = Join-Path $buildRoot "phoenix_git_plugin_build.log"
 $previousErrorAction = $ErrorActionPreference
 $ErrorActionPreference = "Continue"
 Write-Host "[git-plugin] SCons build running..." -ForegroundColor Cyan
-& C:\Python313\python.exe -m SCons platform=$Platform target=editor dev_build=yes generate_bindings=yes custom_api_file="extension_api.json" 2>&1 | Tee-Object -FilePath $buildLog
+& C:\Python313\python.exe -m SCons platform=$Platform target=editor dev_build=yes generate_bindings=yes 2>&1 | Tee-Object -FilePath $buildLog
 $ErrorActionPreference = $previousErrorAction
 $sconsExit = $LASTEXITCODE
 if ($sconsExit -ne 0) {
