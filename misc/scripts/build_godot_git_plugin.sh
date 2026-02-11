@@ -63,7 +63,12 @@ else
   git checkout master
 fi
 popd >/dev/null
-python3 -m SCons platform="$PLATFORM" target=editor dev_build=yes generate_bindings=yes custom_api_file="$API_FILE"
+cp -f "$API_FILE" "$BUILD_ROOT/extension_api.json"
+if [ ! -f "$BUILD_ROOT/extension_api.json" ]; then
+  echo "Failed to stage extension_api.json at $BUILD_ROOT/extension_api.json" >&2
+  exit 1
+fi
+python3 -m SCons platform="$PLATFORM" target=editor dev_build=yes generate_bindings=yes custom_api_file="extension_api.json"
 popd >/dev/null
 
 DST="$ENGINE_ROOT/bin/addons/godot-git-plugin"
