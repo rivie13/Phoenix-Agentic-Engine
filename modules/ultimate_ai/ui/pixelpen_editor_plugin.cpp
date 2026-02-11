@@ -595,6 +595,8 @@ bool PixelPenEditorPlugin::_addon_has_extension_binary(const String &p_addon_pat
 String PixelPenEditorPlugin::_find_source_addon_path() const {
 	String exec_dir = OS::get_singleton()->get_executable_path().get_base_dir();
 	Vector<String> candidates;
+	candidates.push_back(exec_dir.path_join("addons/net.yarvis.pixel_pen").simplify_path());
+	candidates.push_back(exec_dir.path_join("../addons/net.yarvis.pixel_pen").simplify_path());
 	candidates.push_back(exec_dir.path_join("modules/ultimate_ai/external/pixelpen/project/addons/net.yarvis.pixel_pen").simplify_path());
 	candidates.push_back(exec_dir.path_join("../modules/ultimate_ai/external/pixelpen/project/addons/net.yarvis.pixel_pen").simplify_path());
 	candidates.push_back(exec_dir.path_join("../../modules/ultimate_ai/external/pixelpen/project/addons/net.yarvis.pixel_pen").simplify_path());
