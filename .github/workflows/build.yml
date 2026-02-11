@@ -54,7 +54,7 @@ jobs:
           New-Item -ItemType Directory -Force -Path $apiDir | Out-Null
           $editorExe = Join-Path $env:GITHUB_WORKSPACE "bin\phoenix_agentic.windows.editor.x86_64.exe"
           Push-Location $apiDir
-          & $editorExe --dump-extension-api
+          & $editorExe --headless --dump-extension-api
           Pop-Location
           if (!(Test-Path (Join-Path $apiDir "extension_api.json"))) { throw "extension_api.json was not generated" }
         shell: pwsh
