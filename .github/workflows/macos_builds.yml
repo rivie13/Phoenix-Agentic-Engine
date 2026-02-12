@@ -121,6 +121,7 @@ jobs:
             exit 1
           fi
           python3 ./misc/scripts/sanitize_extension_api.py "$api_dir/extension_api.json"
+          export SCONS_CACHE_PATH="${GITHUB_WORKSPACE}/.scons_cache/addons/godot-git-plugin/${{ matrix.cache-name }}"
           bash ./misc/scripts/build_godot_git_plugin.sh macos "$PWD" "$api_dir/extension_api.json"
 
       - name: Build PixelPen addon
@@ -144,6 +145,7 @@ jobs:
           fi
 
           python3 ./misc/scripts/sanitize_extension_api.py "$api_dir/extension_api.json"
+          export SCONS_CACHE="${GITHUB_WORKSPACE}/.scons_cache/addons/pixelpen/${{ matrix.cache-name }}"
 
           api_file="$api_dir/extension_api.json"
           godot_cpp_ref="$(API_FILE="$api_file" python3 -c 'import json, os; api=json.load(open(os.environ["API_FILE"], "r", encoding="utf-8")); h=api.get("header", {}); print("godot-{}.{}-stable".format(h.get("version_major"), h.get("version_minor")) if h.get("version_status") == "stable" else "{}.{}".format(h.get("version_major"), h.get("version_minor")))')"

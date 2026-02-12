@@ -207,6 +207,7 @@ jobs:
             exit 1
           fi
           python3 ./misc/scripts/sanitize_extension_api.py "$api_dir/extension_api.json"
+          export SCONS_CACHE_PATH="${GITHUB_WORKSPACE}/.scons_cache/addons/godot-git-plugin/${{ matrix.cache-name }}"
           bash ./misc/scripts/build_godot_git_plugin.sh linux "$PWD" "$api_dir/extension_api.json"
 
       - name: Build PixelPen addon
@@ -230,6 +231,7 @@ jobs:
           fi
 
           python3 ./misc/scripts/sanitize_extension_api.py "$api_dir/extension_api.json"
+          export SCONS_CACHE="${GITHUB_WORKSPACE}/.scons_cache/addons/pixelpen/${{ matrix.cache-name }}"
 
           # PixelPen vendors its own godot-cpp; ensure it matches the engine version we're building against.
           api_file="$api_dir/extension_api.json"

@@ -2,6 +2,7 @@ param(
     [string]$Platform = "windows",
     [string]$EngineRoot = "",
     [string]$ApiFile = "",
+    [string]$SConsCachePath = "",
     [switch]$KeepBuild,
     [switch]$ReuseBuild,
     [switch]$ForceClean
@@ -163,7 +164,17 @@ $buildLog = Join-Path $buildRoot "phoenix_git_plugin_build.log"
 $previousErrorAction = $ErrorActionPreference
 $ErrorActionPreference = "Continue"
 Write-Host "[git-plugin] SCons build running..." -ForegroundColor Cyan
-& $python.Source -m SCons platform=$Platform target=editor dev_build=yes generate_bindings=yes 2>&1 | Tee-Object -FilePath $buildLog
+$sconsArgs = @(
+    "platform=$Platform",
+    "target=editor",
+    "dev_build=yes",
+    "generate_bindings=yes"
+)
+if (-not [string]::IsNullOrWhiteSpace($SConsCachePath)) {
+    $sconsArgs += "cache_path=$SConsCachePath"
+    Write-Host "[git-plugin] SCons cache path: $SConsCachePath" -ForegroundColor Cyan
+}
+& $python.Source -m SCons @sconsArgs 2>&1 | Tee-Object -FilePath $buildLog
 $ErrorActionPreference = $previousErrorAction
 $sconsExit = $LASTEXITCODE
 if ($sconsExit -ne 0) {
