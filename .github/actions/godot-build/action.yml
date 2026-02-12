@@ -1,6 +1,5 @@
-# yaml-language-server: $schema=https://json.schemastore.org/github-action.json
-name: Build Phoenix Agentic Engine
-description: Build Phoenix Agentic Engine with the provided options.
+name: "Legacy alias: phoenix-build"
+description: Backward-compatible alias for ./.github/actions/phoenix-build.
 
 inputs:
   target:
@@ -17,22 +16,10 @@ inputs:
 runs:
   using: composite
   steps:
-    - name: SCons Build
-      shell: sh
-      run: |
-        echo "Building with flags:" platform=${{ inputs.platform }} target=${{ inputs.target }} ${{ inputs.scons-flags }} "cache_path=${{ inputs.scons-cache }}" redirect_build_objects=no
-
-        if [ "${{ inputs.target }}" != "editor" ]; then
-          # Ensure we don't include editor code in export template builds.
-          rm -rf editor
-        fi
-
-        if [ "${{ github.event.number }}" != "" ]; then
-          # Set build identifier with pull request number if available. This is displayed throughout the editor.
-          export BUILD_NAME="gh-${{ github.event.number }}"
-        else
-          export BUILD_NAME="gh"
-        fi
-
-        scons platform=${{ inputs.platform }} target=${{ inputs.target }} ${{ inputs.scons-flags }} "cache_path=${{ inputs.scons-cache }}" redirect_build_objects=no
-        ls -l bin/
+    - name: Delegate to phoenix-build
+      uses: ./.github/actions/phoenix-build
+      with:
+        target: ${{ inputs.target }}
+        platform: ${{ inputs.platform }}
+        scons-flags: ${{ inputs.scons-flags }}
+        scons-cache: ${{ inputs.scons-cache }}

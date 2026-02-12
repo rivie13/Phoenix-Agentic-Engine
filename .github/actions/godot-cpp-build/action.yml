@@ -1,9 +1,9 @@
-name: Build godot-cpp
-description: Build godot-cpp with the provided options.
+name: "Legacy alias: phoenix-cpp-build"
+description: Backward-compatible alias for ./.github/actions/phoenix-cpp-build.
 
 inputs:
   bin:
-    description: Path to the Godot binary.
+    description: Path to the Phoenix editor binary.
     required: true
   scons-flags:
     description: Additional SCons flags.
@@ -11,57 +11,16 @@ inputs:
     description: The SCons cache path.
     default: ${{ github.workspace }}/.scons_cache/
   godot-cpp-branch:
-    description: The godot-cpp branch.
+    description: The C++ bindings branch.
     default: master
 
 runs:
   using: composite
   steps:
-    - name: Checkout
-      uses: actions/checkout@v4
+    - name: Delegate to phoenix-cpp-build
+      uses: ./.github/actions/phoenix-cpp-build
       with:
-        submodules: recursive
-        repository: godotengine/godot-cpp
-        ref: ${{ inputs.godot-cpp-branch }}
-        path: godot-cpp
-
-    - name: Extract API
-      shell: sh
-      run: |
-        api_dir="${RUNNER_TEMP:-/tmp}/godotcpp_api"
-        mkdir -p "$api_dir"
-
-        bin_path="${{ inputs.bin }}"
-        case "$bin_path" in
-          /*)
-            godot_bin="$bin_path"
-            ;;
-          ./*)
-            godot_bin="${GITHUB_WORKSPACE}/${bin_path#./}"
-            ;;
-          *)
-            godot_bin="${GITHUB_WORKSPACE}/$bin_path"
-            ;;
-        esac
-
-        if [ ! -f "$godot_bin" ]; then
-          echo "::error::Godot binary not found: $godot_bin (input: $bin_path)" >&2
-          ls -la "${GITHUB_WORKSPACE}/bin" || true
-          exit 1
-        fi
-        chmod +x "$godot_bin" || true
-
-        (
-          cd "$api_dir"
-          "$godot_bin" --headless --dump-gdextension-interface-json --dump-gdextension-interface --dump-extension-api
-        )
-
-        cp -f "$api_dir/extension_api.json" "${{ github.workspace }}/extension_api.json"
-        cp -f "$api_dir/gdextension_interface.json" "${{ github.workspace }}/gdextension_interface.json"
-        if [ -f "$api_dir/gdextension_interface.h" ]; then
-          cp -f "$api_dir/gdextension_interface.h" "${{ github.workspace }}/gdextension_interface.h"
-        fi
-
-    - name: SCons Build
-      shell: sh
-      run: scons --directory=./godot-cpp/test "gdextension_dir=${{ github.workspace }}" "custom_tools=${{ github.workspace }}/.github/godotcpp_tools" use_response_file=yes ${{ inputs.scons-flags }}
+        bin: ${{ inputs.bin }}
+        scons-flags: ${{ inputs.scons-flags }}
+        scons-cache: ${{ inputs.scons-cache }}
+        godot-cpp-branch: ${{ inputs.godot-cpp-branch }}

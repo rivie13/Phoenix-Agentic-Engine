@@ -122,6 +122,25 @@ PY
   python3 - <<'PY'
 from pathlib import Path
 
+path = Path("tools/git2.py")
+text = path.read_text(encoding="utf-8")
+needle = "    env.Append(CPPPATH=[\"#thirdparty/git2/libgit2/include\"])\n    env.Prepend(LIBS=git2[1:])\n    if env[\"platform\"] == \"windows\":\n        env.PrependUnique(LIBS=[\"secur32\"])\n\n    return git2\n"
+if "env.PrependUnique(LIBS=[\"iconv\"])" not in text and needle in text:
+    replacement = (
+        "    env.Append(CPPPATH=[\"#thirdparty/git2/libgit2/include\"])\n"
+        "    env.Prepend(LIBS=git2[1:])\n"
+        "    if env[\"platform\"] == \"windows\":\n"
+        "        env.PrependUnique(LIBS=[\"secur32\"])\n"
+        "    elif env[\"platform\"] == \"macos\":\n"
+        "        env.PrependUnique(LIBS=[\"iconv\"])\n\n"
+        "    return git2\n"
+    )
+    path.write_text(text.replace(needle, replacement), encoding="utf-8")
+PY
+
+  python3 - <<'PY'
+from pathlib import Path
+
 path = Path("thirdparty/git2/libgit2/deps/zlib/zutil.h")
 text = path.read_text(encoding="utf-8")
 needle = "#        define fdopen(fd,mode) NULL /* No fdopen() */"

@@ -63,14 +63,14 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Restore Godot build cache
-        uses: ./.github/actions/godot-cache-restore
+      - name: Restore Phoenix build cache
+        uses: ./.github/actions/phoenix-cache-restore
         with:
           cache-name: ${{ matrix.cache-name }}
         continue-on-error: true
 
       - name: Setup Python and SCons
-        uses: ./.github/actions/godot-deps
+        uses: ./.github/actions/phoenix-deps
 
       - name: Download Direct3D 12 SDK components
         shell: sh
@@ -107,7 +107,7 @@ jobs:
         run: unzip -o accesskit-c-0.18.0/accesskit_c.zip
 
       - name: Compilation
-        uses: ./.github/actions/godot-build
+        uses: ./.github/actions/phoenix-build
         with:
           scons-flags: ${{ env.SCONS_FLAGS }} ${{ matrix.scons-flags }} d3d12=${{ steps.d3d12-sdk.outputs.D3D12_ENABLED }}
           platform: windows
@@ -242,8 +242,8 @@ jobs:
           Copy-Item -Recurse -Force (Join-Path $srcDiffMargin '*') $dstDiffMargin
         shell: pwsh
 
-      - name: Save Godot build cache
-        uses: ./.github/actions/godot-cache-save
+      - name: Save Phoenix build cache
+        uses: ./.github/actions/phoenix-cache-save
         with:
           cache-name: ${{ matrix.cache-name }}
         continue-on-error: true

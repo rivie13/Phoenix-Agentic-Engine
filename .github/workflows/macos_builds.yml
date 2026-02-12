@@ -50,14 +50,14 @@ jobs:
           xcode-select -p || true
           xcodebuild -version || true
 
-      - name: Restore Godot build cache
-        uses: ./.github/actions/godot-cache-restore
+      - name: Restore Phoenix build cache
+        uses: ./.github/actions/phoenix-cache-restore
         with:
           cache-name: ${{ matrix.cache-name }}
         continue-on-error: true
 
       - name: Setup Python and SCons
-        uses: ./.github/actions/godot-deps
+        uses: ./.github/actions/phoenix-deps
 
       - name: Install addon build dependencies
         if: matrix.target == 'editor'
@@ -88,14 +88,14 @@ jobs:
         continue-on-error: true
 
       - name: Compilation (x86_64)
-        uses: ./.github/actions/godot-build
+        uses: ./.github/actions/phoenix-build
         with:
           scons-flags: ${{ env.SCONS_FLAGS }} ${{ matrix.scons-flags }} arch=x86_64 vulkan=${{ steps.vulkan-sdk.outputs.VULKAN_ENABLED }}
           platform: macos
           target: ${{ matrix.target }}
 
       - name: Compilation (arm64)
-        uses: ./.github/actions/godot-build
+        uses: ./.github/actions/phoenix-build
         with:
           scons-flags: ${{ env.SCONS_FLAGS }} ${{ matrix.scons-flags }} arch=arm64 vulkan=${{ steps.vulkan-sdk.outputs.VULKAN_ENABLED }}
           platform: macos
@@ -184,8 +184,8 @@ jobs:
           cp -R "$pixelpen_src" "$pixelpen_dst"
           cp -R "$diff_margin_src" "$diff_margin_dst"
 
-      - name: Save Godot build cache
-        uses: ./.github/actions/godot-cache-save
+      - name: Save Phoenix build cache
+        uses: ./.github/actions/phoenix-cache-save
         with:
           cache-name: ${{ matrix.cache-name }}
         continue-on-error: true

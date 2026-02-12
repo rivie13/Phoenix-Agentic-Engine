@@ -19,7 +19,7 @@ jobs:
           submodules: recursive
 
       - name: Restore SCons cache
-        uses: ./.github/actions/godot-cache-restore
+        uses: ./.github/actions/phoenix-cache-restore
         with:
           cache-name: ${{ env.SCONS_CACHE_NAME }}
           scons-cache: ${{ env.SCONS_CACHE_PATH }}
@@ -161,7 +161,7 @@ jobs:
         shell: pwsh
 
       - name: Save SCons cache
-        uses: ./.github/actions/godot-cache-save
+        uses: ./.github/actions/phoenix-cache-save
         with:
           cache-name: ${{ env.SCONS_CACHE_NAME }}
           scons-cache: ${{ env.SCONS_CACHE_PATH }}
