@@ -130,9 +130,29 @@ jobs:
           }
           $gitPluginSha = ($gitPluginHeadLine -split "`t")[0]
 
+          $pixelpenPath = Join-Path $env:GITHUB_WORKSPACE "modules\ultimate_ai\external\pixelpen"
+          if (!(Test-Path $pixelpenPath)) {
+            throw "PixelPen path not found at $pixelpenPath"
+          }
+          $pixelpenSha = (git -C $pixelpenPath rev-parse HEAD).Trim()
+          if (-not $pixelpenSha) {
+            throw "Failed to resolve PixelPen SHA"
+          }
+
+          $diffMarginPath = Join-Path $env:GITHUB_WORKSPACE "modules\ultimate_ai\external\godot-diff-margin"
+          if (!(Test-Path $diffMarginPath)) {
+            throw "diff-margin path not found at $diffMarginPath"
+          }
+          $diffMarginSha = (git -C $diffMarginPath rev-parse HEAD).Trim()
+          if (-not $diffMarginSha) {
+            throw "Failed to resolve diff-margin SHA"
+          }
+
           "godot_cpp_ref=$godotCppRef" >> $env:GITHUB_OUTPUT
           "godot_cpp_sha=$godotCppSha" >> $env:GITHUB_OUTPUT
           "git_plugin_sha=$gitPluginSha" >> $env:GITHUB_OUTPUT
+          "pixelpen_sha=$pixelpenSha" >> $env:GITHUB_OUTPUT
+          "diff_margin_sha=$diffMarginSha" >> $env:GITHUB_OUTPUT
 
       - name: Restore Git Plugin addon cache
         id: git-plugin-addon-cache
@@ -163,7 +183,7 @@ jobs:
           path: |
             bin/addons/net.yarvis.pixel_pen
             bin/addons/diff-margin
-          key: ${{ runner.os }}|pixelpen-addon|${{ steps.extension-api-hash.outputs.hash }}|${{ steps.addon-deps.outputs.godot_cpp_sha }}|${{ hashFiles('modules/ultimate_ai/external/pixelpen/**', 'modules/ultimate_ai/external/godot-diff-margin/**', 'misc/scripts/sanitize_extension_api.py') }}
+          key: ${{ runner.os }}|pixelpen-addon|${{ github.ref_name }}|${{ steps.extension-api-hash.outputs.hash }}|${{ steps.addon-deps.outputs.godot_cpp_sha }}|${{ steps.addon-deps.outputs.pixelpen_sha }}|${{ steps.addon-deps.outputs.diff_margin_sha }}|${{ hashFiles('misc/scripts/sanitize_extension_api.py') }}
 
       - name: Build PixelPen addon
         if: steps.pixelpen-addon-cache.outputs.cache-hit != 'true'
@@ -178,20 +198,13 @@ jobs:
           Remove-Item Env:SCONS_CACHE -ErrorAction SilentlyContinue
 
           # PixelPen vendors its own godot-cpp; ensure it matches the engine version we're building against.
-          $apiJson = Get-Content $apiFile -Raw | ConvertFrom-Json
-          $godotCppRef = "$($apiJson.header.version_major).$($apiJson.header.version_minor)"
-          if ($apiJson.header.version_status -eq "stable") {
-            $godotCppRef = "godot-$($apiJson.header.version_major).$($apiJson.header.version_minor)-stable"
+          $selectedGodotCppRef = "${{ steps.addon-deps.outputs.godot_cpp_ref }}"
+          if ([string]::IsNullOrWhiteSpace($selectedGodotCppRef)) {
+            throw "Resolved godot-cpp ref is empty"
           }
           $pixelpenGodotCpp = Join-Path $env:GITHUB_WORKSPACE "modules\ultimate_ai\external\pixelpen\godot-cpp"
           if (Test-Path $pixelpenGodotCpp) {
             Push-Location $pixelpenGodotCpp
-            $selectedGodotCppRef = $godotCppRef
-            $matchingRef = git ls-remote --heads --tags origin $selectedGodotCppRef
-            if (-not $matchingRef) {
-              Write-Host "godot-cpp ref '$selectedGodotCppRef' not found; falling back to 'master'." -ForegroundColor Yellow
-              $selectedGodotCppRef = "master"
-            }
             git fetch --depth 1 origin $selectedGodotCppRef
             if ($LASTEXITCODE -ne 0) {
               throw "Failed to fetch godot-cpp ref '$selectedGodotCppRef'"
@@ -229,7 +242,7 @@ jobs:
           path: |
             bin/addons/net.yarvis.pixel_pen
             bin/addons/diff-margin
-          key: ${{ runner.os }}|pixelpen-addon|${{ steps.extension-api-hash.outputs.hash }}|${{ steps.addon-deps.outputs.godot_cpp_sha }}|${{ hashFiles('modules/ultimate_ai/external/pixelpen/**', 'modules/ultimate_ai/external/godot-diff-margin/**', 'misc/scripts/sanitize_extension_api.py') }}
+          key: ${{ runner.os }}|pixelpen-addon|${{ github.ref_name }}|${{ steps.extension-api-hash.outputs.hash }}|${{ steps.addon-deps.outputs.godot_cpp_sha }}|${{ steps.addon-deps.outputs.pixelpen_sha }}|${{ steps.addon-deps.outputs.diff_margin_sha }}|${{ hashFiles('misc/scripts/sanitize_extension_api.py') }}
 
       - name: Save SCons cache
         uses: ./.github/actions/phoenix-cache-save
