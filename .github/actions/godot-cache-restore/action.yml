@@ -4,6 +4,9 @@ inputs:
   cache-name:
     description: The cache base name (job name by default).
     default: ${{ github.job }}
+  cache-scope:
+    description: Logical scope to avoid cache key collisions across workflows.
+    default: ${{ github.workflow_ref }}
   scons-cache:
     description: The SCons cache path.
     default: ${{ github.workspace }}/.scons_cache/
@@ -15,4 +18,5 @@ runs:
       uses: ./.github/actions/phoenix-cache-restore
       with:
         cache-name: ${{ inputs.cache-name }}
+        cache-scope: ${{ inputs.cache-scope }}
         scons-cache: ${{ inputs.scons-cache }}
