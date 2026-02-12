@@ -93,6 +93,17 @@ if [ "$PLATFORM" = "macos" ]; then
   python3 - <<'PY'
 from pathlib import Path
 
+path = Path("tools/openssl.py")
+text = path.read_text(encoding="utf-8")
+updated = text.replace(" -no_warning_for_no_symbols", "")
+updated = updated.replace("RANLIBFLAGS=-no_warning_for_no_symbols", "")
+if updated != text:
+    path.write_text(updated, encoding="utf-8")
+PY
+
+  python3 - <<'PY'
+from pathlib import Path
+
 path = Path("tools/git2.py")
 text = path.read_text(encoding="utf-8")
 needle = "    if env[\"platform\"] != \"windows\":\n        config[\"CMAKE_C_FLAGS\"] = \"-fPIC\"\n    else:\n        config[\"OPENSSL_ROOT_DIR\"] = env[\"SSL_BUILD\"]\n"

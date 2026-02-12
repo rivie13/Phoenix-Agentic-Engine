@@ -27,7 +27,20 @@ runs:
 
     - name: Extract API
       shell: sh
-      run: ${{ inputs.bin }} --headless --dump-gdextension-interface --dump-extension-api
+      run: |
+        api_dir="${RUNNER_TEMP:-/tmp}/godotcpp_api"
+        mkdir -p "$api_dir"
+
+        (
+          cd "$api_dir"
+          "${{ inputs.bin }}" --headless --dump-gdextension-interface-json --dump-gdextension-interface --dump-extension-api
+        )
+
+        cp -f "$api_dir/extension_api.json" "${{ github.workspace }}/extension_api.json"
+        cp -f "$api_dir/gdextension_interface.json" "${{ github.workspace }}/gdextension_interface.json"
+        if [ -f "$api_dir/gdextension_interface.h" ]; then
+          cp -f "$api_dir/gdextension_interface.h" "${{ github.workspace }}/gdextension_interface.h"
+        fi
 
     - name: SCons Build
       shell: sh
