@@ -123,6 +123,67 @@ jobs:
           python3 ./misc/scripts/sanitize_extension_api.py "$api_dir/extension_api.json"
           bash ./misc/scripts/build_godot_git_plugin.sh macos "$PWD" "$api_dir/extension_api.json"
 
+      - name: Build PixelPen addon
+        if: matrix.target == 'editor'
+        run: |
+          api_dir="${RUNNER_TEMP:-/tmp}/pixelpen_extension_api"
+          mkdir -p "$api_dir"
+          host_arch="$(uname -m)"
+          editor_exe="${GITHUB_WORKSPACE}/bin/phoenix_agentic.macos.editor.${host_arch}"
+          if [ ! -f "$editor_exe" ]; then
+            echo "::warning::macOS: Expected editor binary not found for host arch '${host_arch}' at '${editor_exe}', falling back to x86_64." >&2
+            editor_exe="${GITHUB_WORKSPACE}/bin/phoenix_agentic.macos.editor.x86_64"
+          fi
+          chmod +x "$editor_exe" || true
+          pushd "$api_dir" >/dev/null
+          "$editor_exe" --headless --dump-extension-api
+          popd >/dev/null
+          if [ ! -f "$api_dir/extension_api.json" ]; then
+            echo "extension_api.json was not generated" >&2
+            exit 1
+          fi
+
+          python3 ./misc/scripts/sanitize_extension_api.py "$api_dir/extension_api.json"
+
+          api_file="$api_dir/extension_api.json"
+          godot_cpp_ref="$(API_FILE="$api_file" python3 -c 'import json, os; api=json.load(open(os.environ["API_FILE"], "r", encoding="utf-8")); h=api.get("header", {}); print("godot-{}.{}-stable".format(h.get("version_major"), h.get("version_minor")) if h.get("version_status") == "stable" else "{}.{}".format(h.get("version_major"), h.get("version_minor")))')"
+          if [ -d "./modules/ultimate_ai/external/pixelpen/godot-cpp/.git" ]; then
+            git -C ./modules/ultimate_ai/external/pixelpen/godot-cpp fetch --depth 1 origin "$godot_cpp_ref" || godot_cpp_ref="master"
+            git -C ./modules/ultimate_ai/external/pixelpen/godot-cpp fetch --depth 1 origin "$godot_cpp_ref" || true
+            git -C ./modules/ultimate_ai/external/pixelpen/godot-cpp checkout -B "$godot_cpp_ref" "origin/$godot_cpp_ref"
+          fi
+
+          python3 -m SCons -C ./modules/ultimate_ai/external/pixelpen platform=macos target=template_debug precision=single generate_bindings=yes custom_api_file="$api_file"
+
+      - name: Stage editor addons
+        if: matrix.target == 'editor'
+        run: |
+          git_plugin_src="./bin/addons/godot-git-plugin"
+          pixelpen_src="./modules/ultimate_ai/external/pixelpen/project/addons/net.yarvis.pixel_pen"
+          diff_margin_src="./modules/ultimate_ai/external/godot-diff-margin/addons/diff-margin"
+
+          if [ ! -d "$git_plugin_src" ]; then
+            echo "Missing Git plugin addon directory: $git_plugin_src" >&2
+            exit 1
+          fi
+          if [ ! -d "$pixelpen_src" ]; then
+            echo "Missing PixelPen addon directory: $pixelpen_src" >&2
+            exit 1
+          fi
+          if [ ! -d "$diff_margin_src" ]; then
+            echo "Missing diff-margin addon directory: $diff_margin_src" >&2
+            exit 1
+          fi
+
+          mkdir -p ./bin/addons
+
+          pixelpen_dst="./bin/addons/net.yarvis.pixel_pen"
+          diff_margin_dst="./bin/addons/diff-margin"
+          rm -rf "$pixelpen_dst" "$diff_margin_dst"
+
+          cp -R "$pixelpen_src" "$pixelpen_dst"
+          cp -R "$diff_margin_src" "$diff_margin_dst"
+
       - name: Save Godot build cache
         uses: ./.github/actions/godot-cache-save
         with:
@@ -135,6 +196,24 @@ jobs:
           rm ./bin/phoenix_agentic.macos.${{ matrix.target }}.x86_64 ./bin/phoenix_agentic.macos.${{ matrix.target }}.arm64
           strip "${{ matrix.bin }}"
           chmod +x "${{ matrix.bin }}"
+
+      - name: Guard artifact payload
+        run: |
+          if [ ! -f "${{ matrix.bin }}" ]; then
+            echo "Missing expected artifact binary: ${{ matrix.bin }}" >&2
+            ls -la ./bin || true
+            exit 1
+          fi
+
+          if [ "${{ matrix.target }}" = "editor" ]; then
+            for addon in godot-git-plugin net.yarvis.pixel_pen diff-margin; do
+              if [ ! -d "./bin/addons/$addon" ]; then
+                echo "Missing expected addon directory: ./bin/addons/$addon" >&2
+                ls -la ./bin/addons || true
+                exit 1
+              fi
+            done
+          fi
 
       - name: Upload artifact
         uses: ./.github/actions/upload-artifact

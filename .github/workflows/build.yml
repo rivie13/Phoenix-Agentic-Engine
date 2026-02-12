@@ -147,6 +147,17 @@ jobs:
           }
           New-Item -ItemType Directory -Force -Path $dstAddon | Out-Null
           Copy-Item -Recurse -Force (Join-Path $srcAddon '*') $dstAddon
+
+          $srcDiffMargin = Join-Path $env:GITHUB_WORKSPACE "modules\ultimate_ai\external\godot-diff-margin\addons\diff-margin"
+          if (!(Test-Path $srcDiffMargin)) {
+            throw "diff-margin addon source not found at $srcDiffMargin"
+          }
+          $dstDiffMargin = Join-Path $env:GITHUB_WORKSPACE "bin\addons\diff-margin"
+          if (Test-Path $dstDiffMargin) {
+            Remove-Item -Recurse -Force $dstDiffMargin
+          }
+          New-Item -ItemType Directory -Force -Path $dstDiffMargin | Out-Null
+          Copy-Item -Recurse -Force (Join-Path $srcDiffMargin '*') $dstDiffMargin
         shell: pwsh
 
       - name: Save SCons cache
@@ -165,6 +176,34 @@ jobs:
             bin/.sconsign64.dblite
             .sconsign.dblite
           key: ${{ env.SCONS_CACHE_NAME }}-artifacts|${{ github.ref_name }}|${{ github.run_id }}|${{ github.run_attempt }}
+
+      - name: Guard artifact payload
+        run: |
+          $requiredFiles = @(
+            (Join-Path $env:GITHUB_WORKSPACE "bin\phoenix_agentic.windows.editor.x86_64.exe")
+          )
+          $requiredAddonDirs = @(
+            (Join-Path $env:GITHUB_WORKSPACE "bin\addons\godot-git-plugin"),
+            (Join-Path $env:GITHUB_WORKSPACE "bin\addons\net.yarvis.pixel_pen"),
+            (Join-Path $env:GITHUB_WORKSPACE "bin\addons\diff-margin")
+          )
+
+          foreach ($requiredFile in $requiredFiles) {
+            if (!(Test-Path $requiredFile)) {
+              Write-Host "Missing expected artifact file: $requiredFile" -ForegroundColor Red
+              Get-ChildItem (Join-Path $env:GITHUB_WORKSPACE 'bin') -Force | Format-Table -AutoSize
+              throw "Artifact file missing"
+            }
+          }
+
+          foreach ($addonDir in $requiredAddonDirs) {
+            if (!(Test-Path $addonDir)) {
+              Write-Host "Missing expected addon directory: $addonDir" -ForegroundColor Red
+              Get-ChildItem (Join-Path $env:GITHUB_WORKSPACE 'bin\addons') -Force -ErrorAction SilentlyContinue | Format-Table -AutoSize
+              throw "Addon directory missing"
+            }
+          }
+        shell: pwsh
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4

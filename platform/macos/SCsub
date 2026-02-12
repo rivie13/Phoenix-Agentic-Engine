@@ -3,6 +3,8 @@ from misc.utility.scons_hints import *
 
 import platform_macos_builders
 
+import version
+
 Import("env")
 
 files = [
@@ -44,12 +46,13 @@ if env["library_type"] == "executable":
 else:
     files += ["libgodot_macos.mm"]
 
+app_basename = version.short_name
 if env["library_type"] == "static_library":
-    prog = env.add_library("#bin/godot", files)
+    prog = env.add_library(f"#bin/{app_basename}", files)
 elif env["library_type"] == "shared_library":
-    prog = env.add_shared_library("#bin/godot", files)
+    prog = env.add_shared_library(f"#bin/{app_basename}", files)
 else:
-    prog = env.add_program("#bin/godot", files)
+    prog = env.add_program(f"#bin/{app_basename}", files)
 
 if env["debug_symbols"] and env["separate_debug_symbols"]:
     env.AddPostAction(prog, env.Run(platform_macos_builders.make_debug_macos))
