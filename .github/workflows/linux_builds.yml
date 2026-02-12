@@ -134,19 +134,19 @@ jobs:
           sudo rm -rf /usr/local/lib/android
           echo "Disk usage after:" && df -h
 
-      - name: Restore Godot build cache
-        uses: ./.github/actions/godot-cache-restore
+      - name: Restore Phoenix build cache
+        uses: ./.github/actions/phoenix-cache-restore
         with:
           cache-name: ${{ matrix.cache-name }}
         continue-on-error: true
 
       - name: Setup Python and SCons
         if: "!matrix.legacy-scons"
-        uses: ./.github/actions/godot-deps
+        uses: ./.github/actions/phoenix-deps
 
       - name: Setup Python and SCons (legacy versions)
         if: matrix.legacy-scons
-        uses: ./.github/actions/godot-deps
+        uses: ./.github/actions/phoenix-deps
         with:
           # Sync with Ensure*Version in SConstruct.
           python-version: 3.8
@@ -180,7 +180,7 @@ jobs:
         uses: rui314/setup-mold@v1
 
       - name: Compilation
-        uses: ./.github/actions/godot-build
+        uses: ./.github/actions/phoenix-build
         with:
           scons-flags: ${{ env.SCONS_FLAGS }} ${{ matrix.scons-flags }}
           platform: linuxbsd
@@ -271,16 +271,16 @@ jobs:
           cp -R "$pixelpen_src" "$pixelpen_dst"
           cp -R "$diff_margin_src" "$diff_margin_dst"
 
-      - name: Compilation (godot-cpp)
-        uses: ./.github/actions/godot-cpp-build
+      - name: Compilation (GDExtension C++ bindings)
+        uses: ./.github/actions/phoenix-cpp-build
         if: matrix.godot-cpp
         with:
           bin: ${{ matrix.bin }}
           scons-flags: target=template_debug dev_build=yes verbose=yes
           godot-cpp-branch: ${{ env.GODOT_CPP_BRANCH }}
 
-      - name: Save Godot build cache
-        uses: ./.github/actions/godot-cache-save
+      - name: Save Phoenix build cache
+        uses: ./.github/actions/phoenix-cache-save
         with:
           cache-name: ${{ matrix.cache-name }}
         continue-on-error: true
@@ -354,8 +354,8 @@ jobs:
           ./misc/scripts/validate_extension_api.sh "${{ matrix.bin }}"
 
       # Download and run the test project
-      - name: Test Godot project
-        uses: ./.github/actions/godot-project-test
+      - name: Test Phoenix regression project
+        uses: ./.github/actions/phoenix-project-test
         if: matrix.proj-test
         env:
           GODOT_CI_ALLOW_OBJECTDB_LEAKS: ${{ matrix.allow-objectdb-leaks }}
@@ -365,7 +365,7 @@ jobs:
 
       # Test the project converter
       - name: Test project converter
-        uses: ./.github/actions/godot-converter-test
+        uses: ./.github/actions/phoenix-converter-test
         if: matrix.proj-conv
         with:
           bin: ${{ matrix.bin }}

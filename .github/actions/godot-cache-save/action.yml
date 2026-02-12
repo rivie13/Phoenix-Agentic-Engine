@@ -1,5 +1,5 @@
-name: Save Godot build cache
-description: Save Godot build cache.
+name: "Legacy alias: phoenix-cache-save"
+description: Backward-compatible alias for ./.github/actions/phoenix-cache-save.
 inputs:
   cache-name:
     description: The cache base name (job name by default).
@@ -11,12 +11,8 @@ inputs:
 runs:
   using: composite
   steps:
-    - name: Purge files before timestamp
-      shell: sh
-      run: misc/scripts/purge_cache.py ${{ env.CACHE_TIMESTAMP }} "${{ inputs.scons-cache }}"
-
-    - name: Save SCons cache directory
-      uses: actions/cache/save@v4
+    - name: Delegate to phoenix-cache-save
+      uses: ./.github/actions/phoenix-cache-save
       with:
-        path: ${{ inputs.scons-cache }}
-        key: ${{ inputs.cache-name }}|${{ github.ref_name }}|${{ github.run_id }}|${{ github.run_attempt }}
+        cache-name: ${{ inputs.cache-name }}
+        scons-cache: ${{ inputs.scons-cache }}

@@ -7,7 +7,9 @@ This file tracks intentional Phoenix-specific changes that are expected to diver
 ### `misc/scripts/build_godot_git_plugin.sh`
 
 - Patch the cloned git-plugin build to disable libgit2 Clar tests and apply macOS-specific fixes for clang warnings and zlib `fdopen` macro conflicts.
+- On macOS, patch cloned `tools/git2.py` to link `iconv` when building the plugin shared library.
 - Why: macOS universal builds were failing under newer Xcode due to zlib macro conflicts and libgit2 test links pulling the wrong-arch Homebrew `libssh2`.
+- Why: static `libgit2.a` can reference iconv symbols that are not auto-propagated to the final plugin link, causing `_iconv*` undefined symbol failures.
 - Merge note: keep macOS guards and test-disable patches unless upstream libgit2/cmake options are updated to avoid these issues.
 
 ### `misc/scripts/check_ci_log.py`
