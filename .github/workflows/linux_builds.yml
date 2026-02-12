@@ -227,7 +227,17 @@ jobs:
             echo "extension_api.json was not generated" >&2
             exit 1
           fi
-          python3 -m SCons -C ./modules/ultimate_ai/external/pixelpen platform=linux target=template_debug generate_bindings=yes custom_api_file="$api_dir/extension_api.json"
+
+          # PixelPen vendors its own godot-cpp; ensure it matches the engine version we're building against.
+          api_file="$api_dir/extension_api.json"
+          godot_cpp_ref="$(API_FILE="$api_file" python3 -c 'import json, os; api=json.load(open(os.environ["API_FILE"], "r", encoding="utf-8")); h=api.get("header", {}); print("godot-{}.{}-stable".format(h.get("version_major"), h.get("version_minor")) if h.get("version_status") == "stable" else "master")')"
+          if [ -d "./modules/ultimate_ai/external/pixelpen/godot-cpp/.git" ]; then
+            git -C ./modules/ultimate_ai/external/pixelpen/godot-cpp fetch --depth 1 origin "$godot_cpp_ref" || godot_cpp_ref="master"
+            git -C ./modules/ultimate_ai/external/pixelpen/godot-cpp fetch --depth 1 origin "$godot_cpp_ref" || true
+            git -C ./modules/ultimate_ai/external/pixelpen/godot-cpp checkout -B "$godot_cpp_ref" "origin/$godot_cpp_ref"
+          fi
+
+          python3 -m SCons -C ./modules/ultimate_ai/external/pixelpen platform=linux target=template_debug precision=single generate_bindings=yes custom_api_file="$api_dir/extension_api.json"
 
       - name: Compilation (godot-cpp)
         uses: ./.github/actions/godot-cpp-build

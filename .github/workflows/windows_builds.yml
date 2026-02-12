@@ -168,7 +168,25 @@ jobs:
             throw "extension_api.json was not generated"
           }
 
-          python -m SCons -C ./modules/ultimate_ai/external/pixelpen platform=windows arch=x86_64 target=template_debug generate_bindings=yes custom_api_file="$apiFile"
+          # PixelPen vendors its own godot-cpp; ensure it matches the engine version we're building against.
+          $apiJson = Get-Content $apiFile -Raw | ConvertFrom-Json
+          $godotCppRef = "master"
+          if ($apiJson.header.version_status -eq "stable") {
+            $godotCppRef = "godot-$($apiJson.header.version_major).$($apiJson.header.version_minor)-stable"
+          }
+          $pixelpenGodotCpp = Join-Path $env:GITHUB_WORKSPACE "modules\ultimate_ai\external\pixelpen\godot-cpp"
+          if (Test-Path $pixelpenGodotCpp) {
+            Push-Location $pixelpenGodotCpp
+            git fetch --depth 1 origin $godotCppRef
+            if ($LASTEXITCODE -ne 0) {
+              $godotCppRef = "master"
+              git fetch --depth 1 origin $godotCppRef
+            }
+            git checkout -B $godotCppRef "origin/$godotCppRef"
+            Pop-Location
+          }
+
+          python -m SCons -C ./modules/ultimate_ai/external/pixelpen platform=windows arch=x86_64 target=template_debug precision=single generate_bindings=yes custom_api_file="$apiFile"
 
           $srcAddon = Join-Path $env:GITHUB_WORKSPACE "modules\ultimate_ai\external\pixelpen\project\addons\net.yarvis.pixel_pen"
           if (!(Test-Path $srcAddon)) {
