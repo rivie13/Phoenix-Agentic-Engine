@@ -598,7 +598,9 @@ Dictionary GDExtensionAPIDump::generate_extension_api(bool p_include_docs) {
 				//no default value support in utility functions
 				arguments.push_back(arg);
 			}
-			func["arguments"] = arguments;
+			if (arguments.size()) {
+				func["arguments"] = arguments;
+			}
 
 			if (p_include_docs) {
 				for (const DocData::MethodDoc &method_doc : global_scope_doc->methods) {
@@ -815,7 +817,9 @@ Dictionary GDExtensionAPIDump::generate_extension_api(bool p_include_docs) {
 						}
 						arguments.push_back(d3);
 					}
-					d2["arguments"] = arguments;
+					if (arguments.size()) {
+						d2["arguments"] = arguments;
+					}
 
 					if (p_include_docs) {
 						for (const DocData::MethodDoc &method_doc : builtin_doc->methods) {
@@ -846,7 +850,9 @@ Dictionary GDExtensionAPIDump::generate_extension_api(bool p_include_docs) {
 						d3["type"] = get_builtin_or_variant_type_name(Variant::get_constructor_argument_type(type, j, k));
 						arguments.push_back(d3);
 					}
-					d2["arguments"] = arguments;
+					if (arguments.size()) {
+						d2["arguments"] = arguments;
+					}
 
 					if (p_include_docs && builtin_doc) {
 						for (const DocData::MethodDoc &constructor_doc : builtin_doc->constructors) {
@@ -1057,7 +1063,9 @@ Dictionary GDExtensionAPIDump::generate_extension_api(bool p_include_docs) {
 							arguments.push_back(d3);
 						}
 
-						d2["arguments"] = arguments;
+						if (arguments.size()) {
+							d2["arguments"] = arguments;
+						}
 
 						if (p_include_docs) {
 							for (const DocData::MethodDoc &method_doc : class_doc->methods) {
@@ -1132,7 +1140,9 @@ Dictionary GDExtensionAPIDump::generate_extension_api(bool p_include_docs) {
 							}
 						}
 
-						d2["arguments"] = arguments;
+						if (arguments.size()) {
+							d2["arguments"] = arguments;
+						}
 
 						if (p_include_docs) {
 							for (const DocData::MethodDoc &method_doc : class_doc->methods) {
@@ -1175,7 +1185,9 @@ Dictionary GDExtensionAPIDump::generate_extension_api(bool p_include_docs) {
 						}
 						arguments.push_back(d3);
 					}
-					d2["arguments"] = arguments;
+					if (arguments.size()) {
+						d2["arguments"] = arguments;
+					}
 
 					if (p_include_docs) {
 						for (const DocData::MethodDoc &signal_doc : class_doc->signals) {
