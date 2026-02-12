@@ -31,9 +31,29 @@ runs:
         api_dir="${RUNNER_TEMP:-/tmp}/godotcpp_api"
         mkdir -p "$api_dir"
 
+        bin_path="${{ inputs.bin }}"
+        case "$bin_path" in
+          /*)
+            godot_bin="$bin_path"
+            ;;
+          ./*)
+            godot_bin="${GITHUB_WORKSPACE}/${bin_path#./}"
+            ;;
+          *)
+            godot_bin="${GITHUB_WORKSPACE}/$bin_path"
+            ;;
+        esac
+
+        if [ ! -f "$godot_bin" ]; then
+          echo "::error::Godot binary not found: $godot_bin (input: $bin_path)" >&2
+          ls -la "${GITHUB_WORKSPACE}/bin" || true
+          exit 1
+        fi
+        chmod +x "$godot_bin" || true
+
         (
           cd "$api_dir"
-          "${{ inputs.bin }}" --headless --dump-gdextension-interface-json --dump-gdextension-interface --dump-extension-api
+          "$godot_bin" --headless --dump-gdextension-interface-json --dump-gdextension-interface --dump-extension-api
         )
 
         cp -f "$api_dir/extension_api.json" "${{ github.workspace }}/extension_api.json"
