@@ -4,19 +4,25 @@ from pathlib import Path
 
 
 def _sanitize_extension_api(data: object) -> int:
-    """Ensure all method argument entries have a non-empty `name`.
+    """Sanitize Godot's `extension_api.json` dump for downstream generators.
 
-    Some downstream generators assume arguments always have a valid identifier.
-    When the dump contains missing/empty names, generated C++ may contain `, )`.
+    Fixes applied:
+    - Ensure all argument entries have a non-empty `name`.
+      Some downstream generators assume arguments always have a valid identifier.
+      When the dump contains missing/empty names, generated C++ may contain `, )`.
+    - Remove empty argument lists (e.g. "arguments": []).
+      Some downstream generators incorrectly emit a trailing comma when the key exists
+      but the list is empty, producing invalid C++ like `_call_native_*(..., );`.
     """
 
     replaced = 0
+    removed_empty_lists = 0
 
     def sanitize_args(arg_list: object) -> None:
         nonlocal replaced
         if not isinstance(arg_list, list):
             return
-        for index, arg in enumerate(arg_list):
+        for index, arg in enumerate(arg_list, start=1):
             if not isinstance(arg, dict):
                 continue
             name = arg.get("name")
@@ -25,18 +31,24 @@ def _sanitize_extension_api(data: object) -> int:
                 replaced += 1
 
     def walk(node: object) -> None:
+        nonlocal removed_empty_lists
         if isinstance(node, dict):
-            for key, value in node.items():
+            for key, value in list(node.items()):
                 if key in ("arguments", "args"):
+                    if isinstance(value, list) and len(value) == 0:
+                        del node[key]
+                        removed_empty_lists += 1
+                        continue
                     sanitize_args(value)
                 walk(value)
             return
         if isinstance(node, list):
             for item in node:
                 walk(item)
+            return
 
     walk(data)
-    return replaced
+    return replaced + removed_empty_lists
 
 
 def main() -> int:
@@ -48,9 +60,10 @@ def main() -> int:
     if not api_path.exists():
         raise SystemExit(f"File not found: {api_path}")
 
-    data = json.loads(api_path.read_text(encoding="utf-8"))
-    replaced = _sanitize_extension_api(data)
-    if replaced == 0:
+    # Use utf-8-sig to tolerate a UTF-8 BOM if present.
+    data = json.loads(api_path.read_text(encoding="utf-8-sig"))
+    changes = _sanitize_extension_api(data)
+    if changes == 0:
         print(f"[sanitize_extension_api] No changes needed: {api_path}")
         return 0
 
@@ -58,7 +71,7 @@ def main() -> int:
         json.dumps(data, indent="\t", ensure_ascii=False) + "\n",
         encoding="utf-8",
     )
-    print(f"[sanitize_extension_api] Filled {replaced} unnamed arguments: {api_path}")
+    print(f"[sanitize_extension_api] Applied {changes} change(s): {api_path}")
     return 0
 
 
