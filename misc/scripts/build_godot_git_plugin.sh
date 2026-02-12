@@ -31,7 +31,9 @@ status = header.get("version_status")
 if status == "stable":
   print(f"godot-{major}.{minor}-stable")
 else:
-  print("master")
+  # For dev snapshots, prefer the versioned branch (e.g. "4.7") when available.
+  # This tends to track engine-side extension API changes more closely than master.
+  print(f"{major}.{minor}")
 PY
 )
 
@@ -97,7 +99,7 @@ text = path.read_text(encoding="utf-8")
 
 if "no_warning_for_no_symbols" not in text:
     marker = "        # OSXCross toolchain setup."
-    insertion = "        args.append(\"RANLIB=ranlib -no_warning_for_no_symbols\")\n"
+    insertion = "        args.append(\"RANLIB=ranlib\")\n        args.append(\"RANLIBFLAGS=-no_warning_for_no_symbols\")\n"
     if marker in text:
         path.write_text(text.replace(marker, insertion + marker, 1), encoding="utf-8")
 PY
@@ -141,9 +143,9 @@ fi
 pushd "$BUILD_ROOT/godot-cpp" >/dev/null
 git fetch origin
 if git show-ref --verify --quiet "refs/remotes/origin/$GODOT_CPP_BRANCH"; then
-  git checkout "$GODOT_CPP_BRANCH"
+  git checkout -B "$GODOT_CPP_BRANCH" "origin/$GODOT_CPP_BRANCH"
 else
-  git checkout master
+  git checkout -B master origin/master
 fi
 popd >/dev/null
 mkdir -p "$BUILD_ROOT/godot-cpp/gdextension"
@@ -157,6 +159,9 @@ if [ ! -f "$BUILD_ROOT/godot-cpp/gdextension/extension_api.json" ]; then
   echo "Failed to stage extension_api.json at $BUILD_ROOT/godot-cpp/gdextension/extension_api.json" >&2
   exit 1
 fi
+
+python3 "$ENGINE_ROOT/misc/scripts/sanitize_extension_api.py" "$BUILD_ROOT/extension_api.json"
+python3 "$ENGINE_ROOT/misc/scripts/sanitize_extension_api.py" "$BUILD_ROOT/godot-cpp/gdextension/extension_api.json"
 python3 -m SCons platform="$PLATFORM" target=editor dev_build=yes generate_bindings=yes
 popd >/dev/null
 
