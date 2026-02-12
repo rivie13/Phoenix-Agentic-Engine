@@ -86,7 +86,9 @@ jobs:
         shell: pwsh
 
       - name: Build Git Plugin addon
-        run: ./misc/scripts/build_godot_git_plugin.ps1 -Platform windows -ApiFile "${{ runner.temp }}\extension_api\extension_api.json"
+        run: |
+          python ./misc/scripts/sanitize_extension_api.py "${{ runner.temp }}\extension_api\extension_api.json"
+          ./misc/scripts/build_godot_git_plugin.ps1 -Platform windows -ApiFile "${{ runner.temp }}\extension_api\extension_api.json"
 
       - name: Build PixelPen addon
         run: |
@@ -121,9 +123,11 @@ jobs:
             throw "extension_api.json was not generated"
           }
 
+          python ./misc/scripts/sanitize_extension_api.py "$apiFile"
+
           # PixelPen vendors its own godot-cpp; ensure it matches the engine version we're building against.
           $apiJson = Get-Content $apiFile -Raw | ConvertFrom-Json
-          $godotCppRef = "master"
+          $godotCppRef = "$($apiJson.header.version_major).$($apiJson.header.version_minor)"
           if ($apiJson.header.version_status -eq "stable") {
             $godotCppRef = "godot-$($apiJson.header.version_major).$($apiJson.header.version_minor)-stable"
           }
