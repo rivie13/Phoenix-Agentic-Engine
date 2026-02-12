@@ -26,7 +26,7 @@ if (!(Test-Path $apiFilePath)) {
 }
 $apiJson = Get-Content $apiFilePath -Raw | ConvertFrom-Json
 $versionStatus = $apiJson.header.version_status
-$godotCppBranch = "master"
+$godotCppBranch = "$($apiJson.header.version_major).$($apiJson.header.version_minor)"
 if ($versionStatus -eq "stable") {
     $godotCppBranch = "godot-$($apiJson.header.version_major).$($apiJson.header.version_minor)-stable"
 }
@@ -83,6 +83,14 @@ if (-not $nasm) {
 }
 if (-not $nasm) {
     throw "Missing nasm in PATH. Install NASM and retry."
+}
+
+$python = Get-Command python -ErrorAction SilentlyContinue
+if (-not $python) {
+    $python = Get-Command python3 -ErrorAction SilentlyContinue
+}
+if (-not $python) {
+    throw "Python executable not found in PATH (expected 'python' or 'python3')."
 }
 
 function Ensure-ThirdPartyRepo {
@@ -147,11 +155,15 @@ if (!(Test-Path $stagedApiRoot)) {
 if (!(Test-Path $stagedApiGodotCpp)) {
     throw "Failed to stage extension_api.json at $stagedApiGodotCpp"
 }
+
+& $python.Source (Join-Path $EngineRoot "misc/scripts/sanitize_extension_api.py") $stagedApiRoot
+& $python.Source (Join-Path $EngineRoot "misc/scripts/sanitize_extension_api.py") $stagedApiGodotCpp
+
 $buildLog = Join-Path $buildRoot "phoenix_git_plugin_build.log"
 $previousErrorAction = $ErrorActionPreference
 $ErrorActionPreference = "Continue"
 Write-Host "[git-plugin] SCons build running..." -ForegroundColor Cyan
-& C:\Python313\python.exe -m SCons platform=$Platform target=editor dev_build=yes generate_bindings=yes 2>&1 | Tee-Object -FilePath $buildLog
+& $python.Source -m SCons platform=$Platform target=editor dev_build=yes generate_bindings=yes 2>&1 | Tee-Object -FilePath $buildLog
 $ErrorActionPreference = $previousErrorAction
 $sconsExit = $LASTEXITCODE
 if ($sconsExit -ne 0) {

@@ -9,7 +9,7 @@ env:
     dev_mode=yes
     module_text_server_fb_enabled=yes
     "accesskit_sdk_path=${{ github.workspace }}/accesskit-c-0.18.0/"
-  GODOT_CPP_BRANCH: 4.5
+  GODOT_CPP_BRANCH: 4.7
   DOTNET_NOLOGO: true
   DOTNET_CLI_TELEMETRY_OPTOUT: true
   ASAN_OPTIONS: color=always:print_suppressions=1:detect_leaks=0:halt_on_error=1:suppressions=${{ github.workspace }}/misc/error_suppressions/asan.txt
@@ -206,6 +206,7 @@ jobs:
             echo "extension_api.json was not generated" >&2
             exit 1
           fi
+          python3 ./misc/scripts/sanitize_extension_api.py "$api_dir/extension_api.json"
           bash ./misc/scripts/build_godot_git_plugin.sh linux "$PWD" "$api_dir/extension_api.json"
 
       - name: Build PixelPen addon
@@ -228,9 +229,11 @@ jobs:
             exit 1
           fi
 
+          python3 ./misc/scripts/sanitize_extension_api.py "$api_dir/extension_api.json"
+
           # PixelPen vendors its own godot-cpp; ensure it matches the engine version we're building against.
           api_file="$api_dir/extension_api.json"
-          godot_cpp_ref="$(API_FILE="$api_file" python3 -c 'import json, os; api=json.load(open(os.environ["API_FILE"], "r", encoding="utf-8")); h=api.get("header", {}); print("godot-{}.{}-stable".format(h.get("version_major"), h.get("version_minor")) if h.get("version_status") == "stable" else "master")')"
+          godot_cpp_ref="$(API_FILE="$api_file" python3 -c 'import json, os; api=json.load(open(os.environ["API_FILE"], "r", encoding="utf-8")); h=api.get("header", {}); print("godot-{}.{}-stable".format(h.get("version_major"), h.get("version_minor")) if h.get("version_status") == "stable" else "{}.{}".format(h.get("version_major"), h.get("version_minor")))')"
           if [ -d "./modules/ultimate_ai/external/pixelpen/godot-cpp/.git" ]; then
             git -C ./modules/ultimate_ai/external/pixelpen/godot-cpp fetch --depth 1 origin "$godot_cpp_ref" || godot_cpp_ref="master"
             git -C ./modules/ultimate_ai/external/pixelpen/godot-cpp fetch --depth 1 origin "$godot_cpp_ref" || true

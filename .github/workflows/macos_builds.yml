@@ -114,6 +114,7 @@ jobs:
             echo "extension_api.json was not generated" >&2
             exit 1
           fi
+          python3 ./misc/scripts/sanitize_extension_api.py "$api_dir/extension_api.json"
           bash ./misc/scripts/build_godot_git_plugin.sh macos "$PWD" "$api_dir/extension_api.json"
 
       - name: Save Godot build cache
