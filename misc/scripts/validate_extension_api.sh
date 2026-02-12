@@ -71,11 +71,11 @@ while read -r dir; do
     # Download the reference extension_api.json
     wget -nv --retry-on-http-error=503 --tries=5 --timeout=60 -cO "$reference_file" "https://raw.githubusercontent.com/godotengine/godot-headers/godot-$reference_tag/extension_api.json" || has_problems=1
     # Validate the current API against the reference.
-    # Godot's logger may prefix messages with "ERROR: ", so normalize that prefix.
-    "$1" --headless --validate-extension-api "$reference_file" 2>&1 | tee "$validate" | awk '!/^(ERROR: )?Validate extension JSON:/' - || true
+    # Godot's logger may prefix messages with "ERROR: " or "Error: ", so normalize that prefix.
+    "$1" --headless --validate-extension-api "$reference_file" 2>&1 | tee "$validate" | awk '!/^([Ee][Rr][Rr][Oo][Rr]: )?Validate extension JSON:/' - || true
     # Collect the expected and actual validation errors.
-    # Normalize: "ERROR: Validate extension JSON:" -> "Validate extension JSON:" so it matches our baselines.
-    awk '/^(ERROR: )?Validate extension JSON:/' - < "$validate" | sed 's/^ERROR: //' | sort > "$validation_output"
+    # Normalize: "ERROR: Validate extension JSON:" / "Error: Validate extension JSON:" -> "Validate extension JSON:".
+    awk '/^([Ee][Rr][Rr][Oo][Rr]: )?Validate extension JSON:/' - < "$validate" | sed -E 's/^[Ee][Rr][Rr][Oo][Rr]: //' | sort > "$validation_output"
     awk '/^Validate extension JSON:/' - < "$expected_errors" | sort > "$allowed_errors"
 
     # Differences between the expected and actual errors

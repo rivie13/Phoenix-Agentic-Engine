@@ -40,9 +40,9 @@ This file tracks intentional Phoenix-specific changes that are expected to diver
 
 ### `core/extension/extension_api_dump.cpp`
 
-- Always emit required array keys (`methods`, `signals`, `enums`, `constructors`) and always emit `arguments` arrays (even when empty) in `extension_api.json`.
-- Why: `--validate-extension-api` expects these fields to exist; omitting them caused spurious validation errors (e.g. missing `arguments`, missing base arrays).
-- Merge note: if upstream changes the extension API schema, revisit which keys are required vs optional.
+- Emit `arguments` only when non-empty for utility functions, builtin methods/constructors, class methods, and signals in `extension_api.json`.
+- Why: avoid false GDExtension compatibility failures against stable reference APIs that omit empty `arguments` arrays.
+- Merge note: keep the dump format aligned with upstream compatibility validation expectations.
 
 ### `.github/workflows/macos_builds.yml`
 
