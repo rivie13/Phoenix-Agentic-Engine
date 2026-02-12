@@ -88,7 +88,8 @@ jobs:
       - name: Build Git Plugin addon
         run: |
           python ./misc/scripts/sanitize_extension_api.py "${{ runner.temp }}\extension_api\extension_api.json"
-          ./misc/scripts/build_godot_git_plugin.ps1 -Platform windows -ApiFile "${{ runner.temp }}\extension_api\extension_api.json"
+          $addonSconsCache = Join-Path $env:GITHUB_WORKSPACE ".scons_cache\addons\godot-git-plugin\${{ env.SCONS_CACHE_NAME }}"
+          ./misc/scripts/build_godot_git_plugin.ps1 -Platform windows -ApiFile "${{ runner.temp }}\extension_api\extension_api.json" -SConsCachePath "$addonSconsCache"
 
       - name: Build PixelPen addon
         run: |
@@ -124,6 +125,8 @@ jobs:
           }
 
           python ./misc/scripts/sanitize_extension_api.py "$apiFile"
+
+          $env:SCONS_CACHE = Join-Path $env:GITHUB_WORKSPACE ".scons_cache\addons\pixelpen\${{ env.SCONS_CACHE_NAME }}"
 
           # PixelPen vendors its own godot-cpp; ensure it matches the engine version we're building against.
           $apiJson = Get-Content $apiFile -Raw | ConvertFrom-Json

@@ -8,9 +8,17 @@ This file tracks intentional Phoenix-specific changes that are expected to diver
 
 - Patch the cloned git-plugin build to disable libgit2 Clar tests and apply macOS-specific fixes for clang warnings and zlib `fdopen` macro conflicts.
 - On macOS, patch cloned `tools/git2.py` to link `iconv` when building the plugin shared library.
+- Added optional `SCONS_CACHE_PATH`/`SCONS_CACHE` support and forwards it to SCons as `cache_path=...`.
 - Why: macOS universal builds were failing under newer Xcode due to zlib macro conflicts and libgit2 test links pulling the wrong-arch Homebrew `libssh2`.
 - Why: static `libgit2.a` can reference iconv symbols that are not auto-propagated to the final plugin link, causing `_iconv*` undefined symbol failures.
+- Why: allows git-plugin addon builds to reuse Phoenix CI cache instead of recompiling from scratch every run.
 - Merge note: keep macOS guards and test-disable patches unless upstream libgit2/cmake options are updated to avoid these issues.
+
+### `misc/scripts/build_godot_git_plugin.ps1`
+
+- Added optional `-SConsCachePath` argument and forwards it to SCons as `cache_path=...`.
+- Why: enables Windows git-plugin addon builds to reuse the shared Phoenix SCons cache.
+- Merge note: preserve compatibility with callers that do not pass `-SConsCachePath`.
 
 ### `misc/scripts/check_ci_log.py`
 
@@ -31,18 +39,9 @@ This file tracks intentional Phoenix-specific changes that are expected to diver
 - Added pre-upload artifact guard checks for expected binary path and required addon directories on editor artifacts.
 - Why: fail fast when naming/staging regressions occur before publishing broken artifacts.
 - Merge note: keep guards aligned with artifact naming and staged addon policy.
-
-### `misc/scripts/validate_extension_api.sh`
-
-- Normalized validation output to treat `ERROR: Validate extension JSON:` the same as `Validate extension JSON:`.
-- Why: Godot's logger prefixes some validation lines with `ERROR:`, which made the compatibility checker ignore real incompatibilities and pass while printing errors.
-- Merge note: keep normalization unless upstream standardizes the output prefix again.
-
-### `core/extension/extension_api_dump.cpp`
-
-- Emit `arguments` only when non-empty for utility functions, builtin methods/constructors, class methods, and signals in `extension_api.json`.
-- Why: avoid false GDExtension compatibility failures against stable reference APIs that omit empty `arguments` arrays.
-- Merge note: keep the dump format aligned with upstream compatibility validation expectations.
+- Exported addon-specific SCons cache paths before git-plugin and PixelPen build steps.
+- Why: routes addon compilation through cached `.scons_cache` entries to reduce CI rebuild time.
+- Merge note: keep cache path names stable across matrix jobs unless cache partitioning strategy changes.
 
 ### `.github/workflows/macos_builds.yml`
 
@@ -58,6 +57,9 @@ This file tracks intentional Phoenix-specific changes that are expected to diver
 - Added pre-upload artifact guard checks for expected universal binary path and required addon directories on editor artifacts.
 - Why: fail fast when naming/staging regressions occur before publishing broken artifacts.
 - Merge note: keep guards aligned with artifact naming and staged addon policy.
+- Exported addon-specific SCons cache paths before git-plugin and PixelPen build steps.
+- Why: routes addon compilation through cached `.scons_cache` entries to reduce CI rebuild time.
+- Merge note: keep cache path names stable across matrix jobs unless cache partitioning strategy changes.
 
 ### `.github/workflows/windows_builds.yml`
 
@@ -65,6 +67,9 @@ This file tracks intentional Phoenix-specific changes that are expected to diver
 - Added pre-upload artifact guard checks for expected binary path and required addon directories on editor artifacts.
 - Why: align Windows packaged editor content with Linux/macOS and fail fast on packaging regressions.
 - Merge note: keep guards and addon staging aligned with cross-platform artifact policy.
+- Added addon SCons cache wiring for git-plugin (`-SConsCachePath`) and PixelPen (`SCONS_CACHE`).
+- Why: routes addon compilation through cached `.scons_cache` entries to reduce CI rebuild time.
+- Merge note: keep cache path partitioning by `matrix.cache-name` to avoid cross-configuration cache pollution.
 
 ### `.github/workflows/android_builds.yml`
 
@@ -92,6 +97,9 @@ This file tracks intentional Phoenix-specific changes that are expected to diver
 - Added pre-upload artifact guard checks for expected editor binary and required addon directories.
 - Why: ensure aggregate Windows build uploads include complete Phoenix addon payload and fail fast on packaging regressions.
 - Merge note: keep guard expectations in sync with Windows artifact/addon policy.
+- Added addon SCons cache wiring for git-plugin (`-SConsCachePath`) and PixelPen (`SCONS_CACHE`) in the aggregate build.
+- Why: enables cache reuse for addon rebuilds in umbrella Windows CI runs.
+- Merge note: keep cache namespace aligned with `SCONS_CACHE_NAME`.
 
 ### `platform/linuxbsd/SCsub`
 

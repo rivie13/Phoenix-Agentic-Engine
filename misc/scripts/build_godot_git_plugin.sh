@@ -5,6 +5,7 @@ PLATFORM="${1:-linuxbsd}"
 ENGINE_ROOT="${2:-"$(cd "$(dirname "$0")/../.." && pwd)"}"
 API_FILE_OVERRIDE="${3:-""}"
 KEEP_BUILD="${KEEP_BUILD:-0}"
+SCONS_CACHE_PATH="${SCONS_CACHE_PATH:-${SCONS_CACHE:-}}"
 
 API_FILE="$ENGINE_ROOT/extension_api.json"
 if [ -n "$API_FILE_OVERRIDE" ]; then
@@ -178,7 +179,12 @@ fi
 
 python3 "$ENGINE_ROOT/misc/scripts/sanitize_extension_api.py" "$BUILD_ROOT/extension_api.json"
 python3 "$ENGINE_ROOT/misc/scripts/sanitize_extension_api.py" "$BUILD_ROOT/godot-cpp/gdextension/extension_api.json"
-python3 -m SCons platform="$PLATFORM" target=editor dev_build=yes generate_bindings=yes
+scons_args=(platform="$PLATFORM" target=editor dev_build=yes generate_bindings=yes)
+if [ -n "$SCONS_CACHE_PATH" ]; then
+  scons_args+=("cache_path=$SCONS_CACHE_PATH")
+  echo "[git-plugin] Using SCons cache: $SCONS_CACHE_PATH"
+fi
+python3 -m SCons "${scons_args[@]}"
 popd >/dev/null
 
 DST="$ENGINE_ROOT/bin/addons/godot-git-plugin"
