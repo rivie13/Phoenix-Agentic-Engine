@@ -120,9 +120,22 @@ jobs:
           New-Item -ItemType Directory -Force -Path $apiDir | Out-Null
           $binPath = "${{ matrix.bin }}" -replace '^\./', ''
           $editorExe = Join-Path $env:GITHUB_WORKSPACE $binPath
+          $consoleEditorExe = $editorExe -replace '\.exe$', '.console.exe'
+          if (Test-Path $consoleEditorExe) {
+            $editorExe = $consoleEditorExe
+          }
           Push-Location $apiDir
-          & $editorExe --headless --dump-extension-api
+          if ($editorExe.EndsWith('.console.exe')) {
+            & $editorExe --headless --dump-extension-api
+            $editorExitCode = $LASTEXITCODE
+          } else {
+            $process = Start-Process -FilePath $editorExe -ArgumentList @('--headless', '--dump-extension-api') -Wait -PassThru
+            $editorExitCode = $process.ExitCode
+          }
           Pop-Location
+          if ($editorExitCode -ne 0) {
+            throw "Editor failed to dump extension API (exit code $editorExitCode)"
+          }
           $apiFile = Join-Path $apiDir "extension_api.json"
           if (!(Test-Path $apiFile)) {
             $exeDir = Split-Path $editorExe -Parent
@@ -151,10 +164,23 @@ jobs:
           New-Item -ItemType Directory -Force -Path $apiDir | Out-Null
           $binPath = "${{ matrix.bin }}" -replace '^\./', ''
           $editorExe = Join-Path $env:GITHUB_WORKSPACE $binPath
+          $consoleEditorExe = $editorExe -replace '\.exe$', '.console.exe'
+          if (Test-Path $consoleEditorExe) {
+            $editorExe = $consoleEditorExe
+          }
 
           Push-Location $apiDir
-          & $editorExe --headless --dump-extension-api
+          if ($editorExe.EndsWith('.console.exe')) {
+            & $editorExe --headless --dump-extension-api
+            $editorExitCode = $LASTEXITCODE
+          } else {
+            $process = Start-Process -FilePath $editorExe -ArgumentList @('--headless', '--dump-extension-api') -Wait -PassThru
+            $editorExitCode = $process.ExitCode
+          }
           Pop-Location
+          if ($editorExitCode -ne 0) {
+            throw "Editor failed to dump extension API (exit code $editorExitCode)"
+          }
 
           $apiFile = Join-Path $apiDir "extension_api.json"
           if (!(Test-Path $apiFile)) {
