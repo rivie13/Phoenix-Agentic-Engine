@@ -98,6 +98,34 @@ jobs:
           mkdir picoos
           mv bin/android_editor_builds/*-picoos-* picoos
 
+      - name: Guard template artifact payload
+        if: matrix.target == 'template_debug'
+        run: |
+          if ! find ./bin -maxdepth 2 -type f -name '*android*' | grep -q .; then
+            echo "No Android template artifacts found under ./bin" >&2
+            find ./bin -maxdepth 3 -type f | sort || true
+            exit 1
+          fi
+
+      - name: Guard editor artifact payload
+        if: matrix.target == 'editor'
+        run: |
+          if [ ! -d "./bin/android_editor_builds" ]; then
+            echo "Missing expected editor output directory: ./bin/android_editor_builds" >&2
+            find ./bin -maxdepth 3 -type d | sort || true
+            exit 1
+          fi
+          if ! find ./horizonos -mindepth 1 -maxdepth 2 -type f | grep -q .; then
+            echo "Missing Horizon OS editor artifacts in ./horizonos" >&2
+            find ./horizonos -maxdepth 3 -type f | sort || true
+            exit 1
+          fi
+          if ! find ./picoos -mindepth 1 -maxdepth 2 -type f | grep -q .; then
+            echo "Missing PICO OS editor artifacts in ./picoos" >&2
+            find ./picoos -maxdepth 3 -type f | sort || true
+            exit 1
+          fi
+
       - name: Upload artifact
         uses: ./.github/actions/upload-artifact
         with:

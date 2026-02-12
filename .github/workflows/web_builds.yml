@@ -71,6 +71,15 @@ jobs:
           cache-name: ${{ matrix.cache-name }}
         continue-on-error: true
 
+      - name: Guard artifact payload
+        if: matrix.artifact
+        run: |
+          if ! find ./bin -maxdepth 1 -type f \( -name '*.wasm' -o -name '*.js' -o -name '*.zip' \) | grep -q .; then
+            echo "No expected Web artifacts (.wasm/.js/.zip) found under ./bin" >&2
+            find ./bin -maxdepth 2 -type f | sort || true
+            exit 1
+          fi
+
       - name: Upload artifact
         uses: ./.github/actions/upload-artifact
         if: matrix.artifact

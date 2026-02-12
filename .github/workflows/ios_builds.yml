@@ -46,5 +46,13 @@ jobs:
         uses: ./.github/actions/godot-cache-save
         continue-on-error: true
 
+      - name: Guard artifact payload
+        run: |
+          if ! find ./bin -maxdepth 2 -type f -name '*ios*' | grep -q .; then
+            echo "No iOS artifacts found under ./bin" >&2
+            find ./bin -maxdepth 3 -type f | sort || true
+            exit 1
+          fi
+
       - name: Upload artifact
         uses: ./.github/actions/upload-artifact

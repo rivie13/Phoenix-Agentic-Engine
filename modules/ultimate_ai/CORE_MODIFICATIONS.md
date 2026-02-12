@@ -21,6 +21,14 @@ This file tracks intentional Phoenix-specific changes that are expected to diver
 - Set `GODOT_CI_ALLOW_OBJECTDB_LEAKS=1` for the GCC sanitizer matrix job only.
 - Why: keep project tests running while temporarily ignoring the known ObjectDB leak warning in that configuration.
 - Merge note: drop the flag when the leak is resolved.
+- Build and stage editor addons for Linux editor artifacts:
+  - Build PixelPen bindings on editor artifact jobs.
+  - Stage `net.yarvis.pixel_pen` and `diff-margin` into `bin/addons` before upload.
+- Why: Linux downloadable editor artifacts should include the Phoenix addon set by default.
+- Merge note: keep addon staging in sync with Windows workflow policy.
+- Added pre-upload artifact guard checks for expected binary path and required addon directories on editor artifacts.
+- Why: fail fast when naming/staging regressions occur before publishing broken artifacts.
+- Merge note: keep guards aligned with artifact naming and staged addon policy.
 
 ### `misc/scripts/validate_extension_api.sh`
 
@@ -40,6 +48,60 @@ This file tracks intentional Phoenix-specific changes that are expected to diver
 - Installed dependencies needed by `build_godot_git_plugin.sh` (cmake/perl/nasm) on editor builds.
 - Why: macOS CI can fail if a specific Xcode isn't installed or if required tools aren't present.
 - Merge note: prefer upstream CI approach if they standardize Xcode selection and dependency installation.
+- Build and stage editor addons for macOS editor artifacts:
+  - Build PixelPen bindings from dumped extension API.
+  - Stage `net.yarvis.pixel_pen` and `diff-margin` into `bin/addons` before upload.
+- Why: macOS downloadable editor artifacts should include the Phoenix addon set by default.
+- Merge note: keep addon staging in sync with Linux/Windows workflow policy.
+- Added pre-upload artifact guard checks for expected universal binary path and required addon directories on editor artifacts.
+- Why: fail fast when naming/staging regressions occur before publishing broken artifacts.
+- Merge note: keep guards aligned with artifact naming and staged addon policy.
+
+### `.github/workflows/windows_builds.yml`
+
+- Added diff-margin addon staging into `bin/addons/diff-margin` for MSVC editor artifact builds.
+- Added pre-upload artifact guard checks for expected binary path and required addon directories on editor artifacts.
+- Why: align Windows packaged editor content with Linux/macOS and fail fast on packaging regressions.
+- Merge note: keep guards and addon staging aligned with cross-platform artifact policy.
+
+### `.github/workflows/android_builds.yml`
+
+- Added pre-upload artifact guard checks for:
+  - template jobs: expected Android template outputs in `bin`
+  - editor jobs: expected `bin/android_editor_builds` and non-empty `horizonos`/`picoos` split artifact folders
+- Why: catch missing Android artifacts before upload steps.
+- Merge note: adjust guard patterns if Gradle output layout changes upstream.
+
+### `.github/workflows/ios_builds.yml`
+
+- Added pre-upload artifact guard check to verify iOS outputs exist in `bin`.
+- Why: catch missing iOS template artifacts before upload.
+- Merge note: adjust glob pattern if iOS output naming changes upstream.
+
+### `.github/workflows/web_builds.yml`
+
+- Added pre-upload artifact guard check to verify expected Web outputs (`.wasm`, `.js`, `.zip`) exist in `bin`.
+- Why: catch missing Web template artifacts before upload.
+- Merge note: adjust patterns if Web output naming/layout changes upstream.
+
+### `.github/workflows/build.yml`
+
+- Added diff-margin addon staging into `bin/addons/diff-margin` in the Windows aggregate build workflow.
+- Added pre-upload artifact guard checks for expected editor binary and required addon directories.
+- Why: ensure aggregate Windows build uploads include complete Phoenix addon payload and fail fast on packaging regressions.
+- Merge note: keep guard expectations in sync with Windows artifact/addon policy.
+
+### `platform/linuxbsd/SCsub`
+
+- Changed Linux binary output basename from `godot` to `version.short_name` (Phoenix currently `phoenix_agentic`).
+- Why: align produced Linux binaries with Phoenix naming used by CI artifact paths and release packaging.
+- Merge note: if upstream keeps `godot` naming, preserve Phoenix fork naming for release consistency.
+
+### `platform/macos/SCsub`
+
+- Changed macOS binary output basename from `godot` to `version.short_name` (Phoenix currently `phoenix_agentic`).
+- Why: align produced macOS binaries with Phoenix naming used by CI artifact paths and release packaging.
+- Merge note: if upstream keeps `godot` naming, preserve Phoenix fork naming for release consistency.
 
 ### `editor/icons/DefaultProjectIcon.svg`
 

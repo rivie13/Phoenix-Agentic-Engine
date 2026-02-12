@@ -214,7 +214,7 @@ jobs:
         # "doubles + GCC sanitizers" job builds Godot with precision=double and dumps
         # a double-precision extension_api.json, which the PixelPen binding generator
         # rejects for single-precision builds.
-        if: matrix.target == 'editor' && matrix.proj-test == true && !contains(matrix.scons-flags, 'precision=double')
+        if: matrix.target == 'editor' && (matrix.proj-test == true || matrix.artifact == true) && !contains(matrix.scons-flags, 'precision=double')
         run: |
           api_dir="${RUNNER_TEMP:-/tmp}/pixelpen_extension_api"
           mkdir -p "$api_dir"
@@ -241,6 +241,35 @@ jobs:
           fi
 
           python3 -m SCons -C ./modules/ultimate_ai/external/pixelpen platform=linux target=template_debug precision=single generate_bindings=yes custom_api_file="$api_dir/extension_api.json"
+
+      - name: Stage editor addons
+        if: matrix.target == 'editor' && matrix.artifact
+        run: |
+          git_plugin_src="./bin/addons/godot-git-plugin"
+          pixelpen_src="./modules/ultimate_ai/external/pixelpen/project/addons/net.yarvis.pixel_pen"
+          diff_margin_src="./modules/ultimate_ai/external/godot-diff-margin/addons/diff-margin"
+
+          if [ ! -d "$git_plugin_src" ]; then
+            echo "Missing Git plugin addon directory: $git_plugin_src" >&2
+            exit 1
+          fi
+          if [ ! -d "$pixelpen_src" ]; then
+            echo "Missing PixelPen addon directory: $pixelpen_src" >&2
+            exit 1
+          fi
+          if [ ! -d "$diff_margin_src" ]; then
+            echo "Missing diff-margin addon directory: $diff_margin_src" >&2
+            exit 1
+          fi
+
+          mkdir -p ./bin/addons
+
+          pixelpen_dst="./bin/addons/net.yarvis.pixel_pen"
+          diff_margin_dst="./bin/addons/diff-margin"
+          rm -rf "$pixelpen_dst" "$diff_margin_dst"
+
+          cp -R "$pixelpen_src" "$pixelpen_dst"
+          cp -R "$diff_margin_src" "$diff_margin_dst"
 
       - name: Compilation (godot-cpp)
         uses: ./.github/actions/godot-cpp-build
@@ -272,6 +301,25 @@ jobs:
         run: |
           strip "${{ matrix.bin }}"
           chmod +x "${{ matrix.bin }}"
+
+      - name: Guard artifact payload
+        if: matrix.artifact
+        run: |
+          if [ ! -f "${{ matrix.bin }}" ]; then
+            echo "Missing expected artifact binary: ${{ matrix.bin }}" >&2
+            ls -la ./bin || true
+            exit 1
+          fi
+
+          if [ "${{ matrix.target }}" = "editor" ]; then
+            for addon in godot-git-plugin net.yarvis.pixel_pen diff-margin; do
+              if [ ! -d "./bin/addons/$addon" ]; then
+                echo "Missing expected addon directory: ./bin/addons/$addon" >&2
+                ls -la ./bin/addons || true
+                exit 1
+              fi
+            done
+          fi
 
       - name: Upload artifact
         uses: ./.github/actions/upload-artifact
