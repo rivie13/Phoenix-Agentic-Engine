@@ -200,21 +200,7 @@ jobs:
 
           python ./misc/scripts/sanitize_extension_api.py "$apiFile"
 
-          $pixelpenCacheRoot = Join-Path $env:GITHUB_WORKSPACE ".scons_cache\addons\pixelpen"
-          $pixelpenCacheDir = Join-Path $pixelpenCacheRoot "${{ matrix.cache-name }}"
-          $cacheDirs = @(
-            (Join-Path $env:GITHUB_WORKSPACE ".scons_cache"),
-            (Join-Path $env:GITHUB_WORKSPACE ".scons_cache\addons"),
-            $pixelpenCacheRoot,
-            $pixelpenCacheDir
-          )
-          foreach ($cacheDir in $cacheDirs) {
-            if (Test-Path $cacheDir -PathType Leaf) {
-              Remove-Item -Force $cacheDir
-            }
-            New-Item -ItemType Directory -Force -Path $cacheDir | Out-Null
-          }
-          $env:SCONS_CACHE = $pixelpenCacheDir
+          Remove-Item Env:SCONS_CACHE -ErrorAction SilentlyContinue
 
           # PixelPen vendors its own godot-cpp; ensure it matches the engine version we're building against.
           $apiJson = Get-Content $apiFile -Raw | ConvertFrom-Json
@@ -225,12 +211,17 @@ jobs:
           $pixelpenGodotCpp = Join-Path $env:GITHUB_WORKSPACE "modules\ultimate_ai\external\pixelpen\godot-cpp"
           if (Test-Path $pixelpenGodotCpp) {
             Push-Location $pixelpenGodotCpp
-            git fetch --depth 1 origin $godotCppRef
-            if ($LASTEXITCODE -ne 0) {
-              $godotCppRef = "master"
-              git fetch --depth 1 origin $godotCppRef
+            $selectedGodotCppRef = $godotCppRef
+            $matchingRef = git ls-remote --heads --tags origin $selectedGodotCppRef
+            if (-not $matchingRef) {
+              Write-Host "godot-cpp ref '$selectedGodotCppRef' not found; falling back to 'master'." -ForegroundColor Yellow
+              $selectedGodotCppRef = "master"
             }
-            git checkout -B $godotCppRef "origin/$godotCppRef"
+            git fetch --depth 1 origin $selectedGodotCppRef
+            if ($LASTEXITCODE -ne 0) {
+              throw "Failed to fetch godot-cpp ref '$selectedGodotCppRef'"
+            }
+            git checkout -B $selectedGodotCppRef FETCH_HEAD
             Pop-Location
           }
 

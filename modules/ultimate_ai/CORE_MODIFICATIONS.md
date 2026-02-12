@@ -70,6 +70,12 @@ This file tracks intentional Phoenix-specific changes that are expected to diver
 - Added addon SCons cache wiring for git-plugin (`-SConsCachePath`) and PixelPen (`SCONS_CACHE`).
 - Why: routes addon compilation through cached `.scons_cache` entries to reduce CI rebuild time.
 - Merge note: keep cache path partitioning by `matrix.cache-name` to avoid cross-configuration cache pollution.
+- Updated PixelPen addon CI to unset `SCONS_CACHE` before invoking PixelPen's vendored `godot-cpp` SCons build.
+- Why: avoids intermittent Windows `CacheDir(...)` creation failures under GitHub Actions runners for addon cache subpaths.
+- Merge note: if re-enabling PixelPen cache later, validate Windows runner compatibility with SCons `CacheDir` first.
+- Updated PixelPen vendored `godot-cpp` ref selection to probe remote heads/tags with `git ls-remote`, then fetch/checkout `FETCH_HEAD` with `master` fallback.
+- Why: avoids noisy/failing `git fetch origin <major>.<minor>` when that branch does not exist (e.g., `4.7`).
+- Merge note: keep fallback logic robust for both branch and tag refs.
 
 ### `.github/workflows/android_builds.yml`
 
@@ -100,6 +106,18 @@ This file tracks intentional Phoenix-specific changes that are expected to diver
 - Added addon SCons cache wiring for git-plugin (`-SConsCachePath`) and PixelPen (`SCONS_CACHE`) in the aggregate build.
 - Why: enables cache reuse for addon rebuilds in umbrella Windows CI runs.
 - Merge note: keep cache namespace aligned with `SCONS_CACHE_NAME`.
+- Updated PixelPen addon step to unset `SCONS_CACHE` before invoking PixelPen's vendored SCons build.
+- Why: avoids intermittent Windows `CacheDir(...)` creation failures for addon-specific cache paths.
+- Merge note: if PixelPen cache is re-enabled later, verify SCons `CacheDir` behavior on GitHub-hosted Windows runners.
+- Updated vendored `godot-cpp` checkout logic to probe refs with `git ls-remote`, then fetch/checkout `FETCH_HEAD` with `master` fallback.
+- Why: handles missing `<major>.<minor>` refs (for example `4.7`) without hard failures.
+- Merge note: preserve branch/tag-agnostic checkout behavior.
+
+### `core/extension/extension_api_dump.cpp`
+
+- Restored upstream-compatible conditional emission for optional arrays (e.g. `arguments`, and empty `methods`/`signals`/`enums`/`constructors`) in `extension_api.json`.
+- Why: unconditional empty arrays caused false GDExtension API compatibility failures in `misc/scripts/validate_extension_api.sh` against older `godot-headers` references.
+- Merge note: keep this aligned with upstream unless validator baselines and compatibility checks are intentionally updated together.
 
 ### `platform/linuxbsd/SCsub`
 
