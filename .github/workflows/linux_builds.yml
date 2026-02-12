@@ -9,7 +9,7 @@ env:
     dev_mode=yes
     module_text_server_fb_enabled=yes
     "accesskit_sdk_path=${{ github.workspace }}/accesskit-c-0.18.0/"
-  GODOT_CPP_BRANCH: 4.7
+  GODOT_CPP_BRANCH: master
   DOTNET_NOLOGO: true
   DOTNET_CLI_TELEMETRY_OPTOUT: true
   ASAN_OPTIONS: color=always:print_suppressions=1:detect_leaks=0:halt_on_error=1:suppressions=${{ github.workspace }}/misc/error_suppressions/asan.txt

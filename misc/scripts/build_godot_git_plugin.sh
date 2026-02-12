@@ -90,20 +90,6 @@ if "BUILD_CLAR" not in text:
 PY
 
 if [ "$PLATFORM" = "macos" ]; then
-  # Xcode 26's ranlib can treat "has no symbols" as a hard error depending on settings.
-  # Force OpenSSL to invoke ranlib with the suppression flag.
-  python3 - <<'PY'
-from pathlib import Path
-path = Path("tools/openssl.py")
-text = path.read_text(encoding="utf-8")
-
-if "no_warning_for_no_symbols" not in text:
-    marker = "        # OSXCross toolchain setup."
-    insertion = "        args.append(\"RANLIB=ranlib\")\n        args.append(\"RANLIBFLAGS=-no_warning_for_no_symbols\")\n"
-    if marker in text:
-        path.write_text(text.replace(marker, insertion + marker, 1), encoding="utf-8")
-PY
-
   python3 - <<'PY'
 from pathlib import Path
 
