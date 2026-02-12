@@ -231,7 +231,15 @@ jobs:
           fi
 
           python3 ./misc/scripts/sanitize_extension_api.py "$api_dir/extension_api.json"
-          export SCONS_CACHE="${GITHUB_WORKSPACE}/.scons_cache/addons/pixelpen/${{ matrix.cache-name }}"
+          pixelpen_cache_root="${GITHUB_WORKSPACE}/.scons_cache/addons/pixelpen"
+          pixelpen_cache_dir="${pixelpen_cache_root}/${{ matrix.cache-name }}"
+          for cache_dir in "${GITHUB_WORKSPACE}/.scons_cache" "${GITHUB_WORKSPACE}/.scons_cache/addons" "$pixelpen_cache_root" "$pixelpen_cache_dir"; do
+            if [ -e "$cache_dir" ] && [ ! -d "$cache_dir" ]; then
+              rm -f "$cache_dir"
+            fi
+            mkdir -p "$cache_dir"
+          done
+          export SCONS_CACHE="$pixelpen_cache_dir"
 
           # PixelPen vendors its own godot-cpp; ensure it matches the engine version we're building against.
           api_file="$api_dir/extension_api.json"

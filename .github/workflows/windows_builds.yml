@@ -200,7 +200,21 @@ jobs:
 
           python ./misc/scripts/sanitize_extension_api.py "$apiFile"
 
-          $env:SCONS_CACHE = Join-Path $env:GITHUB_WORKSPACE ".scons_cache\addons\pixelpen\${{ matrix.cache-name }}"
+          $pixelpenCacheRoot = Join-Path $env:GITHUB_WORKSPACE ".scons_cache\addons\pixelpen"
+          $pixelpenCacheDir = Join-Path $pixelpenCacheRoot "${{ matrix.cache-name }}"
+          $cacheDirs = @(
+            (Join-Path $env:GITHUB_WORKSPACE ".scons_cache"),
+            (Join-Path $env:GITHUB_WORKSPACE ".scons_cache\addons"),
+            $pixelpenCacheRoot,
+            $pixelpenCacheDir
+          )
+          foreach ($cacheDir in $cacheDirs) {
+            if (Test-Path $cacheDir -PathType Leaf) {
+              Remove-Item -Force $cacheDir
+            }
+            New-Item -ItemType Directory -Force -Path $cacheDir | Out-Null
+          }
+          $env:SCONS_CACHE = $pixelpenCacheDir
 
           # PixelPen vendors its own godot-cpp; ensure it matches the engine version we're building against.
           $apiJson = Get-Content $apiFile -Raw | ConvertFrom-Json
