@@ -1,5 +1,5 @@
 /**************************************************************************/
-/*  register_types.cpp                                                    */
+/*  terminal_orchestrator_bridge.h                                        */
 /**************************************************************************/
 /*                         This file is part of:                          */
 /*                             GODOT ENGINE                               */
@@ -28,37 +28,27 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
 /**************************************************************************/
 
-#include "register_types.h"
+#pragma once
 
-#ifdef TOOLS_ENABLED
-#include "core/object/class_db.h"
-#include "core/terminal_orchestrator_bridge.h"
-#include "ui/diff_margin_editor_plugin.h"
-#include "ui/gdterm_editor_plugin.h"
-#include "ui/git_plugin_editor_plugin.h"
-#include "ui/pixelpen_editor_plugin.h"
-#include "ui/ultimate_ai_editor_plugin.h"
-#endif
+#include "core/object/object.h"
 
-void initialize_ultimate_ai_module(ModuleInitializationLevel p_level) {
-	if (p_level != MODULE_INITIALIZATION_LEVEL_EDITOR) {
-		return;
-	}
+class UltimateAITerminalBridge : public Object {
+	GDCLASS(UltimateAITerminalBridge, Object);
 
-#ifdef TOOLS_ENABLED
-	ClassDB::register_class<UltimateAITerminalBridge>();
-	EditorPlugins::add_by_type<UltimateAIEditorPlugin>();
-	EditorPlugins::add_by_type<DiffMarginEditorPlugin>();
-	EditorPlugins::add_by_type<GDTermEditorPlugin>();
-	EditorPlugins::add_by_type<GitPluginEditorPlugin>();
-	EditorPlugins::add_by_type<PixelPenEditorPlugin>();
-#endif
-}
+	Object *_get_terminal_api_target() const;
 
-void uninitialize_ultimate_ai_module(ModuleInitializationLevel p_level) {
-	if (p_level != MODULE_INITIALIZATION_LEVEL_EDITOR) {
-		return;
-	}
+protected:
+	static void _bind_methods();
 
-	// TODO: Unregister classes for the Ultimate AI module.
-}
+public:
+	bool is_available() const;
+	Variant execute_terminal_action(const String &p_action, const Dictionary &p_args = Dictionary()) const;
+
+	Array list_terminals() const;
+	int create_terminal(const String &p_name = "", bool p_ai_terminal = true) const;
+	bool select_terminal(int p_terminal_id) const;
+	bool close_terminal(int p_terminal_id) const;
+	bool send_terminal_input(int p_terminal_id, const String &p_text, bool p_append_newline = true) const;
+	bool send_to_active_terminal(const String &p_text, bool p_append_newline = true) const;
+	bool restart_terminal(int p_terminal_id) const;
+};
