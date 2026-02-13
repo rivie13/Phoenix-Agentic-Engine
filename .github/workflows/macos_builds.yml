@@ -23,13 +23,13 @@ jobs:
           - name: Editor (target=editor)
             cache-name: macos-editor
             target: editor
-            bin: ./bin/godot.macos.editor.universal
+            bin: ./bin/phoenix_agentic.macos.editor.universal
 
           - name: Template (target=template_release)
             cache-name: macos-template
             target: template_release
             scons-flags: debug_symbols=no
-            bin: ./bin/godot.macos.template_release.universal
+            bin: ./bin/phoenix_agentic.macos.template_release.universal
 
     steps:
       - name: Checkout
@@ -38,17 +38,32 @@ jobs:
           submodules: recursive
 
       # From https://github.com/actions/runner-images/blob/main/images/macos
-      - name: Select Xcode 26
-        run: sudo xcode-select -s /Applications/Xcode_26.0.1.app
+      - name: Select Xcode
+        run: |
+          if [ -d "/Applications/Xcode_26.0.1.app" ]; then
+            sudo xcode-select -s /Applications/Xcode_26.0.1.app
+          elif [ -d "/Applications/Xcode.app" ]; then
+            sudo xcode-select -s /Applications/Xcode.app
+          else
+            echo "::warning::macOS: No Xcode app found in /Applications"
+          fi
+          xcode-select -p || true
+          xcodebuild -version || true
 
-      - name: Restore Godot build cache
-        uses: ./.github/actions/godot-cache-restore
+      - name: Restore Phoenix build cache
+        uses: ./.github/actions/phoenix-cache-restore
         with:
           cache-name: ${{ matrix.cache-name }}
         continue-on-error: true
 
       - name: Setup Python and SCons
-        uses: ./.github/actions/godot-deps
+        uses: ./.github/actions/phoenix-deps
+
+      - name: Install addon build dependencies
+        if: matrix.target == 'editor'
+        run: |
+          brew update
+          brew install cmake nasm perl
 
       - name: Download pre-built AccessKit
         uses: dsaltares/fetch-gh-release-asset@1.1.2
@@ -73,31 +88,142 @@ jobs:
         continue-on-error: true
 
       - name: Compilation (x86_64)
-        uses: ./.github/actions/godot-build
+        uses: ./.github/actions/phoenix-build
         with:
           scons-flags: ${{ env.SCONS_FLAGS }} ${{ matrix.scons-flags }} arch=x86_64 vulkan=${{ steps.vulkan-sdk.outputs.VULKAN_ENABLED }}
           platform: macos
           target: ${{ matrix.target }}
 
       - name: Compilation (arm64)
-        uses: ./.github/actions/godot-build
+        uses: ./.github/actions/phoenix-build
         with:
           scons-flags: ${{ env.SCONS_FLAGS }} ${{ matrix.scons-flags }} arch=arm64 vulkan=${{ steps.vulkan-sdk.outputs.VULKAN_ENABLED }}
           platform: macos
           target: ${{ matrix.target }}
 
-      - name: Save Godot build cache
-        uses: ./.github/actions/godot-cache-save
+      - name: Build Git Plugin addon
+        if: matrix.target == 'editor'
+        run: |
+          api_dir="${RUNNER_TEMP:-/tmp}/extension_api"
+          mkdir -p "$api_dir"
+          host_arch="$(uname -m)"
+          editor_exe="${GITHUB_WORKSPACE}/bin/phoenix_agentic.macos.editor.${host_arch}"
+          if [ ! -f "$editor_exe" ]; then
+            echo "::warning::macOS: Expected editor binary not found for host arch '${host_arch}' at '${editor_exe}', falling back to x86_64." >&2
+            editor_exe="${GITHUB_WORKSPACE}/bin/phoenix_agentic.macos.editor.x86_64"
+          fi
+          chmod +x "$editor_exe" || true
+          pushd "$api_dir" >/dev/null
+          "$editor_exe" --headless --dump-extension-api
+          popd >/dev/null
+          if [ ! -f "$api_dir/extension_api.json" ]; then
+            echo "extension_api.json was not generated" >&2
+            exit 1
+          fi
+          python3 ./misc/scripts/sanitize_extension_api.py "$api_dir/extension_api.json"
+          export SCONS_CACHE_PATH="${GITHUB_WORKSPACE}/.scons_cache/addons/godot-git-plugin/${{ matrix.cache-name }}"
+          bash ./misc/scripts/build_godot_git_plugin.sh macos "$PWD" "$api_dir/extension_api.json"
+
+      - name: Build PixelPen addon
+        if: matrix.target == 'editor'
+        run: |
+          api_dir="${RUNNER_TEMP:-/tmp}/pixelpen_extension_api"
+          mkdir -p "$api_dir"
+          host_arch="$(uname -m)"
+          editor_exe="${GITHUB_WORKSPACE}/bin/phoenix_agentic.macos.editor.${host_arch}"
+          if [ ! -f "$editor_exe" ]; then
+            echo "::warning::macOS: Expected editor binary not found for host arch '${host_arch}' at '${editor_exe}', falling back to x86_64." >&2
+            editor_exe="${GITHUB_WORKSPACE}/bin/phoenix_agentic.macos.editor.x86_64"
+          fi
+          chmod +x "$editor_exe" || true
+          pushd "$api_dir" >/dev/null
+          "$editor_exe" --headless --dump-extension-api
+          popd >/dev/null
+          if [ ! -f "$api_dir/extension_api.json" ]; then
+            echo "extension_api.json was not generated" >&2
+            exit 1
+          fi
+
+          python3 ./misc/scripts/sanitize_extension_api.py "$api_dir/extension_api.json"
+          pixelpen_cache_root="${GITHUB_WORKSPACE}/.scons_cache/addons/pixelpen"
+          pixelpen_cache_dir="${pixelpen_cache_root}/${{ matrix.cache-name }}"
+          for cache_dir in "${GITHUB_WORKSPACE}/.scons_cache" "${GITHUB_WORKSPACE}/.scons_cache/addons" "$pixelpen_cache_root" "$pixelpen_cache_dir"; do
+            if [ -e "$cache_dir" ] && [ ! -d "$cache_dir" ]; then
+              rm -f "$cache_dir"
+            fi
+            mkdir -p "$cache_dir"
+          done
+          export SCONS_CACHE="$pixelpen_cache_dir"
+
+          api_file="$api_dir/extension_api.json"
+          godot_cpp_ref="$(API_FILE="$api_file" python3 -c 'import json, os; api=json.load(open(os.environ["API_FILE"], "r", encoding="utf-8")); h=api.get("header", {}); print("godot-{}.{}-stable".format(h.get("version_major"), h.get("version_minor")) if h.get("version_status") == "stable" else "{}.{}".format(h.get("version_major"), h.get("version_minor")))')"
+          if [ -d "./modules/ultimate_ai/external/pixelpen/godot-cpp/.git" ]; then
+            git -C ./modules/ultimate_ai/external/pixelpen/godot-cpp fetch --depth 1 origin "$godot_cpp_ref" || godot_cpp_ref="master"
+            git -C ./modules/ultimate_ai/external/pixelpen/godot-cpp fetch --depth 1 origin "$godot_cpp_ref" || true
+            git -C ./modules/ultimate_ai/external/pixelpen/godot-cpp checkout -B "$godot_cpp_ref" "origin/$godot_cpp_ref"
+          fi
+
+          python3 -m SCons -C ./modules/ultimate_ai/external/pixelpen platform=macos target=template_debug precision=single generate_bindings=yes custom_api_file="$api_file"
+
+      - name: Stage editor addons
+        if: matrix.target == 'editor'
+        run: |
+          git_plugin_src="./bin/addons/godot-git-plugin"
+          pixelpen_src="./modules/ultimate_ai/external/pixelpen/project/addons/net.yarvis.pixel_pen"
+          diff_margin_src="./modules/ultimate_ai/external/godot-diff-margin/addons/diff-margin"
+
+          if [ ! -d "$git_plugin_src" ]; then
+            echo "Missing Git plugin addon directory: $git_plugin_src" >&2
+            exit 1
+          fi
+          if [ ! -d "$pixelpen_src" ]; then
+            echo "Missing PixelPen addon directory: $pixelpen_src" >&2
+            exit 1
+          fi
+          if [ ! -d "$diff_margin_src" ]; then
+            echo "Missing diff-margin addon directory: $diff_margin_src" >&2
+            exit 1
+          fi
+
+          mkdir -p ./bin/addons
+
+          pixelpen_dst="./bin/addons/net.yarvis.pixel_pen"
+          diff_margin_dst="./bin/addons/diff-margin"
+          rm -rf "$pixelpen_dst" "$diff_margin_dst"
+
+          cp -R "$pixelpen_src" "$pixelpen_dst"
+          cp -R "$diff_margin_src" "$diff_margin_dst"
+
+      - name: Save Phoenix build cache
+        uses: ./.github/actions/phoenix-cache-save
         with:
           cache-name: ${{ matrix.cache-name }}
         continue-on-error: true
 
       - name: Prepare artifact
         run: |
-          lipo -create ./bin/godot.macos.${{ matrix.target }}.x86_64 ./bin/godot.macos.${{ matrix.target }}.arm64 -output ./bin/godot.macos.${{ matrix.target }}.universal
-          rm ./bin/godot.macos.${{ matrix.target }}.x86_64 ./bin/godot.macos.${{ matrix.target }}.arm64
-          strip bin/godot.*
-          chmod +x bin/godot.*
+          lipo -create ./bin/phoenix_agentic.macos.${{ matrix.target }}.x86_64 ./bin/phoenix_agentic.macos.${{ matrix.target }}.arm64 -output ./bin/phoenix_agentic.macos.${{ matrix.target }}.universal
+          rm ./bin/phoenix_agentic.macos.${{ matrix.target }}.x86_64 ./bin/phoenix_agentic.macos.${{ matrix.target }}.arm64
+          strip "${{ matrix.bin }}"
+          chmod +x "${{ matrix.bin }}"
+
+      - name: Guard artifact payload
+        run: |
+          if [ ! -f "${{ matrix.bin }}" ]; then
+            echo "Missing expected artifact binary: ${{ matrix.bin }}" >&2
+            ls -la ./bin || true
+            exit 1
+          fi
+
+          if [ "${{ matrix.target }}" = "editor" ]; then
+            for addon in godot-git-plugin net.yarvis.pixel_pen diff-margin; do
+              if [ ! -d "./bin/addons/$addon" ]; then
+                echo "Missing expected addon directory: ./bin/addons/$addon" >&2
+                ls -la ./bin/addons || true
+                exit 1
+              fi
+            done
+          fi
 
       - name: Upload artifact
         uses: ./.github/actions/upload-artifact

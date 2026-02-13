@@ -49,32 +49,32 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      - name: Restore Godot build cache
-        uses: ./.github/actions/godot-cache-restore
+      - name: Restore Phoenix build cache
+        uses: ./.github/actions/phoenix-cache-restore
         with:
           cache-name: ${{ matrix.cache-name }}
         continue-on-error: true
 
       - name: Setup Python and SCons
-        uses: ./.github/actions/godot-deps
+        uses: ./.github/actions/phoenix-deps
 
       - name: Download Swappy
         run: python ./misc/scripts/install_swappy_android.py
 
       - name: Compilation
-        uses: ./.github/actions/godot-build
+        uses: ./.github/actions/phoenix-build
         with:
           scons-flags: ${{ env.SCONS_FLAGS }} ${{ matrix.scons-flags }}
           platform: android
           target: ${{ matrix.target }}
 
-      - name: Save Godot build cache
-        uses: ./.github/actions/godot-cache-save
+      - name: Save Phoenix build cache
+        uses: ./.github/actions/phoenix-cache-save
         with:
           cache-name: ${{ matrix.cache-name }}
         continue-on-error: true
 
-      - name: Generate Godot templates
+      - name: Generate Phoenix templates
         if: matrix.target == 'template_debug'
         run: |
           cd platform/android/java
@@ -82,7 +82,7 @@ jobs:
           cd ../../..
           ls -l bin/
 
-      - name: Generate Godot editor
+      - name: Generate Phoenix editor
         if: matrix.target == 'editor'
         run: |
           cd platform/android/java
@@ -97,6 +97,34 @@ jobs:
           mv bin/android_editor_builds/*-horizonos-* horizonos
           mkdir picoos
           mv bin/android_editor_builds/*-picoos-* picoos
+
+      - name: Guard template artifact payload
+        if: matrix.target == 'template_debug'
+        run: |
+          if ! find ./bin -maxdepth 2 -type f -name '*android*' | grep -q .; then
+            echo "No Android template artifacts found under ./bin" >&2
+            find ./bin -maxdepth 3 -type f | sort || true
+            exit 1
+          fi
+
+      - name: Guard editor artifact payload
+        if: matrix.target == 'editor'
+        run: |
+          if [ ! -d "./bin/android_editor_builds" ]; then
+            echo "Missing expected editor output directory: ./bin/android_editor_builds" >&2
+            find ./bin -maxdepth 3 -type d | sort || true
+            exit 1
+          fi
+          if ! find ./horizonos -mindepth 1 -maxdepth 2 -type f | grep -q .; then
+            echo "Missing Horizon OS editor artifacts in ./horizonos" >&2
+            find ./horizonos -maxdepth 3 -type f | sort || true
+            exit 1
+          fi
+          if ! find ./picoos -mindepth 1 -maxdepth 2 -type f | grep -q .; then
+            echo "Missing PICO OS editor artifacts in ./picoos" >&2
+            find ./picoos -maxdepth 3 -type f | sort || true
+            exit 1
+          fi
 
       - name: Upload artifact
         uses: ./.github/actions/upload-artifact

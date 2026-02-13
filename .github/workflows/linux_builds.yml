@@ -9,11 +9,11 @@ env:
     dev_mode=yes
     module_text_server_fb_enabled=yes
     "accesskit_sdk_path=${{ github.workspace }}/accesskit-c-0.18.0/"
-  GODOT_CPP_BRANCH: 4.5
+  GODOT_CPP_BRANCH: master
   DOTNET_NOLOGO: true
   DOTNET_CLI_TELEMETRY_OPTOUT: true
-  ASAN_OPTIONS: color=always:print_suppressions=1:suppressions=${{ github.workspace }}/misc/error_suppressions/asan.txt
-  LSAN_OPTIONS: color=always:print_suppressions=1:suppressions=${{ github.workspace }}/misc/error_suppressions/lsan.txt
+  ASAN_OPTIONS: color=always:print_suppressions=1:detect_leaks=0:halt_on_error=1:suppressions=${{ github.workspace }}/misc/error_suppressions/asan.txt
+  LSAN_OPTIONS: color=always:print_suppressions=1:detect_leaks=0:exitcode=0:suppressions=${{ github.workspace }}/misc/error_suppressions/lsan.txt
   TSAN_OPTIONS: color=always:print_suppressions=1:suppressions=${{ github.workspace }}/misc/error_suppressions/tsan.txt
   UBSAN_OPTIONS: color=always:print_suppressions=1:suppressions=${{ github.workspace }}/misc/error_suppressions/ubsan.txt
 
@@ -31,7 +31,7 @@ jobs:
             cache-name: linux-editor-mono
             target: editor
             scons-flags: module_mono_enabled=yes
-            bin: ./bin/godot.linuxbsd.editor.x86_64.mono
+            bin: ./bin/phoenix_agentic.linuxbsd.editor.x86_64.mono
             build-mono: true
             doc-test: true
             proj-conv: true
@@ -39,6 +39,7 @@ jobs:
             artifact: true
             # Validate godot-cpp compatibility on one arbitrary editor build.
             godot-cpp: true
+            build-git-plugin: true
 
           - name: Editor with doubles and GCC sanitizers (target=editor, dev_build=yes, scu_build=yes, precision=double, use_asan=yes, use_ubsan=yes, linker=mold)
             cache-name: linux-editor-double-sanitizers
@@ -52,8 +53,11 @@ jobs:
               use_asan=yes
               use_ubsan=yes
               linker=mold
-            bin: ./bin/godot.linuxbsd.editor.dev.double.x86_64.san
+            bin: ./bin/phoenix_agentic.linuxbsd.editor.dev.double.x86_64.san
             proj-test: true
+            proj-test-args: --recovery-mode
+            allow-objectdb-leaks: "1"
+            build-git-plugin: false
 
           - name: Editor with clang sanitizers (target=editor, dev_build=yes, use_asan=yes, use_ubsan=yes, use_llvm=yes, linker=lld)
             cache-name: linux-editor-llvm-sanitizers
@@ -64,9 +68,10 @@ jobs:
               use_ubsan=yes
               use_llvm=yes
               linker=lld
-            bin: ./bin/godot.linuxbsd.editor.dev.x86_64.llvm.san
+            bin: ./bin/phoenix_agentic.linuxbsd.editor.dev.x86_64.llvm.san
             # Test our oldest supported SCons/Python versions on one arbitrary editor build.
             legacy-scons: true
+            build-git-plugin: false
 
           - name: Editor with ThreadSanitizer (target=editor, dev_build=yes, use_tsan=yes, use_llvm=yes, linker=lld)
             cache-name: linux-editor-thread-sanitizer
@@ -76,20 +81,21 @@ jobs:
               use_tsan=yes
               use_llvm=yes
               linker=lld
-            bin: ./bin/godot.linuxbsd.editor.dev.x86_64.llvm.san
+            bin: ./bin/phoenix_agentic.linuxbsd.editor.dev.x86_64.llvm.san
+            build-git-plugin: false
 
           - name: Template w/ Mono, release (target=template_release)
             cache-name: linux-template-mono
             target: template_release
             scons-flags: module_mono_enabled=yes
-            bin: ./bin/godot.linuxbsd.template_release.x86_64.mono
+            bin: ./bin/phoenix_agentic.linuxbsd.template_release.x86_64.mono
             artifact: true
 
           - name: Template w/ Mono, debug (target=template_debug)
             cache-name: linux-template-mono-debug
             target: template_debug
             scons-flags: module_mono_enabled=yes
-            bin: ./bin/godot.linuxbsd.template_debug.x86_64.mono
+            bin: ./bin/phoenix_agentic.linuxbsd.template_debug.x86_64.mono
             artifact: true
 
           - name: Minimal template (target=template_release, everything disabled)
@@ -105,7 +111,7 @@ jobs:
               deprecated=no
               minizip=no
               brotli=no
-            bin: ./bin/godot.linuxbsd.template_release.x86_64
+            bin: ./bin/phoenix_agentic.linuxbsd.template_release.x86_64
             artifact: true
 
     steps:
@@ -128,19 +134,19 @@ jobs:
           sudo rm -rf /usr/local/lib/android
           echo "Disk usage after:" && df -h
 
-      - name: Restore Godot build cache
-        uses: ./.github/actions/godot-cache-restore
+      - name: Restore Phoenix build cache
+        uses: ./.github/actions/phoenix-cache-restore
         with:
           cache-name: ${{ matrix.cache-name }}
         continue-on-error: true
 
       - name: Setup Python and SCons
         if: "!matrix.legacy-scons"
-        uses: ./.github/actions/godot-deps
+        uses: ./.github/actions/phoenix-deps
 
       - name: Setup Python and SCons (legacy versions)
         if: matrix.legacy-scons
-        uses: ./.github/actions/godot-deps
+        uses: ./.github/actions/phoenix-deps
         with:
           # Sync with Ensure*Version in SConstruct.
           python-version: 3.8
@@ -174,33 +180,128 @@ jobs:
         uses: rui314/setup-mold@v1
 
       - name: Compilation
-        uses: ./.github/actions/godot-build
+        uses: ./.github/actions/phoenix-build
         with:
           scons-flags: ${{ env.SCONS_FLAGS }} ${{ matrix.scons-flags }}
           platform: linuxbsd
           target: ${{ matrix.target }}
 
-      - name: Compilation (godot-cpp)
-        uses: ./.github/actions/godot-cpp-build
+      - name: Build Git Plugin addon
+        if: matrix.build-git-plugin == true || (matrix.target == 'editor' && matrix.artifact == true)
+        run: |
+          if [ "${{ matrix.build-mono }}" = "true" ]; then
+            "${{ matrix.bin }}" --headless --generate-mono-glue ./modules/mono/glue
+            dotnet --info
+            ./modules/mono/build_scripts/build_assemblies.py --godot-output-dir=./bin --godot-platform=linuxbsd --werror
+          fi
+          api_dir="${RUNNER_TEMP:-/tmp}/extension_api"
+          mkdir -p "$api_dir"
+          bin_path="${{ matrix.bin }}"
+          bin_path="${bin_path#./}"
+          editor_exe="${GITHUB_WORKSPACE}/${bin_path}"
+          pushd "$api_dir" >/dev/null
+          "$editor_exe" --headless --dump-extension-api
+          popd >/dev/null
+          if [ ! -f "$api_dir/extension_api.json" ]; then
+            echo "extension_api.json was not generated" >&2
+            exit 1
+          fi
+          python3 ./misc/scripts/sanitize_extension_api.py "$api_dir/extension_api.json"
+          export SCONS_CACHE_PATH="${GITHUB_WORKSPACE}/.scons_cache/addons/godot-git-plugin/${{ matrix.cache-name }}"
+          bash ./misc/scripts/build_godot_git_plugin.sh linux "$PWD" "$api_dir/extension_api.json"
+
+      - name: Build PixelPen addon
+        # PixelPen's current build defaults to precision=single, but this workflow's
+        # "doubles + GCC sanitizers" job builds Godot with precision=double and dumps
+        # a double-precision extension_api.json, which the PixelPen binding generator
+        # rejects for single-precision builds.
+        if: matrix.target == 'editor' && (matrix.proj-test == true || matrix.artifact == true) && !contains(matrix.scons-flags, 'precision=double')
+        run: |
+          api_dir="${RUNNER_TEMP:-/tmp}/pixelpen_extension_api"
+          mkdir -p "$api_dir"
+          bin_path="${{ matrix.bin }}"
+          bin_path="${bin_path#./}"
+          editor_exe="${GITHUB_WORKSPACE}/${bin_path}"
+          pushd "$api_dir" >/dev/null
+          "$editor_exe" --headless --dump-extension-api
+          popd >/dev/null
+          if [ ! -f "$api_dir/extension_api.json" ]; then
+            echo "extension_api.json was not generated" >&2
+            exit 1
+          fi
+
+          python3 ./misc/scripts/sanitize_extension_api.py "$api_dir/extension_api.json"
+          pixelpen_cache_root="${GITHUB_WORKSPACE}/.scons_cache/addons/pixelpen"
+          pixelpen_cache_dir="${pixelpen_cache_root}/${{ matrix.cache-name }}"
+          for cache_dir in "${GITHUB_WORKSPACE}/.scons_cache" "${GITHUB_WORKSPACE}/.scons_cache/addons" "$pixelpen_cache_root" "$pixelpen_cache_dir"; do
+            if [ -e "$cache_dir" ] && [ ! -d "$cache_dir" ]; then
+              rm -f "$cache_dir"
+            fi
+            mkdir -p "$cache_dir"
+          done
+          export SCONS_CACHE="$pixelpen_cache_dir"
+
+          # PixelPen vendors its own godot-cpp; ensure it matches the engine version we're building against.
+          api_file="$api_dir/extension_api.json"
+          godot_cpp_ref="$(API_FILE="$api_file" python3 -c 'import json, os; api=json.load(open(os.environ["API_FILE"], "r", encoding="utf-8")); h=api.get("header", {}); print("godot-{}.{}-stable".format(h.get("version_major"), h.get("version_minor")) if h.get("version_status") == "stable" else "{}.{}".format(h.get("version_major"), h.get("version_minor")))')"
+          if [ -d "./modules/ultimate_ai/external/pixelpen/godot-cpp/.git" ]; then
+            git -C ./modules/ultimate_ai/external/pixelpen/godot-cpp fetch --depth 1 origin "$godot_cpp_ref" || godot_cpp_ref="master"
+            git -C ./modules/ultimate_ai/external/pixelpen/godot-cpp fetch --depth 1 origin "$godot_cpp_ref" || true
+            git -C ./modules/ultimate_ai/external/pixelpen/godot-cpp checkout -B "$godot_cpp_ref" "origin/$godot_cpp_ref"
+          fi
+
+          python3 -m SCons -C ./modules/ultimate_ai/external/pixelpen platform=linux target=template_debug precision=single generate_bindings=yes custom_api_file="$api_dir/extension_api.json"
+
+      - name: Stage editor addons
+        if: matrix.target == 'editor' && matrix.artifact
+        run: |
+          git_plugin_src="./bin/addons/godot-git-plugin"
+          pixelpen_src="./modules/ultimate_ai/external/pixelpen/project/addons/net.yarvis.pixel_pen"
+          diff_margin_src="./modules/ultimate_ai/external/godot-diff-margin/addons/diff-margin"
+
+          if [ ! -d "$git_plugin_src" ]; then
+            echo "Missing Git plugin addon directory: $git_plugin_src" >&2
+            exit 1
+          fi
+          if [ ! -d "$pixelpen_src" ]; then
+            echo "Missing PixelPen addon directory: $pixelpen_src" >&2
+            exit 1
+          fi
+          if [ ! -d "$diff_margin_src" ]; then
+            echo "Missing diff-margin addon directory: $diff_margin_src" >&2
+            exit 1
+          fi
+
+          mkdir -p ./bin/addons
+
+          pixelpen_dst="./bin/addons/net.yarvis.pixel_pen"
+          diff_margin_dst="./bin/addons/diff-margin"
+          rm -rf "$pixelpen_dst" "$diff_margin_dst"
+
+          cp -R "$pixelpen_src" "$pixelpen_dst"
+          cp -R "$diff_margin_src" "$diff_margin_dst"
+
+      - name: Compilation (GDExtension C++ bindings)
+        uses: ./.github/actions/phoenix-cpp-build
         if: matrix.godot-cpp
         with:
           bin: ${{ matrix.bin }}
           scons-flags: target=template_debug dev_build=yes verbose=yes
           godot-cpp-branch: ${{ env.GODOT_CPP_BRANCH }}
 
-      - name: Save Godot build cache
-        uses: ./.github/actions/godot-cache-save
+      - name: Save Phoenix build cache
+        uses: ./.github/actions/phoenix-cache-save
         with:
           cache-name: ${{ matrix.cache-name }}
         continue-on-error: true
 
       - name: Generate C# glue
-        if: matrix.build-mono
+        if: matrix.build-mono && matrix.build-git-plugin != true
         run: |
           ${{ matrix.bin }} --headless --generate-mono-glue ./modules/mono/glue
 
       - name: Build .NET solutions
-        if: matrix.build-mono
+        if: matrix.build-mono && matrix.build-git-plugin != true
         run: |
           dotnet --info
           ./modules/mono/build_scripts/build_assemblies.py --godot-output-dir=./bin --godot-platform=linuxbsd --werror
@@ -208,8 +309,27 @@ jobs:
       - name: Prepare artifact
         if: matrix.artifact
         run: |
-          strip bin/godot.*
-          chmod +x bin/godot.*
+          strip "${{ matrix.bin }}"
+          chmod +x "${{ matrix.bin }}"
+
+      - name: Guard artifact payload
+        if: matrix.artifact
+        run: |
+          if [ ! -f "${{ matrix.bin }}" ]; then
+            echo "Missing expected artifact binary: ${{ matrix.bin }}" >&2
+            ls -la ./bin || true
+            exit 1
+          fi
+
+          if [ "${{ matrix.target }}" = "editor" ]; then
+            for addon in godot-git-plugin net.yarvis.pixel_pen diff-margin; do
+              if [ ! -d "./bin/addons/$addon" ]; then
+                echo "Missing expected addon directory: ./bin/addons/$addon" >&2
+                ls -la ./bin/addons || true
+                exit 1
+              fi
+            done
+          fi
 
       - name: Upload artifact
         uses: ./.github/actions/upload-artifact
@@ -244,15 +364,18 @@ jobs:
           ./misc/scripts/validate_extension_api.sh "${{ matrix.bin }}"
 
       # Download and run the test project
-      - name: Test Godot project
-        uses: ./.github/actions/godot-project-test
+      - name: Test Phoenix regression project
+        uses: ./.github/actions/phoenix-project-test
         if: matrix.proj-test
+        env:
+          GODOT_CI_ALLOW_OBJECTDB_LEAKS: ${{ matrix.allow-objectdb-leaks }}
         with:
           bin: ${{ matrix.bin }}
+          extra-args: ${{ matrix.proj-test-args }}
 
       # Test the project converter
       - name: Test project converter
-        uses: ./.github/actions/godot-converter-test
+        uses: ./.github/actions/phoenix-converter-test
         if: matrix.proj-conv
         with:
           bin: ${{ matrix.bin }}

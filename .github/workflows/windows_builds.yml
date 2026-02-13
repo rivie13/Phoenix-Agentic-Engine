@@ -63,14 +63,14 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Restore Godot build cache
-        uses: ./.github/actions/godot-cache-restore
+      - name: Restore Phoenix build cache
+        uses: ./.github/actions/phoenix-cache-restore
         with:
           cache-name: ${{ matrix.cache-name }}
         continue-on-error: true
 
       - name: Setup Python and SCons
-        uses: ./.github/actions/godot-deps
+        uses: ./.github/actions/phoenix-deps
 
       - name: Download Direct3D 12 SDK components
         shell: sh
@@ -107,14 +107,151 @@ jobs:
         run: unzip -o accesskit-c-0.18.0/accesskit_c.zip
 
       - name: Compilation
-        uses: ./.github/actions/godot-build
+        uses: ./.github/actions/phoenix-build
         with:
           scons-flags: ${{ env.SCONS_FLAGS }} ${{ matrix.scons-flags }} d3d12=${{ steps.d3d12-sdk.outputs.D3D12_ENABLED }}
           platform: windows
           target: ${{ matrix.target }}
 
-      - name: Save Godot build cache
-        uses: ./.github/actions/godot-cache-save
+      - name: Build Git Plugin addon
+        if: matrix.target == 'editor'
+        run: |
+          $apiDir = Join-Path $env:RUNNER_TEMP "extension_api"
+          New-Item -ItemType Directory -Force -Path $apiDir | Out-Null
+          $binPath = "${{ matrix.bin }}" -replace '^\./', ''
+          $editorExe = Join-Path $env:GITHUB_WORKSPACE $binPath
+          $consoleEditorExe = $editorExe -replace '\.exe$', '.console.exe'
+          if (Test-Path $consoleEditorExe) {
+            $editorExe = $consoleEditorExe
+          }
+          Push-Location $apiDir
+          if ($editorExe.EndsWith('.console.exe')) {
+            & $editorExe --headless --dump-extension-api
+            $editorExitCode = $LASTEXITCODE
+          } else {
+            $process = Start-Process -FilePath $editorExe -ArgumentList @('--headless', '--dump-extension-api') -Wait -PassThru
+            $editorExitCode = $process.ExitCode
+          }
+          Pop-Location
+          if ($editorExitCode -ne 0) {
+            throw "Editor failed to dump extension API (exit code $editorExitCode)"
+          }
+          $apiFile = Join-Path $apiDir "extension_api.json"
+          if (!(Test-Path $apiFile)) {
+            $exeDir = Split-Path $editorExe -Parent
+            $exeApiFile = Join-Path $exeDir "extension_api.json"
+            if (Test-Path $exeApiFile) {
+              Copy-Item -Force $exeApiFile $apiFile
+            }
+          }
+          if (!(Test-Path $apiFile)) {
+            Write-Host "extension_api.json was not generated" -ForegroundColor Red
+            Write-Host "API dir: $apiDir" -ForegroundColor Yellow
+            Write-Host "Editor dir: $(Split-Path $editorExe -Parent)" -ForegroundColor Yellow
+            throw "extension_api.json was not generated"
+          }
+
+          python ./misc/scripts/sanitize_extension_api.py "$apiFile"
+
+          $addonSconsCache = Join-Path $env:GITHUB_WORKSPACE ".scons_cache\addons\godot-git-plugin\${{ matrix.cache-name }}"
+          ./misc/scripts/build_godot_git_plugin.ps1 -Platform windows -ApiFile "$apiFile" -SConsCachePath "$addonSconsCache"
+        shell: pwsh
+
+      - name: Build PixelPen addon
+        # Only stage PixelPen for the primary MSVC editor artifact.
+        if: matrix.target == 'editor' && matrix.compiler == 'msvc'
+        run: |
+          $apiDir = Join-Path $env:RUNNER_TEMP "pixelpen_extension_api"
+          New-Item -ItemType Directory -Force -Path $apiDir | Out-Null
+          $binPath = "${{ matrix.bin }}" -replace '^\./', ''
+          $editorExe = Join-Path $env:GITHUB_WORKSPACE $binPath
+          $consoleEditorExe = $editorExe -replace '\.exe$', '.console.exe'
+          if (Test-Path $consoleEditorExe) {
+            $editorExe = $consoleEditorExe
+          }
+
+          Push-Location $apiDir
+          if ($editorExe.EndsWith('.console.exe')) {
+            & $editorExe --headless --dump-extension-api
+            $editorExitCode = $LASTEXITCODE
+          } else {
+            $process = Start-Process -FilePath $editorExe -ArgumentList @('--headless', '--dump-extension-api') -Wait -PassThru
+            $editorExitCode = $process.ExitCode
+          }
+          Pop-Location
+          if ($editorExitCode -ne 0) {
+            throw "Editor failed to dump extension API (exit code $editorExitCode)"
+          }
+
+          $apiFile = Join-Path $apiDir "extension_api.json"
+          if (!(Test-Path $apiFile)) {
+            $exeDir = Split-Path $editorExe -Parent
+            $exeApiFile = Join-Path $exeDir "extension_api.json"
+            if (Test-Path $exeApiFile) {
+              Copy-Item -Force $exeApiFile $apiFile
+            }
+          }
+          if (!(Test-Path $apiFile)) {
+            Write-Host "extension_api.json was not generated" -ForegroundColor Red
+            Write-Host "API dir: $apiDir" -ForegroundColor Yellow
+            Write-Host "Editor dir: $(Split-Path $editorExe -Parent)" -ForegroundColor Yellow
+            throw "extension_api.json was not generated"
+          }
+
+          python ./misc/scripts/sanitize_extension_api.py "$apiFile"
+
+          Remove-Item Env:SCONS_CACHE -ErrorAction SilentlyContinue
+
+          # PixelPen vendors its own godot-cpp; ensure it matches the engine version we're building against.
+          $apiJson = Get-Content $apiFile -Raw | ConvertFrom-Json
+          $godotCppRef = "$($apiJson.header.version_major).$($apiJson.header.version_minor)"
+          if ($apiJson.header.version_status -eq "stable") {
+            $godotCppRef = "godot-$($apiJson.header.version_major).$($apiJson.header.version_minor)-stable"
+          }
+          $pixelpenGodotCpp = Join-Path $env:GITHUB_WORKSPACE "modules\ultimate_ai\external\pixelpen\godot-cpp"
+          if (Test-Path $pixelpenGodotCpp) {
+            Push-Location $pixelpenGodotCpp
+            $selectedGodotCppRef = $godotCppRef
+            $matchingRef = git ls-remote --heads --tags origin $selectedGodotCppRef
+            if (-not $matchingRef) {
+              Write-Host "godot-cpp ref '$selectedGodotCppRef' not found; falling back to 'master'." -ForegroundColor Yellow
+              $selectedGodotCppRef = "master"
+            }
+            git fetch --depth 1 origin $selectedGodotCppRef
+            if ($LASTEXITCODE -ne 0) {
+              throw "Failed to fetch godot-cpp ref '$selectedGodotCppRef'"
+            }
+            git checkout -B $selectedGodotCppRef FETCH_HEAD
+            Pop-Location
+          }
+
+          python -m SCons -C ./modules/ultimate_ai/external/pixelpen platform=windows arch=x86_64 target=template_debug precision=single generate_bindings=yes custom_api_file="$apiFile"
+
+          $srcAddon = Join-Path $env:GITHUB_WORKSPACE "modules\ultimate_ai\external\pixelpen\project\addons\net.yarvis.pixel_pen"
+          if (!(Test-Path $srcAddon)) {
+            throw "PixelPen addon source not found at $srcAddon"
+          }
+          $dstAddon = Join-Path $env:GITHUB_WORKSPACE "bin\addons\net.yarvis.pixel_pen"
+          if (Test-Path $dstAddon) {
+            Remove-Item -Recurse -Force $dstAddon
+          }
+          New-Item -ItemType Directory -Force -Path $dstAddon | Out-Null
+          Copy-Item -Recurse -Force (Join-Path $srcAddon '*') $dstAddon
+
+          $srcDiffMargin = Join-Path $env:GITHUB_WORKSPACE "modules\ultimate_ai\external\godot-diff-margin\addons\diff-margin"
+          if (!(Test-Path $srcDiffMargin)) {
+            throw "diff-margin addon source not found at $srcDiffMargin"
+          }
+          $dstDiffMargin = Join-Path $env:GITHUB_WORKSPACE "bin\addons\diff-margin"
+          if (Test-Path $dstDiffMargin) {
+            Remove-Item -Recurse -Force $dstDiffMargin
+          }
+          New-Item -ItemType Directory -Force -Path $dstDiffMargin | Out-Null
+          Copy-Item -Recurse -Force (Join-Path $srcDiffMargin '*') $dstDiffMargin
+        shell: pwsh
+
+      - name: Save Phoenix build cache
+        uses: ./.github/actions/phoenix-cache-save
         with:
           cache-name: ${{ matrix.cache-name }}
         continue-on-error: true
@@ -123,6 +260,34 @@ jobs:
         if: matrix.compiler == 'msvc'
         run: |
           Remove-Item bin/* -Include *.exp,*.lib,*.pdb -Force
+
+      - name: Guard artifact payload
+        if: matrix.compiler == 'msvc'
+        run: |
+          $binPath = "${{ matrix.bin }}" -replace '^\./', ''
+          $expectedBin = Join-Path $env:GITHUB_WORKSPACE $binPath
+          if (!(Test-Path $expectedBin)) {
+            Write-Host "Missing expected artifact binary: $expectedBin" -ForegroundColor Red
+            Get-ChildItem (Join-Path $env:GITHUB_WORKSPACE 'bin') -Force | Format-Table -AutoSize
+            throw "Artifact binary missing"
+          }
+
+          if ("${{ matrix.target }}" -eq "editor") {
+            $requiredAddonDirs = @(
+              (Join-Path $env:GITHUB_WORKSPACE "bin\addons\godot-git-plugin"),
+              (Join-Path $env:GITHUB_WORKSPACE "bin\addons\net.yarvis.pixel_pen"),
+              (Join-Path $env:GITHUB_WORKSPACE "bin\addons\diff-margin")
+            )
+
+            foreach ($addonDir in $requiredAddonDirs) {
+              if (!(Test-Path $addonDir)) {
+                Write-Host "Missing expected addon directory: $addonDir" -ForegroundColor Red
+                Get-ChildItem (Join-Path $env:GITHUB_WORKSPACE 'bin\addons') -Force -ErrorAction SilentlyContinue | Format-Table -AutoSize
+                throw "Addon directory missing"
+              }
+            }
+          }
+        shell: pwsh
 
       - name: Upload artifact
         if: matrix.compiler == 'msvc'

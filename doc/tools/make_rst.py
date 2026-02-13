@@ -737,6 +737,8 @@ def main() -> None:
 
         if os.path.basename(path) in ["modules", "platform"]:
             for subdir, dirs, _ in os.walk(path):
+                if "external" in dirs:
+                    dirs.remove("external")  # Skip third-party submodules under modules/**/external.
                 if "doc_classes" in dirs:
                     doc_dir = os.path.join(subdir, "doc_classes")
                     class_file_names = (f for f in os.listdir(doc_dir) if f.endswith(".xml"))

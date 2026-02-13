@@ -1,5 +1,5 @@
-name: Setup Python and SCons
-description: Setup Python, install the pip version of SCons.
+name: "Legacy alias: phoenix-deps"
+description: Backward-compatible alias for ./.github/actions/phoenix-deps.
 
 inputs:
   python-version:
@@ -15,21 +15,9 @@ inputs:
 runs:
   using: composite
   steps:
-    - name: Set up Python 3.x
-      uses: actions/setup-python@v5
+    - name: Delegate to phoenix-deps
+      uses: ./.github/actions/phoenix-deps
       with:
-        # Semantic version range syntax or exact version of a Python version.
         python-version: ${{ inputs.python-version }}
-        # Optional - x64 or x86 architecture, defaults to x64.
-        architecture: ${{ inputs.python-arch }}
-
-    - name: Setup SCons
-      shell: bash
-      run: |
-        python -c "import sys; print(sys.version)"
-        python -m pip install scons==${{ inputs.scons-version }}
-        scons --version
-
-    - name: Setup problem matchers
-      shell: bash
-      run: echo ::add-matcher::misc/utility/problem-matchers.json
+        python-arch: ${{ inputs.python-arch }}
+        scons-version: ${{ inputs.scons-version }}

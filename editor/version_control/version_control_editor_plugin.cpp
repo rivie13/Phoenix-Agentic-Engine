@@ -31,6 +31,8 @@
 #include "version_control_editor_plugin.h"
 
 #include "core/config/project_settings.h"
+#include "core/io/dir_access.h"
+#include "core/io/file_access.h"
 #include "core/os/keyboard.h"
 #include "core/os/time.h"
 #include "editor/docks/editor_dock.h"
@@ -53,6 +55,203 @@
 #define CHECK_PLUGIN_INITIALIZED() \
 	ERR_FAIL_NULL_MSG(EditorVCSInterface::get_singleton(), "No VCS plugin is initialized. Select a Version Control Plugin from Project menu.");
 
+namespace {
+const char *const PHOENIX_WORKTREE_SETTING = "phoenix/worktree/require_per_branch";
+const char *const PHOENIX_WORKTREE_ROOT_SETTING = "phoenix/worktree/root_dir";
+const char *const PHOENIX_WORKTREE_ROOT_DEFAULT = "user://.phoenix_worktrees";
+const char *const PHOENIX_WORKTREE_KEEP_OPEN_SETTING = "phoenix/worktree/keep_previous_open";
+const char *const PHOENIX_WORKTREE_CREATE_BRANCH_SETTING = "phoenix/worktree/create_new_branch";
+
+bool _phoenix_requires_worktree() {
+	ProjectSettings *project_settings = ProjectSettings::get_singleton();
+	if (!project_settings) {
+		return false;
+	}
+	if (!project_settings->has_setting(PHOENIX_WORKTREE_SETTING)) {
+		return true;
+	}
+	return static_cast<bool>(project_settings->get(PHOENIX_WORKTREE_SETTING));
+}
+
+void _phoenix_warn_worktree_required() {
+	EditorNode *editor_node = EditorNode::get_singleton();
+	if (!editor_node) {
+		return;
+	}
+	editor_node->show_warning(
+			TTR("Phoenix requires a separate Git worktree per branch. Use the worktree workflow instead of in-place branch checkout."),
+			TTR("Phoenix Worktree Required"));
+}
+
+String _phoenix_get_worktree_root_setting() {
+	ProjectSettings *project_settings = ProjectSettings::get_singleton();
+	if (!project_settings) {
+		return PHOENIX_WORKTREE_ROOT_DEFAULT;
+	}
+	if (!project_settings->has_setting(PHOENIX_WORKTREE_ROOT_SETTING)) {
+		project_settings->set(PHOENIX_WORKTREE_ROOT_SETTING, PHOENIX_WORKTREE_ROOT_DEFAULT);
+	}
+	String value = project_settings->get(PHOENIX_WORKTREE_ROOT_SETTING);
+	return value.is_empty() ? String(PHOENIX_WORKTREE_ROOT_DEFAULT) : value;
+}
+
+bool _phoenix_get_worktree_keep_open_setting() {
+	ProjectSettings *project_settings = ProjectSettings::get_singleton();
+	if (!project_settings) {
+		return false;
+	}
+	if (!project_settings->has_setting(PHOENIX_WORKTREE_KEEP_OPEN_SETTING)) {
+		project_settings->set(PHOENIX_WORKTREE_KEEP_OPEN_SETTING, false);
+	}
+	return static_cast<bool>(project_settings->get(PHOENIX_WORKTREE_KEEP_OPEN_SETTING));
+}
+
+bool _phoenix_get_worktree_create_branch_setting() {
+	ProjectSettings *project_settings = ProjectSettings::get_singleton();
+	if (!project_settings) {
+		return false;
+	}
+	if (!project_settings->has_setting(PHOENIX_WORKTREE_CREATE_BRANCH_SETTING)) {
+		project_settings->set(PHOENIX_WORKTREE_CREATE_BRANCH_SETTING, false);
+	}
+	return static_cast<bool>(project_settings->get(PHOENIX_WORKTREE_CREATE_BRANCH_SETTING));
+}
+
+bool _phoenix_repo_has_head(const String &p_project_root) {
+	List<String> args;
+	args.push_back("-C");
+	args.push_back(p_project_root);
+	args.push_back("rev-parse");
+	args.push_back("--verify");
+	args.push_back("HEAD");
+
+	String pipe;
+	int exit_code = 0;
+	Error exec_err = OS::get_singleton()->execute("git", args, &pipe, &exit_code, true);
+	return exec_err == OK && exit_code == 0;
+}
+
+bool _phoenix_branch_exists(const String &p_project_root, const String &p_branch_name) {
+	List<String> args;
+	args.push_back("-C");
+	args.push_back(p_project_root);
+	args.push_back("show-ref");
+	args.push_back("--verify");
+	args.push_back("--quiet");
+	args.push_back(String("refs/heads/") + p_branch_name);
+
+	String pipe;
+	int exit_code = 0;
+	Error exec_err = OS::get_singleton()->execute("git", args, &pipe, &exit_code, true);
+	return exec_err == OK && exit_code == 0;
+}
+
+bool _phoenix_validate_branch_name(const String &p_project_root, const String &p_branch_name, String &r_error) {
+	r_error = "";
+	if (p_branch_name.strip_edges().is_empty()) {
+		r_error = "Branch name is empty.";
+		return false;
+	}
+
+	List<String> args;
+	args.push_back("-C");
+	args.push_back(p_project_root);
+	args.push_back("check-ref-format");
+	args.push_back("--branch");
+	args.push_back(p_branch_name);
+
+	String pipe;
+	int exit_code = 0;
+	Error exec_err = OS::get_singleton()->execute("git", args, &pipe, &exit_code, true);
+	if (exec_err != OK || exit_code != 0) {
+		r_error = pipe.strip_edges();
+		if (r_error.is_empty()) {
+			r_error = "Invalid branch name.";
+		}
+		return false;
+	}
+	return true;
+}
+
+String _phoenix_globalize_worktree_root(const String &p_root) {
+	ProjectSettings *project_settings = ProjectSettings::get_singleton();
+	if (!project_settings) {
+		return p_root;
+	}
+	if (p_root.begins_with("res://") || p_root.begins_with("user://")) {
+		return project_settings->globalize_path(p_root);
+	}
+	if (p_root.is_absolute_path()) {
+		return p_root;
+	}
+	return project_settings->globalize_path("res://").path_join(p_root).simplify_path();
+}
+
+String _phoenix_to_gitignore_entry(const String &p_project_root, const String &p_path) {
+	String project_root = p_project_root.simplify_path();
+	String target = p_path.simplify_path();
+	if (!target.begins_with(project_root)) {
+		return "";
+	}
+	String relative = target.substr(project_root.length()).strip_edges();
+	while (relative.begins_with("/") || relative.begins_with("\\")) {
+		relative = relative.substr(1);
+	}
+	if (relative.is_empty()) {
+		return "";
+	}
+	relative = relative.replace("\\", "/");
+	if (!relative.ends_with("/")) {
+		relative += "/";
+	}
+	return relative;
+}
+
+String _phoenix_to_gitignore_file_entry(const String &p_project_root, const String &p_path) {
+	String project_root = p_project_root.simplify_path();
+	String target = p_path.simplify_path();
+	if (!target.begins_with(project_root)) {
+		return "";
+	}
+	String relative = target.substr(project_root.length()).strip_edges();
+	while (relative.begins_with("/") || relative.begins_with("\\")) {
+		relative = relative.substr(1);
+	}
+	if (relative.is_empty()) {
+		return "";
+	}
+	return relative.replace("\\", "/");
+}
+
+void _phoenix_ensure_gitignore_entry(const String &p_project_root, const String &p_entry) {
+	if (p_entry.is_empty()) {
+		return;
+	}
+	String gitignore_path = p_project_root.path_join(".gitignore").simplify_path();
+	String contents;
+	if (FileAccess::exists(gitignore_path)) {
+		Ref<FileAccess> file = FileAccess::open(gitignore_path, FileAccess::READ);
+		if (file.is_valid()) {
+			contents = file->get_as_text();
+		}
+	}
+	if (contents.find(p_entry) != -1) {
+		return;
+	}
+	Ref<FileAccess> writer = FileAccess::open(gitignore_path, FileAccess::WRITE);
+	if (writer.is_null()) {
+		return;
+	}
+	if (!contents.is_empty()) {
+		if (!contents.ends_with("\n")) {
+			contents += "\n";
+		}
+		writer->store_string(contents);
+	}
+	writer->store_string(p_entry + "\n");
+}
+} //namespace
+
 VersionControlEditorPlugin *VersionControlEditorPlugin::singleton = nullptr;
 
 void VersionControlEditorPlugin::_bind_methods() {
@@ -65,15 +264,42 @@ void VersionControlEditorPlugin::_create_vcs_metadata_files() {
 }
 
 void VersionControlEditorPlugin::_notification(int p_what) {
-	if (p_what == NOTIFICATION_READY) {
-		String installed_plugin = GLOBAL_GET("editor/version_control/plugin_name");
-		bool has_autoload_enable = GLOBAL_GET("editor/version_control/autoload_on_startup");
+	switch (p_what) {
+		case NOTIFICATION_READY: {
+			String installed_plugin = GLOBAL_GET("editor/version_control/plugin_name");
+			bool has_autoload_enable = GLOBAL_GET("editor/version_control/autoload_on_startup");
 
-		if (installed_plugin != "" && has_autoload_enable) {
-			if (_load_plugin(installed_plugin)) {
-				_set_credentials();
+			if (installed_plugin != "" && has_autoload_enable) {
+				if (ClassDB::class_exists(installed_plugin)) {
+					if (_load_plugin(installed_plugin)) {
+						_set_credentials();
+					}
+				} else {
+					vcs_autoload_plugin = installed_plugin;
+					vcs_autoload_pending = true;
+					set_process(true);
+				}
 			}
-		}
+		} break;
+		case NOTIFICATION_PROCESS: {
+			if (vcs_autoload_pending && !vcs_autoload_plugin.is_empty()) {
+				if (ClassDB::class_exists(vcs_autoload_plugin)) {
+					if (_load_plugin(vcs_autoload_plugin)) {
+						_set_credentials();
+					}
+					vcs_autoload_pending = false;
+					vcs_autoload_plugin = "";
+					set_process(false);
+				}
+			}
+		} break;
+		case NOTIFICATION_EXIT_TREE: {
+			vcs_autoload_pending = false;
+			vcs_autoload_plugin = "";
+			set_process(false);
+		} break;
+		default:
+			break;
 	}
 }
 
@@ -324,6 +550,10 @@ void VersionControlEditorPlugin::_commit() {
 
 void VersionControlEditorPlugin::_branch_item_selected(int p_index) {
 	CHECK_PLUGIN_INITIALIZED();
+	if (_phoenix_requires_worktree()) {
+		_phoenix_warn_worktree_required();
+		return;
+	}
 
 	String branch_name = branch_select->get_item_text(p_index);
 	EditorVCSInterface::get_singleton()->checkout_branch(branch_name);
@@ -361,10 +591,40 @@ void VersionControlEditorPlugin::_popup_file_dialog(const Variant &p_file_dialog
 void VersionControlEditorPlugin::_create_branch() {
 	CHECK_PLUGIN_INITIALIZED();
 
-	String new_branch_name = branch_create_name_input->get_text().strip_edges();
+	String new_branch_name = _normalize_branch_name(branch_create_name_input->get_text());
+	if (branch_create_name_input && branch_create_name_input->get_text() != new_branch_name) {
+		branch_create_name_input->set_text(new_branch_name);
+	}
+	String project_root = ProjectSettings::get_singleton()->globalize_path("res://");
+	if (!_phoenix_repo_has_head(project_root)) {
+		EditorNode::get_singleton()->show_warning(
+				TTR("This repository has no commits yet. Create an initial commit before creating branches."),
+				TTR("Phoenix Worktree"));
+		return;
+	}
+	String validation_error;
+	if (!_phoenix_validate_branch_name(project_root, new_branch_name, validation_error)) {
+		EditorNode::get_singleton()->show_warning(validation_error, TTR("Phoenix Worktree"));
+		return;
+	}
+	if (_phoenix_branch_exists(project_root, new_branch_name)) {
+		EditorNode::get_singleton()->show_warning(
+				TTR("Branch already exists."),
+				TTR("Phoenix Worktree"));
+		return;
+	}
 
 	EditorVCSInterface::get_singleton()->create_branch(new_branch_name);
-	EditorVCSInterface::get_singleton()->checkout_branch(new_branch_name);
+	if (!_phoenix_requires_worktree()) {
+		EditorVCSInterface::get_singleton()->checkout_branch(new_branch_name);
+	} else {
+		_phoenix_warn_worktree_required();
+	}
+	if (!_phoenix_branch_exists(project_root, new_branch_name)) {
+		EditorNode::get_singleton()->show_warning(
+				TTR("Branch creation failed. Check the Output log for details."),
+				TTR("Phoenix Worktree"));
+	}
 
 	branch_create_name_input->clear();
 	_refresh_branch_list();
@@ -385,6 +645,22 @@ void VersionControlEditorPlugin::_create_remote() {
 
 void VersionControlEditorPlugin::_update_branch_create_button(const String &p_new_text) {
 	branch_create_ok->set_disabled(p_new_text.strip_edges().is_empty());
+}
+
+void VersionControlEditorPlugin::_on_branch_create_name_changed(const String &p_text) {
+	if (!branch_create_name_input || worktree_normalizing) {
+		_update_branch_create_button(p_text);
+		return;
+	}
+	String normalized = _normalize_branch_name(p_text);
+	if (normalized != p_text) {
+		int caret = branch_create_name_input->get_caret_column();
+		worktree_normalizing = true;
+		branch_create_name_input->set_text(normalized);
+		branch_create_name_input->set_caret_column(MIN(caret, normalized.length()));
+		worktree_normalizing = false;
+	}
+	_update_branch_create_button(normalized);
 }
 
 void VersionControlEditorPlugin::_update_remote_create_button(const String &p_new_text) {
@@ -462,8 +738,12 @@ void VersionControlEditorPlugin::_add_new_item(Tree *p_tree, const String &p_fil
 	new_item->set_custom_color(0, change_type_to_color[p_change]);
 
 	new_item->add_button(0, EditorNode::get_singleton()->get_editor_theme()->get_icon(SNAME("File"), EditorStringName(EditorIcons)), BUTTON_TYPE_OPEN, false, TTR("Open in editor"));
+	new_item->add_button(0, EditorNode::get_singleton()->get_editor_theme()->get_icon(SNAME("TextFile"), EditorStringName(EditorIcons)), BUTTON_TYPE_DIFF, false, TTR("View diff"));
 	if (p_tree == unstaged_files) {
+		new_item->add_button(0, EditorNode::get_singleton()->get_editor_theme()->get_icon(SNAME("Warning"), EditorStringName(EditorIcons)), BUTTON_TYPE_GITIGNORE, false, TTR("Add to .gitignore"));
 		new_item->add_button(0, EditorNode::get_singleton()->get_editor_theme()->get_icon(SNAME("Close"), EditorStringName(EditorIcons)), BUTTON_TYPE_DISCARD, false, TTR("Discard changes"));
+	} else if (p_tree == staged_files) {
+		new_item->add_button(0, EditorNode::get_singleton()->get_editor_theme()->get_icon(SNAME("MoveUp"), EditorStringName(EditorIcons)), BUTTON_TYPE_UNSTAGE, false, TTR("Unstage changes"));
 	}
 }
 
@@ -536,10 +816,10 @@ void VersionControlEditorPlugin::_load_diff(Object *p_tree) {
 		diff_title->set_text(TTR("Unstaged Changes"));
 		diff_content = EditorVCSInterface::get_singleton()->get_diff(file_path, EditorVCSInterface::TREE_AREA_UNSTAGED);
 	} else if (tree == commit_list) {
-		show_commit_diff_header = true;
 		Dictionary meta_data = tree->get_selected()->get_metadata(0);
 		String commit_id = meta_data[SNAME("commit_id")];
 		String commit_title = meta_data[SNAME("commit_title")];
+		show_commit_diff_header = true;
 		diff_title->set_text(commit_title);
 		diff_content = EditorVCSInterface::get_singleton()->get_diff(commit_id, EditorVCSInterface::TREE_AREA_COMMIT);
 	}
@@ -590,6 +870,27 @@ void VersionControlEditorPlugin::_cell_button_pressed(Object *p_item, int p_colu
 			FileSystemDock::get_singleton()->navigate_to_path(file_path);
 		}
 
+	} else if (p_id == BUTTON_TYPE_DIFF) {
+		Tree *tree = item->get_tree();
+		if (!tree) {
+			return;
+		}
+		tree->set_selected(item, 0);
+		_load_diff(tree);
+	} else if (p_id == BUTTON_TYPE_GITIGNORE) {
+		ProjectSettings *project_settings = ProjectSettings::get_singleton();
+		if (project_settings) {
+			String project_root = project_settings->globalize_path("res://");
+			String absolute_path = file_path.begins_with("res://") ? project_settings->globalize_path(file_path) : project_root.path_join(file_path).simplify_path();
+			String gitignore_entry = _phoenix_to_gitignore_file_entry(project_root, absolute_path);
+			_phoenix_ensure_gitignore_entry(project_root, gitignore_entry);
+			EditorFileSystem::get_singleton()->scan_changes();
+			_refresh_stage_area();
+		}
+	} else if (p_id == BUTTON_TYPE_UNSTAGE) {
+		CHECK_PLUGIN_INITIALIZED();
+		EditorVCSInterface::get_singleton()->unstage_file(file_path);
+		_refresh_stage_area();
 	} else if (p_id == BUTTON_TYPE_DISCARD) {
 		_discard_file(file_path, change);
 		_refresh_stage_area();
@@ -869,6 +1170,248 @@ void VersionControlEditorPlugin::_extra_option_selected(int p_index) {
 		case EXTRA_OPTION_CREATE_REMOTE:
 			remote_create_confirm->popup_centered();
 			break;
+		case EXTRA_OPTION_SWITCH_WORKTREE:
+			_open_worktree_switch_dialog();
+			break;
+	}
+}
+
+void VersionControlEditorPlugin::_open_worktree_switch_dialog() {
+	CHECK_PLUGIN_INITIALIZED();
+	if (!worktree_switch_dialog || !worktree_branch_select || !worktree_root_path) {
+		return;
+	}
+
+	worktree_branch_select->clear();
+	List<String> branch_list = EditorVCSInterface::get_singleton()->get_branch_list();
+	String current_branch = EditorVCSInterface::get_singleton()->get_current_branch_name();
+	int current_index = -1;
+	int i = 0;
+	for (const String &branch : branch_list) {
+		worktree_branch_select->add_item(branch, i);
+		if (branch == current_branch) {
+			current_index = i;
+		}
+		i++;
+	}
+	if (current_index >= 0) {
+		worktree_branch_select->select(current_index);
+	}
+
+	worktree_root_path->set_text(_phoenix_get_worktree_root_setting());
+	if (worktree_keep_open) {
+		worktree_keep_open->set_pressed(_phoenix_get_worktree_keep_open_setting());
+	}
+	if (worktree_create_branch) {
+		worktree_create_branch->set_pressed(_phoenix_get_worktree_create_branch_setting());
+	}
+	if (worktree_new_branch_name) {
+		worktree_new_branch_name->set_text("");
+	}
+	_update_worktree_target_path();
+	worktree_switch_dialog->popup_centered();
+}
+
+void VersionControlEditorPlugin::_update_worktree_target_path() {
+	if (!worktree_branch_select || !worktree_root_path || !worktree_target_path) {
+		return;
+	}
+	int selected = worktree_branch_select->get_selected_id();
+	String base_branch = selected >= 0 ? worktree_branch_select->get_item_text(selected) : String();
+	String root_input = worktree_root_path->get_text().strip_edges();
+	if (root_input.is_empty()) {
+		root_input = PHOENIX_WORKTREE_ROOT_DEFAULT;
+	}
+	bool create_branch = worktree_create_branch && worktree_create_branch->is_pressed();
+	if (worktree_new_branch_name) {
+		worktree_new_branch_name->set_editable(create_branch);
+	}
+	String branch_name = base_branch;
+	if (create_branch && worktree_new_branch_name) {
+		String new_branch = _normalize_branch_name(worktree_new_branch_name->get_text());
+		if (!new_branch.is_empty()) {
+			branch_name = new_branch;
+		}
+	}
+	String root_global = _phoenix_globalize_worktree_root(root_input);
+	String target_path = branch_name.is_empty() ? root_global : root_global.path_join(branch_name).simplify_path();
+	worktree_target_path->set_text(target_path);
+}
+
+void VersionControlEditorPlugin::_on_worktree_create_branch_toggled(bool p_pressed) {
+	_update_worktree_target_path();
+	if (worktree_new_branch_name) {
+		worktree_new_branch_name->set_editable(p_pressed);
+		if (p_pressed) {
+			worktree_new_branch_name->grab_focus();
+		}
+	}
+}
+
+void VersionControlEditorPlugin::_on_worktree_branch_selected(int p_index) {
+	_update_worktree_target_path();
+}
+
+void VersionControlEditorPlugin::_on_worktree_root_changed(const String &p_text) {
+	_update_worktree_target_path();
+}
+
+void VersionControlEditorPlugin::_on_worktree_new_branch_changed(const String &p_text) {
+	if (!worktree_new_branch_name || worktree_normalizing) {
+		_update_worktree_target_path();
+		return;
+	}
+	String normalized = _normalize_branch_name(p_text);
+	if (normalized != p_text) {
+		int caret = worktree_new_branch_name->get_caret_column();
+		worktree_normalizing = true;
+		worktree_new_branch_name->set_text(normalized);
+		worktree_new_branch_name->set_caret_column(MIN(caret, normalized.length()));
+		worktree_normalizing = false;
+	}
+	_update_worktree_target_path();
+}
+
+String VersionControlEditorPlugin::_normalize_branch_name(const String &p_name) const {
+	String normalized = p_name.strip_edges();
+	normalized = normalized.replace(" ", "-");
+	normalized = normalized.replace("\t", "-");
+	normalized = normalized.replace("\n", "-");
+	normalized = normalized.replace("\r", "-");
+	while (normalized.find("--") != -1) {
+		normalized = normalized.replace("--", "-");
+	}
+	return normalized;
+}
+
+void VersionControlEditorPlugin::_confirm_worktree_switch() {
+	CHECK_PLUGIN_INITIALIZED();
+	if (!worktree_branch_select || !worktree_root_path) {
+		return;
+	}
+	int selected = worktree_branch_select->get_selected_id();
+	ERR_FAIL_COND_MSG(selected < 0, "No branch selected for worktree switch.");
+	String base_branch = worktree_branch_select->get_item_text(selected);
+	if (base_branch.is_empty()) {
+		return;
+	}
+	bool create_branch = worktree_create_branch && worktree_create_branch->is_pressed();
+	String branch_name = base_branch;
+	if (create_branch) {
+		String new_branch = worktree_new_branch_name ? _normalize_branch_name(worktree_new_branch_name->get_text()) : String();
+		if (new_branch.is_empty()) {
+			EditorNode::get_singleton()->show_warning(
+					TTR("Enter a new branch name to create a worktree."),
+					TTR("Phoenix Worktree Switch"));
+			return;
+		}
+		branch_name = new_branch;
+	}
+
+	String root_input = worktree_root_path->get_text().strip_edges();
+	if (root_input.is_empty()) {
+		root_input = PHOENIX_WORKTREE_ROOT_DEFAULT;
+	}
+	ProjectSettings *project_settings = ProjectSettings::get_singleton();
+	if (project_settings) {
+		project_settings->set(PHOENIX_WORKTREE_ROOT_SETTING, root_input);
+		if (worktree_keep_open) {
+			project_settings->set(PHOENIX_WORKTREE_KEEP_OPEN_SETTING, worktree_keep_open->is_pressed());
+		}
+		if (worktree_create_branch) {
+			project_settings->set(PHOENIX_WORKTREE_CREATE_BRANCH_SETTING, worktree_create_branch->is_pressed());
+		}
+		project_settings->save();
+	}
+
+	String root_global = _phoenix_globalize_worktree_root(root_input);
+	String project_root = project_settings ? project_settings->globalize_path("res://") : String();
+	String worktree_path = root_global.path_join(branch_name).simplify_path();
+	String gitignore_entry = _phoenix_to_gitignore_entry(project_root, root_global);
+	_phoenix_ensure_gitignore_entry(project_root, gitignore_entry);
+
+	Error mkdir_err = DirAccess::make_dir_recursive_absolute(root_global);
+	if (mkdir_err != OK) {
+		EditorNode::get_singleton()->show_warning(
+				TTR("Failed to create worktree root folder."),
+				TTR("Phoenix Worktree Switch"));
+		return;
+	}
+
+	if (!_phoenix_repo_has_head(project_root)) {
+		EditorNode::get_singleton()->show_warning(
+				TTR("This repository has no commits yet. Create an initial commit before creating worktrees."),
+				TTR("Phoenix Worktree Switch"));
+		return;
+	}
+	if (create_branch) {
+		String validation_error;
+		if (!_phoenix_validate_branch_name(project_root, branch_name, validation_error)) {
+			EditorNode::get_singleton()->show_warning(validation_error, TTR("Phoenix Worktree Switch"));
+			return;
+		}
+		if (_phoenix_branch_exists(project_root, branch_name)) {
+			EditorNode::get_singleton()->show_warning(
+					TTR("Branch already exists."),
+					TTR("Phoenix Worktree Switch"));
+			return;
+		}
+	} else if (!_phoenix_branch_exists(project_root, base_branch)) {
+		EditorNode::get_singleton()->show_warning(
+				TTR("Selected branch does not exist."),
+				TTR("Phoenix Worktree Switch"));
+		return;
+	}
+
+	if (!DirAccess::dir_exists_absolute(worktree_path)) {
+		List<String> args;
+		args.push_back("-C");
+		args.push_back(project_root);
+		args.push_back("worktree");
+		args.push_back("add");
+		if (create_branch) {
+			args.push_back("-b");
+			args.push_back(branch_name);
+		}
+		args.push_back(worktree_path);
+		args.push_back(create_branch ? base_branch : branch_name);
+
+		String pipe;
+		int exit_code = 0;
+		Error exec_err = OS::get_singleton()->execute("git", args, &pipe, &exit_code, true);
+		if (exec_err != OK || exit_code != 0) {
+			String error_text = pipe.is_empty() ? TTR("Git worktree add failed.") : pipe;
+			EditorNode::get_singleton()->show_warning(error_text, TTR("Phoenix Worktree Switch"));
+			return;
+		}
+	}
+
+	String project_file = worktree_path.path_join("project.godot");
+	if (!FileAccess::exists(project_file)) {
+		EditorNode::get_singleton()->show_warning(
+				TTR("Worktree created but no project.godot was found."),
+				TTR("Phoenix Worktree Switch"));
+		return;
+	}
+
+	List<String> editor_args;
+	editor_args.push_back("-e");
+	editor_args.push_back("--path");
+	editor_args.push_back(worktree_path);
+	OS::ProcessID pid = 0;
+	Error launch_err = OS::get_singleton()->create_process(OS::get_singleton()->get_executable_path(), editor_args, &pid);
+	if (launch_err != OK) {
+		EditorNode::get_singleton()->show_warning(
+				TTR("Failed to launch new editor instance for worktree."),
+				TTR("Phoenix Worktree Switch"));
+		return;
+	}
+
+	if (!worktree_keep_open || !worktree_keep_open->is_pressed()) {
+		SceneTree *tree = EditorNode::get_singleton()->get_tree();
+		if (tree) {
+			tree->quit();
+		}
 	}
 }
 
@@ -941,9 +1484,43 @@ void VersionControlEditorPlugin::fetch_available_vcs_plugin_names() {
 	ClassDB::get_direct_inheriters_from_class(EditorVCSInterface::get_class_static(), &available_plugins);
 }
 
+bool VersionControlEditorPlugin::ensure_vcs_plugin_loaded(const String &p_plugin_name, bool p_set_autoload) {
+	if (EditorVCSInterface::get_singleton()) {
+		return true;
+	}
+	if (p_plugin_name.is_empty()) {
+		return false;
+	}
+
+	fetch_available_vcs_plugin_names();
+	bool found = false;
+	for (const StringName &plugin_name : available_plugins) {
+		if (String(plugin_name) == p_plugin_name) {
+			found = true;
+			break;
+		}
+	}
+	if (!found) {
+		return false;
+	}
+
+	if (!_load_plugin(p_plugin_name)) {
+		return false;
+	}
+
+	if (p_set_autoload) {
+		ProjectSettings::get_singleton()->set("editor/version_control/autoload_on_startup", true);
+		ProjectSettings::get_singleton()->set("editor/version_control/plugin_name", p_plugin_name);
+		ProjectSettings::get_singleton()->save();
+	}
+
+	return true;
+}
+
 void VersionControlEditorPlugin::register_editor() {
 	EditorDockManager::get_singleton()->add_dock(version_commit_dock);
 	EditorDockManager::get_singleton()->add_dock(version_control_dock);
+	version_commit_dock->make_visible();
 
 	_set_vcs_ui_state(true);
 }
@@ -1181,7 +1758,7 @@ VersionControlEditorPlugin::VersionControlEditorPlugin() {
 	version_commit_dock->set_layout_key("VersionCommit");
 	version_commit_dock->set_icon_name("VCSCommit");
 	version_commit_dock->set_dock_shortcut(ED_SHORTCUT_AND_COMMAND("docks/open_version_control", TTRC("Open Version Control Dock")));
-	version_commit_dock->set_default_slot(EditorDock::DOCK_SLOT_RIGHT_UL);
+	version_commit_dock->set_default_slot(EditorDock::DOCK_SLOT_LEFT_BR);
 
 	VBoxContainer *dock_vb = memnew(VBoxContainer);
 	version_commit_dock->add_child(dock_vb);
@@ -1398,7 +1975,7 @@ VersionControlEditorPlugin::VersionControlEditorPlugin() {
 	branch_create_name_input = memnew(LineEdit);
 	branch_create_name_input->set_accessibility_name(TTRC("Branch Name"));
 	branch_create_name_input->set_h_size_flags(Control::SIZE_EXPAND_FILL);
-	branch_create_name_input->connect(SceneStringName(text_changed), callable_mp(this, &VersionControlEditorPlugin::_update_branch_create_button));
+	branch_create_name_input->connect(SceneStringName(text_changed), callable_mp(this, &VersionControlEditorPlugin::_on_branch_create_name_changed));
 	branch_create_hbc->add_child(branch_create_name_input);
 
 	remote_select = memnew(OptionButton);
@@ -1463,6 +2040,75 @@ VersionControlEditorPlugin::VersionControlEditorPlugin() {
 	remote_create_url_input->connect(SceneStringName(text_changed), callable_mp(this, &VersionControlEditorPlugin::_update_remote_create_button));
 	remote_create_hbc->add_child(remote_create_url_input);
 
+	worktree_switch_dialog = memnew(AcceptDialog);
+	worktree_switch_dialog->set_title(TTR("Switch Worktree"));
+	worktree_switch_dialog->set_min_size(Size2(520, 180));
+	worktree_switch_dialog->add_cancel_button(TTR("Cancel"));
+	worktree_switch_dialog->set_hide_on_ok(true);
+	EditorInterface::get_singleton()->get_base_control()->add_child(worktree_switch_dialog);
+
+	worktree_switch_ok = worktree_switch_dialog->get_ok_button();
+	worktree_switch_ok->set_text(TTR("Switch"));
+	worktree_switch_ok->connect(SceneStringName(pressed), callable_mp(this, &VersionControlEditorPlugin::_confirm_worktree_switch));
+
+	VBoxContainer *worktree_vbc = memnew(VBoxContainer);
+	worktree_switch_dialog->add_child(worktree_vbc);
+
+	HBoxContainer *worktree_branch_hbc = memnew(HBoxContainer);
+	worktree_branch_hbc->set_h_size_flags(Control::SIZE_EXPAND_FILL);
+	worktree_vbc->add_child(worktree_branch_hbc);
+
+	Label *worktree_branch_label = memnew(Label);
+	worktree_branch_label->set_h_size_flags(Control::SIZE_EXPAND_FILL);
+	worktree_branch_label->set_text(TTR("Branch"));
+	worktree_branch_hbc->add_child(worktree_branch_label);
+
+	worktree_branch_select = memnew(OptionButton);
+	worktree_branch_select->set_h_size_flags(Control::SIZE_EXPAND_FILL);
+	worktree_branch_select->connect(SceneStringName(item_selected), callable_mp(this, &VersionControlEditorPlugin::_on_worktree_branch_selected));
+	worktree_branch_hbc->add_child(worktree_branch_select);
+
+	HBoxContainer *worktree_root_hbc = memnew(HBoxContainer);
+	worktree_root_hbc->set_h_size_flags(Control::SIZE_EXPAND_FILL);
+	worktree_vbc->add_child(worktree_root_hbc);
+
+	Label *worktree_root_label = memnew(Label);
+	worktree_root_label->set_h_size_flags(Control::SIZE_EXPAND_FILL);
+	worktree_root_label->set_text(TTR("Worktree Root"));
+	worktree_root_hbc->add_child(worktree_root_label);
+
+	worktree_root_path = memnew(LineEdit);
+	worktree_root_path->set_h_size_flags(Control::SIZE_EXPAND_FILL);
+	worktree_root_path->connect(SceneStringName(text_changed), callable_mp(this, &VersionControlEditorPlugin::_on_worktree_root_changed));
+	worktree_root_hbc->add_child(worktree_root_path);
+
+	Label *worktree_target_label = memnew(Label);
+	worktree_target_label->set_text(TTR("Target Path"));
+	worktree_vbc->add_child(worktree_target_label);
+
+	worktree_target_path = memnew(LineEdit);
+	worktree_target_path->set_editable(false);
+	worktree_target_path->set_h_size_flags(Control::SIZE_EXPAND_FILL);
+	worktree_vbc->add_child(worktree_target_path);
+
+	worktree_create_branch = memnew(CheckBox);
+	worktree_create_branch->set_text(TTR("Create new branch"));
+	worktree_create_branch->set_pressed(_phoenix_get_worktree_create_branch_setting());
+	worktree_create_branch->connect(SceneStringName(toggled), callable_mp(this, &VersionControlEditorPlugin::_on_worktree_create_branch_toggled));
+	worktree_vbc->add_child(worktree_create_branch);
+
+	worktree_new_branch_name = memnew(LineEdit);
+	worktree_new_branch_name->set_h_size_flags(Control::SIZE_EXPAND_FILL);
+	worktree_new_branch_name->set_placeholder(TTR("New branch name"));
+	worktree_new_branch_name->set_editable(false);
+	worktree_new_branch_name->connect(SceneStringName(text_changed), callable_mp(this, &VersionControlEditorPlugin::_on_worktree_new_branch_changed));
+	worktree_vbc->add_child(worktree_new_branch_name);
+
+	worktree_keep_open = memnew(CheckBox);
+	worktree_keep_open->set_text(TTR("Keep current editor open"));
+	worktree_keep_open->set_pressed(_phoenix_get_worktree_keep_open_setting());
+	worktree_vbc->add_child(worktree_keep_open);
+
 	fetch_button = memnew(Button);
 	fetch_button->set_theme_type_variation(SceneStringName(FlatButton));
 	fetch_button->set_tooltip_text(TTR("Fetch"));
@@ -1490,6 +2136,7 @@ VersionControlEditorPlugin::VersionControlEditorPlugin() {
 	extra_options->get_popup()->add_item(TTR("Force Push"), EXTRA_OPTION_FORCE_PUSH);
 	extra_options->get_popup()->add_separator();
 	extra_options->get_popup()->add_item(TTR("Create New Branch"), EXTRA_OPTION_CREATE_BRANCH);
+	extra_options->get_popup()->add_item(TTR("Switch Worktree"), EXTRA_OPTION_SWITCH_WORKTREE);
 
 	extra_options_remove_branch_list = memnew(PopupMenu);
 	extra_options_remove_branch_list->connect(SceneStringName(id_pressed), callable_mp(this, &VersionControlEditorPlugin::_popup_branch_remove_confirm));

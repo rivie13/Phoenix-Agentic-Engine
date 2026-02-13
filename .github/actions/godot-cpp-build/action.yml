@@ -1,9 +1,9 @@
-name: Build godot-cpp
-description: Build godot-cpp with the provided options.
+name: "Legacy alias: phoenix-cpp-build"
+description: Backward-compatible alias for ./.github/actions/phoenix-cpp-build.
 
 inputs:
   bin:
-    description: Path to the Godot binary.
+    description: Path to the Phoenix editor binary.
     required: true
   scons-flags:
     description: Additional SCons flags.
@@ -11,24 +11,16 @@ inputs:
     description: The SCons cache path.
     default: ${{ github.workspace }}/.scons_cache/
   godot-cpp-branch:
-    description: The godot-cpp branch.
+    description: The C++ bindings branch.
     default: master
 
 runs:
   using: composite
   steps:
-    - name: Checkout
-      uses: actions/checkout@v4
+    - name: Delegate to phoenix-cpp-build
+      uses: ./.github/actions/phoenix-cpp-build
       with:
-        submodules: recursive
-        repository: godotengine/godot-cpp
-        ref: ${{ inputs.godot-cpp-branch }}
-        path: godot-cpp
-
-    - name: Extract API
-      shell: sh
-      run: ${{ inputs.bin }} --headless --dump-gdextension-interface --dump-extension-api
-
-    - name: SCons Build
-      shell: sh
-      run: scons --directory=./godot-cpp/test "gdextension_dir=${{ github.workspace }}" "custom_tools=${{ github.workspace }}/.github/godotcpp_tools" use_response_file=yes ${{ inputs.scons-flags }}
+        bin: ${{ inputs.bin }}
+        scons-flags: ${{ inputs.scons-flags }}
+        scons-cache: ${{ inputs.scons-cache }}
+        godot-cpp-branch: ${{ inputs.godot-cpp-branch }}

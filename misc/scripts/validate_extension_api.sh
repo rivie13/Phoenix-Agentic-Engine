@@ -8,7 +8,7 @@ if [ ! -f "version.py" ]; then
 fi
 
 if [ $# != 1 ]; then
-  echo "Usage: @0 <path-to-godot-executable>"
+  echo "Usage: $0 <path-to-godot-executable>"
   exit 1
 fi
 
