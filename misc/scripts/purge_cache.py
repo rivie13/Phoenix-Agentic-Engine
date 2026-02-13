@@ -27,7 +27,13 @@ def main():
                         print(f'Failed to handle "{item}"; skipping.')
                         ret += 1
 
-    for file in glob.glob(os.path.join(args.directory, "*", "*")):
+    if not os.path.isdir(args.directory):
+        return ret
+
+    for file in glob.glob(os.path.join(args.directory, "**", "*"), recursive=True):
+        if not os.path.isfile(file):
+            continue
+
         try:
             if os.path.getatime(file) < args.timestamp:
                 os.remove(file)

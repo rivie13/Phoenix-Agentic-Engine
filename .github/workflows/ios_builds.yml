@@ -28,23 +28,31 @@ jobs:
       - name: Select Xcode 26
         run: sudo xcode-select -s /Applications/Xcode_26.0.1.app
 
-      - name: Restore Godot build cache
-        uses: ./.github/actions/godot-cache-restore
+      - name: Restore Phoenix build cache
+        uses: ./.github/actions/phoenix-cache-restore
         continue-on-error: true
 
       - name: Setup Python and SCons
-        uses: ./.github/actions/godot-deps
+        uses: ./.github/actions/phoenix-deps
 
       - name: Compilation (arm64)
-        uses: ./.github/actions/godot-build
+        uses: ./.github/actions/phoenix-build
         with:
           scons-flags: ${{ env.SCONS_FLAGS }}
           platform: ios
           target: template_release
 
-      - name: Save Godot build cache
-        uses: ./.github/actions/godot-cache-save
+      - name: Save Phoenix build cache
+        uses: ./.github/actions/phoenix-cache-save
         continue-on-error: true
+
+      - name: Guard artifact payload
+        run: |
+          if ! find ./bin -maxdepth 2 -type f -name '*ios*' | grep -q .; then
+            echo "No iOS artifacts found under ./bin" >&2
+            find ./bin -maxdepth 3 -type f | sort || true
+            exit 1
+          fi
 
       - name: Upload artifact
         uses: ./.github/actions/upload-artifact

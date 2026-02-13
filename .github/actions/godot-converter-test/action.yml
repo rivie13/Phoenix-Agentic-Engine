@@ -1,20 +1,15 @@
-name: Test Godot project converter
-description: Test the Godot project converter.
+name: "Legacy alias: phoenix-converter-test"
+description: Backward-compatible alias for ./.github/actions/phoenix-converter-test.
 
 inputs:
   bin:
-    description: The path to the Godot executable
+    description: The path to the Phoenix editor executable
     required: true
 
 runs:
   using: composite
   steps:
-    - name: Test 3-to-4 conversion
-      shell: sh
-      run: |
-        mkdir converter_test
-        cd converter_test
-        touch project.godot
-        ../${{ inputs.bin }} --headless --validate-conversion-3to4
-        cd ..
-        rm converter_test -rf
+    - name: Delegate to phoenix-converter-test
+      uses: ./.github/actions/phoenix-converter-test
+      with:
+        bin: ${{ inputs.bin }}

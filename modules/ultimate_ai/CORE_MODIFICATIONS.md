@@ -4,6 +4,133 @@ This file tracks intentional Phoenix-specific changes that are expected to diver
 
 ## Files Modified Outside `modules/ultimate_ai`
 
+### `misc/scripts/build_godot_git_plugin.sh`
+
+- Patch the cloned git-plugin build to disable libgit2 Clar tests and apply macOS-specific fixes for clang warnings and zlib `fdopen` macro conflicts.
+- On macOS, patch cloned `tools/git2.py` to link `iconv` when building the plugin shared library.
+- Added optional `SCONS_CACHE_PATH`/`SCONS_CACHE` support and forwards it to SCons as `cache_path=...`.
+- Why: macOS universal builds were failing under newer Xcode due to zlib macro conflicts and libgit2 test links pulling the wrong-arch Homebrew `libssh2`.
+- Why: static `libgit2.a` can reference iconv symbols that are not auto-propagated to the final plugin link, causing `_iconv*` undefined symbol failures.
+- Why: allows git-plugin addon builds to reuse Phoenix CI cache instead of recompiling from scratch every run.
+- Merge note: keep macOS guards and test-disable patches unless upstream libgit2/cmake options are updated to avoid these issues.
+
+### `misc/scripts/build_godot_git_plugin.ps1`
+
+- Added optional `-SConsCachePath` argument and forwards it to SCons as `cache_path=...`.
+- Why: enables Windows git-plugin addon builds to reuse the shared Phoenix SCons cache.
+- Merge note: preserve compatibility with callers that do not pass `-SConsCachePath`.
+
+### `misc/scripts/check_ci_log.py`
+
+- Added `GODOT_CI_ALLOW_OBJECTDB_LEAKS` override to skip failing CI when ObjectDB leak warnings are expected.
+- Why: the GCC sanitizer project test currently reports ObjectDB leaks during shutdown; we still want other fatal errors to fail the job.
+- Merge note: remove the override once the underlying leak is fixed.
+
+### `.github/workflows/linux_builds.yml`
+
+- Set `GODOT_CI_ALLOW_OBJECTDB_LEAKS=1` for the GCC sanitizer matrix job only.
+- Why: keep project tests running while temporarily ignoring the known ObjectDB leak warning in that configuration.
+- Merge note: drop the flag when the leak is resolved.
+- Build and stage editor addons for Linux editor artifacts:
+  - Build PixelPen bindings on editor artifact jobs.
+  - Stage `net.yarvis.pixel_pen` and `diff-margin` into `bin/addons` before upload.
+- Why: Linux downloadable editor artifacts should include the Phoenix addon set by default.
+- Merge note: keep addon staging in sync with Windows workflow policy.
+- Added pre-upload artifact guard checks for expected binary path and required addon directories on editor artifacts.
+- Why: fail fast when naming/staging regressions occur before publishing broken artifacts.
+- Merge note: keep guards aligned with artifact naming and staged addon policy.
+- Exported addon-specific SCons cache paths before git-plugin and PixelPen build steps.
+- Why: routes addon compilation through cached `.scons_cache` entries to reduce CI rebuild time.
+- Merge note: keep cache path names stable across matrix jobs unless cache partitioning strategy changes.
+
+### `.github/workflows/macos_builds.yml`
+
+- Made Xcode selection resilient (falls back to `/Applications/Xcode.app` when the pinned path isn't present).
+- Installed dependencies needed by `build_godot_git_plugin.sh` (cmake/perl/nasm) on editor builds.
+- Why: macOS CI can fail if a specific Xcode isn't installed or if required tools aren't present.
+- Merge note: prefer upstream CI approach if they standardize Xcode selection and dependency installation.
+- Build and stage editor addons for macOS editor artifacts:
+  - Build PixelPen bindings from dumped extension API.
+  - Stage `net.yarvis.pixel_pen` and `diff-margin` into `bin/addons` before upload.
+- Why: macOS downloadable editor artifacts should include the Phoenix addon set by default.
+- Merge note: keep addon staging in sync with Linux/Windows workflow policy.
+- Added pre-upload artifact guard checks for expected universal binary path and required addon directories on editor artifacts.
+- Why: fail fast when naming/staging regressions occur before publishing broken artifacts.
+- Merge note: keep guards aligned with artifact naming and staged addon policy.
+- Exported addon-specific SCons cache paths before git-plugin and PixelPen build steps.
+- Why: routes addon compilation through cached `.scons_cache` entries to reduce CI rebuild time.
+- Merge note: keep cache path names stable across matrix jobs unless cache partitioning strategy changes.
+
+### `.github/workflows/windows_builds.yml`
+
+- Added diff-margin addon staging into `bin/addons/diff-margin` for MSVC editor artifact builds.
+- Added pre-upload artifact guard checks for expected binary path and required addon directories on editor artifacts.
+- Why: align Windows packaged editor content with Linux/macOS and fail fast on packaging regressions.
+- Merge note: keep guards and addon staging aligned with cross-platform artifact policy.
+- Added addon SCons cache wiring for git-plugin (`-SConsCachePath`) and PixelPen (`SCONS_CACHE`).
+- Why: routes addon compilation through cached `.scons_cache` entries to reduce CI rebuild time.
+- Merge note: keep cache path partitioning by `matrix.cache-name` to avoid cross-configuration cache pollution.
+- Updated PixelPen addon CI to unset `SCONS_CACHE` before invoking PixelPen's vendored `godot-cpp` SCons build.
+- Why: avoids intermittent Windows `CacheDir(...)` creation failures under GitHub Actions runners for addon cache subpaths.
+- Merge note: if re-enabling PixelPen cache later, validate Windows runner compatibility with SCons `CacheDir` first.
+- Updated PixelPen vendored `godot-cpp` ref selection to probe remote heads/tags with `git ls-remote`, then fetch/checkout `FETCH_HEAD` with `master` fallback.
+- Why: avoids noisy/failing `git fetch origin <major>.<minor>` when that branch does not exist (e.g., `4.7`).
+- Merge note: keep fallback logic robust for both branch and tag refs.
+
+### `.github/workflows/android_builds.yml`
+
+- Added pre-upload artifact guard checks for:
+  - template jobs: expected Android template outputs in `bin`
+  - editor jobs: expected `bin/android_editor_builds` and non-empty `horizonos`/`picoos` split artifact folders
+- Why: catch missing Android artifacts before upload steps.
+- Merge note: adjust guard patterns if Gradle output layout changes upstream.
+
+### `.github/workflows/ios_builds.yml`
+
+- Added pre-upload artifact guard check to verify iOS outputs exist in `bin`.
+- Why: catch missing iOS template artifacts before upload.
+- Merge note: adjust glob pattern if iOS output naming changes upstream.
+
+### `.github/workflows/web_builds.yml`
+
+- Added pre-upload artifact guard check to verify expected Web outputs (`.wasm`, `.js`, `.zip`) exist in `bin`.
+- Why: catch missing Web template artifacts before upload.
+- Merge note: adjust patterns if Web output naming/layout changes upstream.
+
+### `.github/workflows/build.yml`
+
+- Added diff-margin addon staging into `bin/addons/diff-margin` in the Windows aggregate build workflow.
+- Added pre-upload artifact guard checks for expected editor binary and required addon directories.
+- Why: ensure aggregate Windows build uploads include complete Phoenix addon payload and fail fast on packaging regressions.
+- Merge note: keep guard expectations in sync with Windows artifact/addon policy.
+- Added addon SCons cache wiring for git-plugin (`-SConsCachePath`) and PixelPen (`SCONS_CACHE`) in the aggregate build.
+- Why: enables cache reuse for addon rebuilds in umbrella Windows CI runs.
+- Merge note: keep cache namespace aligned with `SCONS_CACHE_NAME`.
+- Updated PixelPen addon step to unset `SCONS_CACHE` before invoking PixelPen's vendored SCons build.
+- Why: avoids intermittent Windows `CacheDir(...)` creation failures for addon-specific cache paths.
+- Merge note: if PixelPen cache is re-enabled later, verify SCons `CacheDir` behavior on GitHub-hosted Windows runners.
+- Updated vendored `godot-cpp` checkout logic to probe refs with `git ls-remote`, then fetch/checkout `FETCH_HEAD` with `master` fallback.
+- Why: handles missing `<major>.<minor>` refs (for example `4.7`) without hard failures.
+- Merge note: preserve branch/tag-agnostic checkout behavior.
+
+### `core/extension/extension_api_dump.cpp`
+
+- Restored upstream-compatible conditional emission for optional arrays (e.g. `arguments`, and empty `methods`/`signals`/`enums`/`constructors`) in `extension_api.json`.
+- Why: unconditional empty arrays caused false GDExtension API compatibility failures in `misc/scripts/validate_extension_api.sh` against older `godot-headers` references.
+- Merge note: keep this aligned with upstream unless validator baselines and compatibility checks are intentionally updated together.
+
+### `platform/linuxbsd/SCsub`
+
+- Changed Linux binary output basename from `godot` to `version.short_name` (Phoenix currently `phoenix_agentic`).
+- Why: align produced Linux binaries with Phoenix naming used by CI artifact paths and release packaging.
+- Merge note: if upstream keeps `godot` naming, preserve Phoenix fork naming for release consistency.
+
+### `platform/macos/SCsub`
+
+- Changed macOS binary output basename from `godot` to `version.short_name` (Phoenix currently `phoenix_agentic`).
+- Why: align produced macOS binaries with Phoenix naming used by CI artifact paths and release packaging.
+- Merge note: if upstream keeps `godot` naming, preserve Phoenix fork naming for release consistency.
+
 ### `editor/icons/DefaultProjectIcon.svg`
 
 - Replaced upstream icon SVG (PNG embedded in `<image>`) with vector paths from `branding/Phoenix_app_icon.svg`.
@@ -36,11 +163,47 @@ This file tracks intentional Phoenix-specific changes that are expected to diver
 - Why: iOS Metal builds were producing duplicate object targets for `metal_fx`, failing SCons with “Multiple ways to build the same target”.
 - Merge note: keep the conditional filter or align with upstream if they change MetalFX build selection.
 
+### `doc/tools/make_rst.py`
+
+- Skip walking into `modules/**/external` when collecting `doc_classes` XML files.
+- Why: avoid duplicate class definitions from third-party submodules (e.g., nested `godot-cpp` tests) that break `make-rst` in pre-commit.
+- Merge note: keep exclusion or upstream-ignore rules if external submodules are used there too.
+
 ### `drivers/metal/SCsub`
 
 - Avoid building both `.cpp` and `.mm` siblings by filtering out any `.cpp` with a matching `.mm` basename.
 - Why: iOS Metal builds were producing duplicate object targets (e.g., `metal_device_properties`, `pixel_formats`), failing SCons with “Multiple ways to build the same target”.
 - Merge note: keep the conditional filter or align with upstream if they change the driver file selection.
+
+### `editor/version_control/version_control_editor_plugin.h`
+
+- Added `ensure_vcs_plugin_loaded(...)` public helper.
+- Why: allow Phoenix editor plugins to auto-load the VCS UI once a VCS plugin is available.
+- Merge note: if upstream adds a similar hook, prefer upstream API and drop this helper.
+- Added per-file VCS action button ids for diff/unstage/gitignore.
+- Why: support new per-file actions in the VCS dock UI.
+- Merge note: align with upstream button ids if they introduce equivalent actions.
+
+### `editor/version_control/version_control_editor_plugin.cpp`
+
+- Implemented `ensure_vcs_plugin_loaded(...)` to load a named VCS plugin and persist autoload settings.
+- Why: auto-connect the Git VCS interface and show the standard Version Control docks without manual setup.
+- Merge note: reapply or replace with upstream autoload mechanism if introduced.
+- Set the Version Control commit dock default slot to `DOCK_SLOT_LEFT_BR` and auto-open it after registration.
+- Why: keep the Git UI next to the FileSystem dock and visible by default.
+- Merge note: adjust to upstream docking defaults if they add configurable placement.
+- Block in-editor branch checkout when Phoenix worktree mode is required.
+- Why: Phoenix workflow mandates separate worktrees per branch to avoid stale editor caches and cross-branch asset state.
+- Merge note: keep or replace with upstream worktree-safe branch switching if added.
+- Added a Phoenix worktree switch dialog that creates/opens worktrees and relaunches the editor.
+- Why: enable low-friction branch viewing while keeping each branch isolated in its own worktree.
+- Merge note: keep or replace with upstream worktree UI if added.
+- Default worktree root now points to `user://.phoenix_worktrees` and auto-adds in-repo roots to `.gitignore`.
+- Why: keep worktree folders out of Git status by default while still allowing per-project overrides.
+- Merge note: preserve this behavior unless upstream provides a first-class worktree manager.
+- Added per-file VCS list buttons for diff, unstage, and add-to-gitignore actions.
+- Why: expose common per-file actions directly in the VCS dock without extra steps.
+- Merge note: reapply if upstream adds similar per-file actions in the VCS UI.
 
 ## `modules/ultimate_ai` Integration Changes
 
@@ -48,6 +211,8 @@ This file tracks intentional Phoenix-specific changes that are expected to diver
 
 - `.gitmodules` now includes:
   - `modules/ultimate_ai/external/pixelpen` -> `https://github.com/rivie13/pixelpen.git`
+  - `modules/ultimate_ai/external/godot-diff-margin` -> `https://github.com/rivie13/godot-diff-margin.git`
+  - `modules/ultimate_ai/external/godot-git-plugin` -> `https://github.com/rivie13/godot-git-plugin.git`
 - Nested submodule under PixelPen:
   - `modules/ultimate_ai/external/pixelpen/godot-cpp`
 
@@ -55,7 +220,10 @@ This file tracks intentional Phoenix-specific changes that are expected to diver
 
 - `modules/ultimate_ai/register_types.cpp`
   - Registers `UltimateAIEditorPlugin`
+  - Registers `DiffMarginEditorPlugin`
+  - Registers `GitPluginEditorPlugin`
   - Registers `PixelPenEditorPlugin`
+  - Registers `GitPluginEditorPlugin`
 
 No edits were required in `editor/editor_node.cpp` for this module plugin path.
 
@@ -146,6 +314,17 @@ The following files were patched under:
   - `Could not find type "PixelPenProject" in the current scope`
   - `Identifier "PixelPen" not declared in the current scope`
   - `Could not find type "DataBranch" in the current scope`
+
+## Diff Margin Addon Compatibility Patches (Submodule)
+
+The following file was patched under:
+`modules/ultimate_ai/external/godot-diff-margin/addons/diff-margin`
+
+- `plugin.gd`
+  - Use `EditorSettings.set_setting(...)` API (was `set_settings`)
+  - Fix `_diffs_map` declaration syntax (`:=`)
+  - Treat empty string metadata as unset for gutter rendering
+  - Skip gutter setup when the current editor is not a script or when viewing Phoenix diff files
 
 ## Build and Runtime Validation Notes
 

@@ -1,0 +1,25 @@
+name: Save Phoenix build cache
+description: Save Phoenix build cache.
+inputs:
+  cache-name:
+    description: The cache base name (job name by default).
+    default: ${{ github.job }}
+  cache-scope:
+    description: Logical scope to avoid cache key collisions across workflows.
+    default: ${{ github.workflow_ref }}
+  scons-cache:
+    description: The SCons cache path.
+    default: ${{ github.workspace }}/.scons_cache/
+
+runs:
+  using: composite
+  steps:
+    - name: Purge files before timestamp
+      shell: sh
+      run: misc/scripts/purge_cache.py ${{ env.CACHE_TIMESTAMP }} "${{ inputs.scons-cache }}"
+
+    - name: Save SCons cache directory
+      uses: actions/cache/save@v4
+      with:
+        path: ${{ inputs.scons-cache }}
+        key: ${{ inputs.cache-name }}|${{ inputs.cache-scope }}|${{ github.ref_name }}|${{ github.sha }}

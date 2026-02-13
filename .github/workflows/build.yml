@@ -19,13 +19,14 @@ jobs:
           submodules: recursive
 
       - name: Restore SCons cache
-        uses: ./.github/actions/godot-cache-restore
+        uses: ./.github/actions/phoenix-cache-restore
         with:
           cache-name: ${{ env.SCONS_CACHE_NAME }}
           scons-cache: ${{ env.SCONS_CACHE_PATH }}
         continue-on-error: true
 
       - name: Restore build artifacts cache
+        id: artifacts-cache
         uses: actions/cache/restore@v4
         with:
           path: |
@@ -33,9 +34,11 @@ jobs:
             bin/.sconsign.dblite
             bin/.sconsign64.dblite
             .sconsign.dblite
-          key: ${{ env.SCONS_CACHE_NAME }}-artifacts|${{ github.ref_name }}|${{ github.sha }}
+          key: ${{ env.SCONS_CACHE_NAME }}-artifacts|${{ github.workflow_ref }}|${{ github.ref_name }}|${{ github.sha }}
           restore-keys: |
-            ${{ env.SCONS_CACHE_NAME }}-artifacts|${{ github.ref_name }}
+            ${{ env.SCONS_CACHE_NAME }}-artifacts|${{ github.workflow_ref }}|${{ github.ref_name }}|
+            ${{ env.SCONS_CACHE_NAME }}-artifacts|${{ github.workflow_ref }}|${{ github.event.repository.default_branch }}|
+            ${{ env.SCONS_CACHE_NAME }}-artifacts|${{ github.workflow_ref }}|
 
       - name: Setup Python
         uses: actions/setup-python@v4
@@ -48,25 +51,248 @@ jobs:
       - name: Build Editor
         run: scons platform=windows target=editor module_ultimate_ai_enabled=yes d3d12=no cache_path=${{ env.SCONS_CACHE_PATH }} redirect_build_objects=yes
 
+      - name: Dump extension API
+        run: |
+          $apiDir = Join-Path $env:RUNNER_TEMP "extension_api"
+          New-Item -ItemType Directory -Force -Path $apiDir | Out-Null
+          $editorExe = Join-Path $env:GITHUB_WORKSPACE "bin\phoenix_agentic.windows.editor.x86_64.exe"
+          $consoleEditorExe = $editorExe -replace '\.exe$', '.console.exe'
+          if (Test-Path $consoleEditorExe) {
+            $editorExe = $consoleEditorExe
+          }
+          Push-Location $apiDir
+          if ($editorExe.EndsWith('.console.exe')) {
+            & $editorExe --headless --dump-extension-api
+            $editorExitCode = $LASTEXITCODE
+          } else {
+            $process = Start-Process -FilePath $editorExe -ArgumentList @('--headless', '--dump-extension-api') -Wait -PassThru
+            $editorExitCode = $process.ExitCode
+          }
+          Pop-Location
+          if ($editorExitCode -ne 0) {
+            throw "Editor failed to dump extension API (exit code $editorExitCode)"
+          }
+          $apiFile = Join-Path $apiDir "extension_api.json"
+          if (!(Test-Path $apiFile)) {
+            $exeDir = Split-Path $editorExe -Parent
+            $exeApiFile = Join-Path $exeDir "extension_api.json"
+            if (Test-Path $exeApiFile) {
+              Copy-Item -Force $exeApiFile $apiFile
+            }
+          }
+          if (!(Test-Path $apiFile)) {
+            Write-Host "extension_api.json was not generated" -ForegroundColor Red
+            Write-Host "API dir: $apiDir" -ForegroundColor Yellow
+            Write-Host "Editor dir: $(Split-Path $editorExe -Parent)" -ForegroundColor Yellow
+            throw "extension_api.json was not generated"
+          }
+        shell: pwsh
+
+      - name: Compute extension API hash
+        id: extension-api-hash
+        shell: pwsh
+        run: |
+          $apiFile = Join-Path $env:RUNNER_TEMP "extension_api\extension_api.json"
+          if (!(Test-Path $apiFile)) {
+            throw "extension_api.json missing at $apiFile"
+          }
+          $apiHash = (Get-FileHash -Path $apiFile -Algorithm SHA256).Hash.ToLowerInvariant()
+          "hash=$apiHash" >> $env:GITHUB_OUTPUT
+
+      - name: Resolve addon dependency refs
+        id: addon-deps
+        shell: pwsh
+        run: |
+          $apiFile = Join-Path $env:RUNNER_TEMP "extension_api\extension_api.json"
+          if (!(Test-Path $apiFile)) {
+            throw "extension_api.json missing at $apiFile"
+          }
+
+          $apiJson = Get-Content $apiFile -Raw | ConvertFrom-Json
+          $godotCppRef = "$($apiJson.header.version_major).$($apiJson.header.version_minor)"
+          if ($apiJson.header.version_status -eq "stable") {
+            $godotCppRef = "godot-$($apiJson.header.version_major).$($apiJson.header.version_minor)-stable"
+          }
+
+          $godotCppHeadLine = git ls-remote https://github.com/godotengine/godot-cpp.git "refs/heads/$godotCppRef" | Select-Object -First 1
+          if (-not $godotCppHeadLine) {
+            $godotCppRef = "master"
+            $godotCppHeadLine = git ls-remote https://github.com/godotengine/godot-cpp.git refs/heads/master | Select-Object -First 1
+          }
+          if (-not $godotCppHeadLine) {
+            throw "Failed to resolve godot-cpp ref"
+          }
+          $godotCppSha = ($godotCppHeadLine -split "`t")[0]
+
+          $gitPluginHeadLine = git ls-remote https://github.com/rivie13/godot-git-plugin.git refs/heads/master | Select-Object -First 1
+          if (-not $gitPluginHeadLine) {
+            throw "Failed to resolve godot-git-plugin master ref"
+          }
+          $gitPluginSha = ($gitPluginHeadLine -split "`t")[0]
+
+          $pixelpenPath = Join-Path $env:GITHUB_WORKSPACE "modules\ultimate_ai\external\pixelpen"
+          if (!(Test-Path $pixelpenPath)) {
+            throw "PixelPen path not found at $pixelpenPath"
+          }
+          $pixelpenSha = (git -C $pixelpenPath rev-parse HEAD).Trim()
+          if (-not $pixelpenSha) {
+            throw "Failed to resolve PixelPen SHA"
+          }
+
+          $diffMarginPath = Join-Path $env:GITHUB_WORKSPACE "modules\ultimate_ai\external\godot-diff-margin"
+          if (!(Test-Path $diffMarginPath)) {
+            throw "diff-margin path not found at $diffMarginPath"
+          }
+          $diffMarginSha = (git -C $diffMarginPath rev-parse HEAD).Trim()
+          if (-not $diffMarginSha) {
+            throw "Failed to resolve diff-margin SHA"
+          }
+
+          "godot_cpp_ref=$godotCppRef" >> $env:GITHUB_OUTPUT
+          "godot_cpp_sha=$godotCppSha" >> $env:GITHUB_OUTPUT
+          "git_plugin_sha=$gitPluginSha" >> $env:GITHUB_OUTPUT
+          "pixelpen_sha=$pixelpenSha" >> $env:GITHUB_OUTPUT
+          "diff_margin_sha=$diffMarginSha" >> $env:GITHUB_OUTPUT
+
+      - name: Restore Git Plugin addon cache
+        id: git-plugin-addon-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: bin/addons/godot-git-plugin
+          key: ${{ runner.os }}|git-plugin-addon|${{ steps.extension-api-hash.outputs.hash }}|${{ steps.addon-deps.outputs.git_plugin_sha }}|${{ steps.addon-deps.outputs.godot_cpp_sha }}|${{ hashFiles('modules/ultimate_ai/external/godot-git-plugin/**', 'misc/scripts/build_godot_git_plugin.ps1', 'misc/scripts/sanitize_extension_api.py') }}
+
+      - name: Build Git Plugin addon
+        if: steps.git-plugin-addon-cache.outputs.cache-hit != 'true'
+        run: |
+          python ./misc/scripts/sanitize_extension_api.py "${{ runner.temp }}\extension_api\extension_api.json"
+          $addonSconsCache = Join-Path $env:GITHUB_WORKSPACE ".scons_cache\addons\godot-git-plugin\${{ env.SCONS_CACHE_NAME }}"
+          ./misc/scripts/build_godot_git_plugin.ps1 -Platform windows -ApiFile "${{ runner.temp }}\extension_api\extension_api.json" -SConsCachePath "$addonSconsCache"
+
+      - name: Save Git Plugin addon cache
+        if: steps.git-plugin-addon-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        continue-on-error: true
+        with:
+          path: bin/addons/godot-git-plugin
+          key: ${{ runner.os }}|git-plugin-addon|${{ steps.extension-api-hash.outputs.hash }}|${{ steps.addon-deps.outputs.git_plugin_sha }}|${{ steps.addon-deps.outputs.godot_cpp_sha }}|${{ hashFiles('modules/ultimate_ai/external/godot-git-plugin/**', 'misc/scripts/build_godot_git_plugin.ps1', 'misc/scripts/sanitize_extension_api.py') }}
+
+      - name: Restore PixelPen addon cache
+        id: pixelpen-addon-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            bin/addons/net.yarvis.pixel_pen
+            bin/addons/diff-margin
+          key: ${{ runner.os }}|pixelpen-addon|${{ github.ref_name }}|${{ steps.extension-api-hash.outputs.hash }}|${{ steps.addon-deps.outputs.godot_cpp_sha }}|${{ steps.addon-deps.outputs.pixelpen_sha }}|${{ steps.addon-deps.outputs.diff_margin_sha }}|${{ hashFiles('misc/scripts/sanitize_extension_api.py') }}
+
+      - name: Build PixelPen addon
+        if: steps.pixelpen-addon-cache.outputs.cache-hit != 'true'
+        run: |
+          $apiFile = Join-Path $env:RUNNER_TEMP "extension_api\extension_api.json"
+          if (!(Test-Path $apiFile)) {
+            throw "extension_api.json missing at $apiFile"
+          }
+
+          python ./misc/scripts/sanitize_extension_api.py "$apiFile"
+
+          Remove-Item Env:SCONS_CACHE -ErrorAction SilentlyContinue
+
+          # PixelPen vendors its own godot-cpp; ensure it matches the engine version we're building against.
+          $selectedGodotCppRef = "${{ steps.addon-deps.outputs.godot_cpp_ref }}"
+          if ([string]::IsNullOrWhiteSpace($selectedGodotCppRef)) {
+            throw "Resolved godot-cpp ref is empty"
+          }
+          $pixelpenGodotCpp = Join-Path $env:GITHUB_WORKSPACE "modules\ultimate_ai\external\pixelpen\godot-cpp"
+          if (Test-Path $pixelpenGodotCpp) {
+            Push-Location $pixelpenGodotCpp
+            git fetch --depth 1 origin $selectedGodotCppRef
+            if ($LASTEXITCODE -ne 0) {
+              throw "Failed to fetch godot-cpp ref '$selectedGodotCppRef'"
+            }
+            git checkout -B $selectedGodotCppRef FETCH_HEAD
+            Pop-Location
+          }
+
+          python -m SCons -C ./modules/ultimate_ai/external/pixelpen platform=windows arch=x86_64 target=template_debug precision=single generate_bindings=yes custom_api_file="$apiFile"
+          $srcAddon = Join-Path $env:GITHUB_WORKSPACE "modules\ultimate_ai\external\pixelpen\project\addons\net.yarvis.pixel_pen"
+          $dstAddon = Join-Path $env:GITHUB_WORKSPACE "bin\addons\net.yarvis.pixel_pen"
+          if (Test-Path $dstAddon) {
+            Remove-Item -Recurse -Force $dstAddon
+          }
+          New-Item -ItemType Directory -Force -Path $dstAddon | Out-Null
+          Copy-Item -Recurse -Force (Join-Path $srcAddon '*') $dstAddon
+
+          $srcDiffMargin = Join-Path $env:GITHUB_WORKSPACE "modules\ultimate_ai\external\godot-diff-margin\addons\diff-margin"
+          if (!(Test-Path $srcDiffMargin)) {
+            throw "diff-margin addon source not found at $srcDiffMargin"
+          }
+          $dstDiffMargin = Join-Path $env:GITHUB_WORKSPACE "bin\addons\diff-margin"
+          if (Test-Path $dstDiffMargin) {
+            Remove-Item -Recurse -Force $dstDiffMargin
+          }
+          New-Item -ItemType Directory -Force -Path $dstDiffMargin | Out-Null
+          Copy-Item -Recurse -Force (Join-Path $srcDiffMargin '*') $dstDiffMargin
+        shell: pwsh
+
+      - name: Save PixelPen addon cache
+        if: steps.pixelpen-addon-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        continue-on-error: true
+        with:
+          path: |
+            bin/addons/net.yarvis.pixel_pen
+            bin/addons/diff-margin
+          key: ${{ runner.os }}|pixelpen-addon|${{ github.ref_name }}|${{ steps.extension-api-hash.outputs.hash }}|${{ steps.addon-deps.outputs.godot_cpp_sha }}|${{ steps.addon-deps.outputs.pixelpen_sha }}|${{ steps.addon-deps.outputs.diff_margin_sha }}|${{ hashFiles('misc/scripts/sanitize_extension_api.py') }}
+
       - name: Save SCons cache
-        uses: ./.github/actions/godot-cache-save
+        uses: ./.github/actions/phoenix-cache-save
         with:
           cache-name: ${{ env.SCONS_CACHE_NAME }}
           scons-cache: ${{ env.SCONS_CACHE_PATH }}
         continue-on-error: true
 
       - name: Save build artifacts cache
+        if: steps.artifacts-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
+        continue-on-error: true
         with:
           path: |
             bin/obj
             bin/.sconsign.dblite
             bin/.sconsign64.dblite
             .sconsign.dblite
-          key: ${{ env.SCONS_CACHE_NAME }}-artifacts|${{ github.ref_name }}|${{ github.run_id }}|${{ github.run_attempt }}
+          key: ${{ env.SCONS_CACHE_NAME }}-artifacts|${{ github.workflow_ref }}|${{ github.ref_name }}|${{ github.sha }}
+
+      - name: Guard artifact payload
+        run: |
+          $requiredFiles = @(
+            (Join-Path $env:GITHUB_WORKSPACE "bin\phoenix_agentic.windows.editor.x86_64.exe")
+          )
+          $requiredAddonDirs = @(
+            (Join-Path $env:GITHUB_WORKSPACE "bin\addons\godot-git-plugin"),
+            (Join-Path $env:GITHUB_WORKSPACE "bin\addons\net.yarvis.pixel_pen"),
+            (Join-Path $env:GITHUB_WORKSPACE "bin\addons\diff-margin")
+          )
+
+          foreach ($requiredFile in $requiredFiles) {
+            if (!(Test-Path $requiredFile)) {
+              Write-Host "Missing expected artifact file: $requiredFile" -ForegroundColor Red
+              Get-ChildItem (Join-Path $env:GITHUB_WORKSPACE 'bin') -Force | Format-Table -AutoSize
+              throw "Artifact file missing"
+            }
+          }
+
+          foreach ($addonDir in $requiredAddonDirs) {
+            if (!(Test-Path $addonDir)) {
+              Write-Host "Missing expected addon directory: $addonDir" -ForegroundColor Red
+              Get-ChildItem (Join-Path $env:GITHUB_WORKSPACE 'bin\addons') -Force -ErrorAction SilentlyContinue | Format-Table -AutoSize
+              throw "Addon directory missing"
+            }
+          }
+        shell: pwsh
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: phoenix-agentic-engine-windows
-          path: bin/phoenix_agentic.windows.editor.x86_64.exe
+          path: bin/**

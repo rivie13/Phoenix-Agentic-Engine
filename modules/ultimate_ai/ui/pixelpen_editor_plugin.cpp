@@ -88,9 +88,13 @@ void PixelPenEditorPlugin::_notification(int p_what) {
 		case NOTIFICATION_ENTER_TREE: {
 			add_tool_menu_item(TTR(PIXELPEN_MENU_OPEN_WINDOW), callable_mp(this, &PixelPenEditorPlugin::_open_window));
 			connect(SNAME("main_screen_changed"), callable_mp(this, &PixelPenEditorPlugin::_on_main_screen_changed));
+			addon_preload_pending = true;
 			set_process(true);
 		} break;
 		case NOTIFICATION_PROCESS: {
+			if (addon_preload_pending && !addon_preload_failed) {
+				_preload_addon_if_ready();
+			}
 			if (open_window_pending) {
 				EditorFileSystem *efs = EditorFileSystem::get_singleton();
 				if (!efs || !efs->is_scanning()) {
@@ -119,6 +123,8 @@ void PixelPenEditorPlugin::_notification(int p_what) {
 				extension_loaded = false;
 			}
 			open_window_pending = false;
+			addon_preload_pending = false;
+			addon_preload_failed = false;
 			preloaded_scripts.clear();
 			class_scripts_preloaded = false;
 			set_process(false);
@@ -146,7 +152,7 @@ void PixelPenEditorPlugin::_open_window() {
 	}
 	open_window_pending = false;
 
-	if (!_ensure_addon_installed()) {
+	if (!_ensure_addon_installed(true)) {
 		return;
 	}
 
@@ -196,6 +202,51 @@ void PixelPenEditorPlugin::_open_window() {
 	last_context_sync_msec = 0;
 	last_context_snapshot.clear();
 	last_context_layers.clear();
+}
+
+void PixelPenEditorPlugin::_preload_addon_if_ready() {
+	EditorFileSystem *efs = EditorFileSystem::get_singleton();
+	if (efs && efs->is_scanning()) {
+		return;
+	}
+	if (_find_source_addon_path().is_empty()) {
+		ERR_PRINT("PixelPen addon source not found. Clone the submodule into modules/ultimate_ai/external/pixelpen.");
+		addon_preload_failed = true;
+		addon_preload_pending = false;
+		return;
+	}
+
+	if (!_ensure_addon_installed(false)) {
+		if (efs && efs->is_scanning()) {
+			return;
+		}
+		addon_preload_failed = true;
+		addon_preload_pending = false;
+		return;
+	}
+
+	GDExtensionManager::LoadStatus status = GDExtensionManager::get_singleton()->load_extension(PIXELPEN_EXTENSION_PATH);
+	if (status != GDExtensionManager::LOAD_STATUS_OK && status != GDExtensionManager::LOAD_STATUS_ALREADY_LOADED) {
+		ERR_PRINT("PixelPen extension failed to preload. Build PixelPen binaries in modules/ultimate_ai/external/pixelpen first.");
+		addon_preload_failed = true;
+		return;
+	}
+	if (!extension_loaded) {
+		extension_loaded = true;
+	}
+
+	_preload_class_scripts();
+	if (!class_scripts_preloaded) {
+		if (efs && efs->is_scanning()) {
+			addon_preload_pending = true;
+		} else {
+			addon_preload_failed = true;
+			addon_preload_pending = false;
+		}
+		return;
+	}
+
+	addon_preload_pending = false;
 }
 
 void PixelPenEditorPlugin::_ensure_window_layout() {
@@ -438,7 +489,7 @@ void PixelPenEditorPlugin::_on_main_screen_changed(const String &p_screen_name) 
 	}
 }
 
-bool PixelPenEditorPlugin::_ensure_addon_installed() {
+bool PixelPenEditorPlugin::_ensure_addon_installed(bool p_allow_open) {
 	const String dst_path = ProjectSettings::get_singleton()->globalize_path(String(PIXELPEN_ADDON_PATH));
 	const String dst_plugin_cfg = dst_path.path_join("plugin.cfg");
 	const String dst_marker = dst_path.path_join(PIXELPEN_SYNC_MARKER_FILE);
@@ -451,10 +502,24 @@ bool PixelPenEditorPlugin::_ensure_addon_installed() {
 		ERR_PRINT("PixelPen addon source not found. Clone the submodule into modules/ultimate_ai/external/pixelpen.");
 		return false;
 	}
+
+	const bool dst_exists = FileAccess::exists(dst_plugin_cfg);
+	const bool dst_has_binary = _addon_has_extension_binary(dst_path);
+	const bool src_has_binary = _addon_has_extension_binary(src_path);
+
 	const uint64_t src_mtime = _get_latest_mtime(src_path);
 	const bool marker_valid = has_marker && marker_revision == PIXELPEN_SYNC_REVISION && marker_mtime >= src_mtime;
-	if (FileAccess::exists(dst_plugin_cfg) && marker_valid) {
+	if (dst_exists && marker_valid && dst_has_binary) {
 		return true;
+	}
+
+	// If source binaries are unavailable, keep a previously installed working addon if present.
+	if (!src_has_binary) {
+		if (dst_exists && dst_has_binary) {
+			return true;
+		}
+		ERR_PRINT("PixelPen addon binaries are missing. Build PixelPen binaries in modules/ultimate_ai/external/pixelpen first.");
+		return false;
 	}
 
 	if (DirAccess::dir_exists_absolute(dst_path)) {
@@ -482,16 +547,56 @@ bool PixelPenEditorPlugin::_ensure_addon_installed() {
 	_write_sync_marker(dst_marker, PIXELPEN_SYNC_REVISION, src_mtime);
 
 	if (did_copy) {
-		open_window_pending = true;
+		if (p_allow_open) {
+			open_window_pending = true;
+		}
 		return false;
 	}
 
 	return FileAccess::exists(dst_plugin_cfg);
 }
 
+bool PixelPenEditorPlugin::_addon_has_extension_binary(const String &p_addon_path) const {
+#if defined(LINUXBSD_ENABLED) || defined(WINDOWS_ENABLED) || defined(MACOS_ENABLED)
+#if defined(LINUXBSD_ENABLED)
+	const char *const candidates[] = {
+		"bin/libpixelpen.linux.debug.x86_64.so",
+		"bin/libpixelpen.linux.release.x86_64.so",
+	};
+#elif defined(WINDOWS_ENABLED)
+	const char *const candidates[] = {
+		"bin/libpixelpen.windows.debug.x86_64.dll",
+		"bin/libpixelpen.windows.release.x86_64.dll",
+		"bin/libpixelpen.windows.debug.x86_32.dll",
+		"bin/libpixelpen.windows.release.x86_32.dll",
+	};
+#elif defined(MACOS_ENABLED)
+	const char *const candidates[] = {
+		"bin/libpixelpen.macos.debug.framework",
+		"bin/libpixelpen.macos.release.framework",
+	};
+#endif
+
+	for (uint32_t i = 0; i < sizeof(candidates) / sizeof(candidates[0]); i++) {
+		const String library_path = p_addon_path.path_join(candidates[i]);
+		if (FileAccess::exists(library_path) || DirAccess::dir_exists_absolute(library_path)) {
+			return true;
+		}
+	}
+
+	return false;
+#else
+	// On other platforms (e.g. Android/iOS/Web), we don't currently ship PixelPen editor
+	// extension binaries, so treat it as "available" to avoid blocking addon sync.
+	return true;
+#endif
+}
+
 String PixelPenEditorPlugin::_find_source_addon_path() const {
 	String exec_dir = OS::get_singleton()->get_executable_path().get_base_dir();
 	Vector<String> candidates;
+	candidates.push_back(exec_dir.path_join("addons/net.yarvis.pixel_pen").simplify_path());
+	candidates.push_back(exec_dir.path_join("../addons/net.yarvis.pixel_pen").simplify_path());
 	candidates.push_back(exec_dir.path_join("modules/ultimate_ai/external/pixelpen/project/addons/net.yarvis.pixel_pen").simplify_path());
 	candidates.push_back(exec_dir.path_join("../modules/ultimate_ai/external/pixelpen/project/addons/net.yarvis.pixel_pen").simplify_path());
 	candidates.push_back(exec_dir.path_join("../../modules/ultimate_ai/external/pixelpen/project/addons/net.yarvis.pixel_pen").simplify_path());

@@ -598,7 +598,6 @@ Dictionary GDExtensionAPIDump::generate_extension_api(bool p_include_docs) {
 				//no default value support in utility functions
 				arguments.push_back(arg);
 			}
-
 			if (arguments.size()) {
 				func["arguments"] = arguments;
 			}
@@ -736,7 +735,6 @@ Dictionary GDExtensionAPIDump::generate_extension_api(bool p_include_docs) {
 					}
 					enums.push_back(enum_dict);
 				}
-
 				if (enums.size()) {
 					d["enums"] = enums;
 				}
@@ -823,7 +821,6 @@ Dictionary GDExtensionAPIDump::generate_extension_api(bool p_include_docs) {
 						}
 						arguments.push_back(d3);
 					}
-
 					if (arguments.size()) {
 						d2["arguments"] = arguments;
 					}
@@ -886,7 +883,6 @@ Dictionary GDExtensionAPIDump::generate_extension_api(bool p_include_docs) {
 
 					constructors.push_back(d2);
 				}
-
 				if (constructors.size()) {
 					d["constructors"] = constructors;
 				}
