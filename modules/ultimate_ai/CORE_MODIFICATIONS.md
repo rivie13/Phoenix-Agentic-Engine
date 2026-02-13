@@ -4,6 +4,30 @@ This file tracks intentional Phoenix-specific changes that are expected to diver
 
 ## Files Modified Outside `modules/ultimate_ai`
 
+### `.gitmodules`
+
+- Added submodule entry:
+  - `modules/ultimate_ai/external/gdterm` -> `https://github.com/rivie13/gdterm.git`
+- Why: track GDTerm as an external addon source repository under the Phoenix submodule model.
+- Merge note: keep URL/path aligned with Phoenix fork ownership and external addon layout.
+
+### `misc/scripts/build_gdterm.ps1`
+
+- Added Windows GDTerm build script that:
+  - clones gdterm in a temp build directory,
+  - checks out the local pinned submodule commit when available,
+  - initializes only required nested submodules,
+  - aligns nested `godot-cpp` with the engine API-derived ref,
+  - builds debug/release addon binaries and stages `bin/addons/gdterm`.
+- Why: provide reproducible local/CI GDTerm builds without vendoring large third-party build trees into the engine repo.
+- Merge note: preserve API-file driven `godot-cpp` ref selection and temp-build staging behavior.
+
+### `misc/scripts/build_gdterm.sh`
+
+- Added Linux/macOS GDTerm build script mirroring the Windows temp-build workflow.
+- Why: unify GDTerm addon build behavior across local dev and CI while keeping the main repo lean.
+- Merge note: keep platform mapping (`linuxbsd` -> `linux`) and addon staging path (`bin/addons/gdterm`) stable.
+
 ### `misc/scripts/build_godot_git_plugin.sh`
 
 - Patch the cloned git-plugin build to disable libgit2 Clar tests and apply macOS-specific fixes for clang warnings and zlib `fdopen` macro conflicts.
@@ -42,6 +66,9 @@ This file tracks intentional Phoenix-specific changes that are expected to diver
 - Exported addon-specific SCons cache paths before git-plugin and PixelPen build steps.
 - Why: routes addon compilation through cached `.scons_cache` entries to reduce CI rebuild time.
 - Merge note: keep cache path names stable across matrix jobs unless cache partitioning strategy changes.
+- Added GDTerm addon build step for editor artifact jobs and included `gdterm` in artifact guard checks.
+- Why: Linux downloadable editor artifacts now ship GDTerm prebuilt alongside other Phoenix addons.
+- Merge note: keep GDTerm build/staging wired through `misc/scripts/build_gdterm.sh` and `bin/addons/gdterm`.
 
 ### `.github/workflows/macos_builds.yml`
 
@@ -60,6 +87,9 @@ This file tracks intentional Phoenix-specific changes that are expected to diver
 - Exported addon-specific SCons cache paths before git-plugin and PixelPen build steps.
 - Why: routes addon compilation through cached `.scons_cache` entries to reduce CI rebuild time.
 - Merge note: keep cache path names stable across matrix jobs unless cache partitioning strategy changes.
+- Added GDTerm addon build step for editor jobs and included `gdterm` in artifact guard checks.
+- Why: macOS downloadable editor artifacts now ship GDTerm prebuilt alongside other Phoenix addons.
+- Merge note: keep GDTerm build/staging wired through `misc/scripts/build_gdterm.sh` and `bin/addons/gdterm`.
 
 ### `.github/workflows/windows_builds.yml`
 
@@ -76,6 +106,9 @@ This file tracks intentional Phoenix-specific changes that are expected to diver
 - Updated PixelPen vendored `godot-cpp` ref selection to probe remote heads/tags with `git ls-remote`, then fetch/checkout `FETCH_HEAD` with `master` fallback.
 - Why: avoids noisy/failing `git fetch origin <major>.<minor>` when that branch does not exist (e.g., `4.7`).
 - Merge note: keep fallback logic robust for both branch and tag refs.
+- Added GDTerm addon build step for MSVC editor artifact jobs and included `gdterm` in artifact guard checks.
+- Why: Windows downloadable editor artifacts now ship GDTerm prebuilt alongside other Phoenix addons.
+- Merge note: keep GDTerm build/staging wired through `misc/scripts/build_gdterm.ps1` and `bin/addons/gdterm`.
 
 ### `.github/workflows/android_builds.yml`
 
@@ -112,6 +145,9 @@ This file tracks intentional Phoenix-specific changes that are expected to diver
 - Updated vendored `godot-cpp` checkout logic to probe refs with `git ls-remote`, then fetch/checkout `FETCH_HEAD` with `master` fallback.
 - Why: handles missing `<major>.<minor>` refs (for example `4.7`) without hard failures.
 - Merge note: preserve branch/tag-agnostic checkout behavior.
+- Added GDTerm dependency SHA resolution, cache keying, build invocation, cache paths, and artifact guard checks in the aggregate Windows build workflow.
+- Why: ensures aggregate downloadable editor artifacts include GDTerm prebuilt and validates packaging completeness before upload.
+- Merge note: keep cache key inputs and required addon directories aligned with the addon payload policy.
 
 ### `core/extension/extension_api_dump.cpp`
 
@@ -213,6 +249,7 @@ This file tracks intentional Phoenix-specific changes that are expected to diver
   - `modules/ultimate_ai/external/pixelpen` -> `https://github.com/rivie13/pixelpen.git`
   - `modules/ultimate_ai/external/godot-diff-margin` -> `https://github.com/rivie13/godot-diff-margin.git`
   - `modules/ultimate_ai/external/godot-git-plugin` -> `https://github.com/rivie13/godot-git-plugin.git`
+  - `modules/ultimate_ai/external/gdterm` -> `https://github.com/rivie13/gdterm.git`
 - Nested submodule under PixelPen:
   - `modules/ultimate_ai/external/pixelpen/godot-cpp`
 
@@ -221,6 +258,7 @@ This file tracks intentional Phoenix-specific changes that are expected to diver
 - `modules/ultimate_ai/register_types.cpp`
   - Registers `UltimateAIEditorPlugin`
   - Registers `DiffMarginEditorPlugin`
+  - Registers `GDTermEditorPlugin`
   - Registers `GitPluginEditorPlugin`
   - Registers `PixelPenEditorPlugin`
   - Registers `GitPluginEditorPlugin`

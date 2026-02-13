@@ -8,3 +8,6 @@
 [submodule "modules/ultimate_ai/external/godot-git-plugin"]
 	path = modules/ultimate_ai/external/godot-git-plugin
 	url = https://github.com/rivie13/godot-git-plugin.git
+[submodule "modules/ultimate_ai/external/gdterm"]
+	path = modules/ultimate_ai/external/gdterm
+	url = https://github.com/rivie13/gdterm.git
