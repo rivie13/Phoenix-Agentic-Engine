@@ -250,6 +250,53 @@ jobs:
           Copy-Item -Recurse -Force (Join-Path $srcDiffMargin '*') $dstDiffMargin
         shell: pwsh
 
+      - name: Build GDTerm addon
+        # Only stage GDTerm for the primary MSVC editor artifact.
+        if: matrix.target == 'editor' && matrix.compiler == 'msvc'
+        run: |
+          $apiDir = Join-Path $env:RUNNER_TEMP "gdterm_extension_api"
+          New-Item -ItemType Directory -Force -Path $apiDir | Out-Null
+          $binPath = "${{ matrix.bin }}" -replace '^\./', ''
+          $editorExe = Join-Path $env:GITHUB_WORKSPACE $binPath
+          $consoleEditorExe = $editorExe -replace '\.exe$', '.console.exe'
+          if (Test-Path $consoleEditorExe) {
+            $editorExe = $consoleEditorExe
+          }
+
+          Push-Location $apiDir
+          if ($editorExe.EndsWith('.console.exe')) {
+            & $editorExe --headless --dump-extension-api
+            $editorExitCode = $LASTEXITCODE
+          } else {
+            $process = Start-Process -FilePath $editorExe -ArgumentList @('--headless', '--dump-extension-api') -Wait -PassThru
+            $editorExitCode = $process.ExitCode
+          }
+          Pop-Location
+          if ($editorExitCode -ne 0) {
+            throw "Editor failed to dump extension API (exit code $editorExitCode)"
+          }
+
+          $apiFile = Join-Path $apiDir "extension_api.json"
+          if (!(Test-Path $apiFile)) {
+            $exeDir = Split-Path $editorExe -Parent
+            $exeApiFile = Join-Path $exeDir "extension_api.json"
+            if (Test-Path $exeApiFile) {
+              Copy-Item -Force $exeApiFile $apiFile
+            }
+          }
+          if (!(Test-Path $apiFile)) {
+            Write-Host "extension_api.json was not generated" -ForegroundColor Red
+            Write-Host "API dir: $apiDir" -ForegroundColor Yellow
+            Write-Host "Editor dir: $(Split-Path $editorExe -Parent)" -ForegroundColor Yellow
+            throw "extension_api.json was not generated"
+          }
+
+          python ./misc/scripts/sanitize_extension_api.py "$apiFile"
+
+          $gdtermAddonSconsCache = Join-Path $env:GITHUB_WORKSPACE ".scons_cache\addons\gdterm\${{ matrix.cache-name }}"
+          ./misc/scripts/build_gdterm.ps1 -Platform windows -ApiFile "$apiFile" -SConsCachePath "$gdtermAddonSconsCache"
+        shell: pwsh
+
       - name: Save Phoenix build cache
         uses: ./.github/actions/phoenix-cache-save
         with:
@@ -276,7 +323,8 @@ jobs:
             $requiredAddonDirs = @(
               (Join-Path $env:GITHUB_WORKSPACE "bin\addons\godot-git-plugin"),
               (Join-Path $env:GITHUB_WORKSPACE "bin\addons\net.yarvis.pixel_pen"),
-              (Join-Path $env:GITHUB_WORKSPACE "bin\addons\diff-margin")
+              (Join-Path $env:GITHUB_WORKSPACE "bin\addons\diff-margin"),
+              (Join-Path $env:GITHUB_WORKSPACE "bin\addons\gdterm")
             )
 
             foreach ($addonDir in $requiredAddonDirs) {

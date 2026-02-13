@@ -165,12 +165,37 @@ jobs:
 
           python3 -m SCons -C ./modules/ultimate_ai/external/pixelpen platform=macos target=template_debug precision=single generate_bindings=yes custom_api_file="$api_file"
 
+      - name: Build GDTerm addon
+        if: matrix.target == 'editor'
+        run: |
+          api_dir="${RUNNER_TEMP:-/tmp}/gdterm_extension_api"
+          mkdir -p "$api_dir"
+          host_arch="$(uname -m)"
+          editor_exe="${GITHUB_WORKSPACE}/bin/phoenix_agentic.macos.editor.${host_arch}"
+          if [ ! -f "$editor_exe" ]; then
+            echo "::warning::macOS: Expected editor binary not found for host arch '${host_arch}' at '${editor_exe}', falling back to x86_64." >&2
+            editor_exe="${GITHUB_WORKSPACE}/bin/phoenix_agentic.macos.editor.x86_64"
+          fi
+          chmod +x "$editor_exe" || true
+          pushd "$api_dir" >/dev/null
+          "$editor_exe" --headless --dump-extension-api
+          popd >/dev/null
+          if [ ! -f "$api_dir/extension_api.json" ]; then
+            echo "extension_api.json was not generated" >&2
+            exit 1
+          fi
+
+          python3 ./misc/scripts/sanitize_extension_api.py "$api_dir/extension_api.json"
+          export SCONS_CACHE_PATH="${GITHUB_WORKSPACE}/.scons_cache/addons/gdterm/${{ matrix.cache-name }}"
+          bash ./misc/scripts/build_gdterm.sh macos "$PWD" "$api_dir/extension_api.json"
+
       - name: Stage editor addons
         if: matrix.target == 'editor'
         run: |
           git_plugin_src="./bin/addons/godot-git-plugin"
           pixelpen_src="./modules/ultimate_ai/external/pixelpen/project/addons/net.yarvis.pixel_pen"
           diff_margin_src="./modules/ultimate_ai/external/godot-diff-margin/addons/diff-margin"
+          gdterm_src="./bin/addons/gdterm"
 
           if [ ! -d "$git_plugin_src" ]; then
             echo "Missing Git plugin addon directory: $git_plugin_src" >&2
@@ -182,6 +207,10 @@ jobs:
           fi
           if [ ! -d "$diff_margin_src" ]; then
             echo "Missing diff-margin addon directory: $diff_margin_src" >&2
+            exit 1
+          fi
+          if [ ! -d "$gdterm_src" ]; then
+            echo "Missing gdterm addon directory: $gdterm_src" >&2
             exit 1
           fi
 
@@ -216,7 +245,7 @@ jobs:
           fi
 
           if [ "${{ matrix.target }}" = "editor" ]; then
-            for addon in godot-git-plugin net.yarvis.pixel_pen diff-margin; do
+            for addon in godot-git-plugin net.yarvis.pixel_pen diff-margin gdterm; do
               if [ ! -d "./bin/addons/$addon" ]; then
                 echo "Missing expected addon directory: ./bin/addons/$addon" >&2
                 ls -la ./bin/addons || true
