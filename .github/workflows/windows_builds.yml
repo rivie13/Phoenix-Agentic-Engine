@@ -113,8 +113,122 @@ jobs:
           platform: windows
           target: ${{ matrix.target }}
 
-      - name: Build Git Plugin addon
+      - name: Compute addon extension API hash
         if: matrix.target == 'editor'
+        id: extension-api-hash
+        run: |
+          $apiDir = Join-Path $env:RUNNER_TEMP "addon_cache_extension_api"
+          New-Item -ItemType Directory -Force -Path $apiDir | Out-Null
+          $binPath = "${{ matrix.bin }}" -replace '^\./', ''
+          $editorExe = Join-Path $env:GITHUB_WORKSPACE $binPath
+          $consoleEditorExe = $editorExe -replace '\.exe$', '.console.exe'
+          if (Test-Path $consoleEditorExe) {
+            $editorExe = $consoleEditorExe
+          }
+          Push-Location $apiDir
+          if ($editorExe.EndsWith('.console.exe')) {
+            & $editorExe --headless --dump-extension-api
+            $editorExitCode = $LASTEXITCODE
+          } else {
+            $process = Start-Process -FilePath $editorExe -ArgumentList @('--headless', '--dump-extension-api') -Wait -PassThru
+            $editorExitCode = $process.ExitCode
+          }
+          Pop-Location
+          if ($editorExitCode -ne 0) {
+            throw "Editor failed to dump extension API (exit code $editorExitCode)"
+          }
+
+          $apiFile = Join-Path $apiDir "extension_api.json"
+          if (!(Test-Path $apiFile)) {
+            $exeDir = Split-Path $editorExe -Parent
+            $exeApiFile = Join-Path $exeDir "extension_api.json"
+            if (Test-Path $exeApiFile) {
+              Copy-Item -Force $exeApiFile $apiFile
+            }
+          }
+          if (!(Test-Path $apiFile)) {
+            throw "extension_api.json was not generated"
+          }
+
+          $apiHash = (Get-FileHash -Path $apiFile -Algorithm SHA256).Hash.ToLowerInvariant()
+          "hash=$apiHash" >> $env:GITHUB_OUTPUT
+        shell: pwsh
+
+      - name: Resolve addon dependency refs
+        if: matrix.target == 'editor'
+        id: addon-deps
+        run: |
+          $apiFile = Join-Path $env:RUNNER_TEMP "addon_cache_extension_api\extension_api.json"
+          if (!(Test-Path $apiFile)) {
+            throw "extension_api.json missing at $apiFile"
+          }
+
+          $apiJson = Get-Content $apiFile -Raw | ConvertFrom-Json
+          $godotCppRef = "$($apiJson.header.version_major).$($apiJson.header.version_minor)"
+          if ($apiJson.header.version_status -eq "stable") {
+            $godotCppRef = "godot-$($apiJson.header.version_major).$($apiJson.header.version_minor)-stable"
+          }
+
+          $godotCppHeadLine = git ls-remote https://github.com/godotengine/godot-cpp.git "refs/heads/$godotCppRef" | Select-Object -First 1
+          if (-not $godotCppHeadLine) {
+            $godotCppRef = "master"
+            $godotCppHeadLine = git ls-remote https://github.com/godotengine/godot-cpp.git refs/heads/master | Select-Object -First 1
+          }
+          if (-not $godotCppHeadLine) {
+            throw "Failed to resolve godot-cpp ref"
+          }
+          $godotCppSha = ($godotCppHeadLine -split "`t")[0]
+
+          $gitPluginHeadLine = git ls-remote https://github.com/rivie13/godot-git-plugin.git refs/heads/master | Select-Object -First 1
+          if (-not $gitPluginHeadLine) {
+            throw "Failed to resolve godot-git-plugin master ref"
+          }
+          $gitPluginSha = ($gitPluginHeadLine -split "`t")[0]
+
+          $pixelpenPath = Join-Path $env:GITHUB_WORKSPACE "modules\ultimate_ai\external\pixelpen"
+          if (!(Test-Path $pixelpenPath)) {
+            throw "PixelPen path not found at $pixelpenPath"
+          }
+          $pixelpenSha = (git -C $pixelpenPath rev-parse HEAD).Trim()
+          if (-not $pixelpenSha) {
+            throw "Failed to resolve PixelPen SHA"
+          }
+
+          $diffMarginPath = Join-Path $env:GITHUB_WORKSPACE "modules\ultimate_ai\external\godot-diff-margin"
+          if (!(Test-Path $diffMarginPath)) {
+            throw "diff-margin path not found at $diffMarginPath"
+          }
+          $diffMarginSha = (git -C $diffMarginPath rev-parse HEAD).Trim()
+          if (-not $diffMarginSha) {
+            throw "Failed to resolve diff-margin SHA"
+          }
+
+          $gdtermPath = Join-Path $env:GITHUB_WORKSPACE "modules\ultimate_ai\external\gdterm"
+          if (!(Test-Path $gdtermPath)) {
+            throw "gdterm path not found at $gdtermPath"
+          }
+          $gdtermSha = (git -C $gdtermPath rev-parse HEAD).Trim()
+          if (-not $gdtermSha) {
+            throw "Failed to resolve gdterm SHA"
+          }
+
+          "godot_cpp_sha=$godotCppSha" >> $env:GITHUB_OUTPUT
+          "git_plugin_sha=$gitPluginSha" >> $env:GITHUB_OUTPUT
+          "pixelpen_sha=$pixelpenSha" >> $env:GITHUB_OUTPUT
+          "diff_margin_sha=$diffMarginSha" >> $env:GITHUB_OUTPUT
+          "gdterm_sha=$gdtermSha" >> $env:GITHUB_OUTPUT
+        shell: pwsh
+
+      - name: Restore Git Plugin addon cache
+        if: matrix.target == 'editor'
+        id: git-plugin-addon-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: bin/addons/godot-git-plugin
+          key: ${{ runner.os }}|${{ matrix.cache-name }}|git-plugin-addon|${{ steps.extension-api-hash.outputs.hash }}|${{ steps.addon-deps.outputs.git_plugin_sha }}|${{ steps.addon-deps.outputs.godot_cpp_sha }}|${{ hashFiles('modules/ultimate_ai/external/godot-git-plugin/**', 'misc/scripts/build_godot_git_plugin.ps1', 'misc/scripts/build_godot_git_plugin.sh', 'misc/scripts/sanitize_extension_api.py') }}
+
+      - name: Build Git Plugin addon
+        if: matrix.target == 'editor' && steps.git-plugin-addon-cache.outputs.cache-hit != 'true'
         run: |
           $apiDir = Join-Path $env:RUNNER_TEMP "extension_api"
           New-Item -ItemType Directory -Force -Path $apiDir | Out-Null
@@ -157,9 +271,27 @@ jobs:
           ./misc/scripts/build_godot_git_plugin.ps1 -Platform windows -ApiFile "$apiFile" -SConsCachePath "$addonSconsCache"
         shell: pwsh
 
+      - name: Save Git Plugin addon cache
+        if: matrix.target == 'editor' && steps.git-plugin-addon-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        continue-on-error: true
+        with:
+          path: bin/addons/godot-git-plugin
+          key: ${{ runner.os }}|${{ matrix.cache-name }}|git-plugin-addon|${{ steps.extension-api-hash.outputs.hash }}|${{ steps.addon-deps.outputs.git_plugin_sha }}|${{ steps.addon-deps.outputs.godot_cpp_sha }}|${{ hashFiles('modules/ultimate_ai/external/godot-git-plugin/**', 'misc/scripts/build_godot_git_plugin.ps1', 'misc/scripts/build_godot_git_plugin.sh', 'misc/scripts/sanitize_extension_api.py') }}
+
+      - name: Restore PixelPen addon cache
+        if: matrix.target == 'editor' && matrix.compiler == 'msvc'
+        id: pixelpen-addon-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            bin/addons/net.yarvis.pixel_pen
+            bin/addons/diff-margin
+          key: ${{ runner.os }}|${{ matrix.cache-name }}|pixelpen-addon|${{ steps.extension-api-hash.outputs.hash }}|${{ steps.addon-deps.outputs.godot_cpp_sha }}|${{ steps.addon-deps.outputs.pixelpen_sha }}|${{ steps.addon-deps.outputs.diff_margin_sha }}|${{ hashFiles('modules/ultimate_ai/external/pixelpen/**', 'modules/ultimate_ai/external/godot-diff-margin/**', 'misc/scripts/sanitize_extension_api.py') }}
+
       - name: Build PixelPen addon
         # Only stage PixelPen for the primary MSVC editor artifact.
-        if: matrix.target == 'editor' && matrix.compiler == 'msvc'
+        if: matrix.target == 'editor' && matrix.compiler == 'msvc' && steps.pixelpen-addon-cache.outputs.cache-hit != 'true'
         run: |
           $apiDir = Join-Path $env:RUNNER_TEMP "pixelpen_extension_api"
           New-Item -ItemType Directory -Force -Path $apiDir | Out-Null
@@ -250,6 +382,79 @@ jobs:
           Copy-Item -Recurse -Force (Join-Path $srcDiffMargin '*') $dstDiffMargin
         shell: pwsh
 
+      - name: Save PixelPen addon cache
+        if: matrix.target == 'editor' && matrix.compiler == 'msvc' && steps.pixelpen-addon-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        continue-on-error: true
+        with:
+          path: |
+            bin/addons/net.yarvis.pixel_pen
+            bin/addons/diff-margin
+          key: ${{ runner.os }}|${{ matrix.cache-name }}|pixelpen-addon|${{ steps.extension-api-hash.outputs.hash }}|${{ steps.addon-deps.outputs.godot_cpp_sha }}|${{ steps.addon-deps.outputs.pixelpen_sha }}|${{ steps.addon-deps.outputs.diff_margin_sha }}|${{ hashFiles('modules/ultimate_ai/external/pixelpen/**', 'modules/ultimate_ai/external/godot-diff-margin/**', 'misc/scripts/sanitize_extension_api.py') }}
+
+      - name: Restore GDTerm addon cache
+        if: matrix.target == 'editor' && matrix.compiler == 'msvc'
+        id: gdterm-addon-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: bin/addons/gdterm
+          key: ${{ runner.os }}|${{ matrix.cache-name }}|gdterm-addon|${{ steps.extension-api-hash.outputs.hash }}|${{ steps.addon-deps.outputs.godot_cpp_sha }}|${{ steps.addon-deps.outputs.gdterm_sha }}|${{ hashFiles('modules/ultimate_ai/external/gdterm/**', 'misc/scripts/build_gdterm.ps1', 'misc/scripts/build_gdterm.sh', 'misc/scripts/sanitize_extension_api.py') }}
+
+      - name: Build GDTerm addon
+        # Only stage GDTerm for the primary MSVC editor artifact.
+        if: matrix.target == 'editor' && matrix.compiler == 'msvc' && steps.gdterm-addon-cache.outputs.cache-hit != 'true'
+        run: |
+          $apiDir = Join-Path $env:RUNNER_TEMP "gdterm_extension_api"
+          New-Item -ItemType Directory -Force -Path $apiDir | Out-Null
+          $binPath = "${{ matrix.bin }}" -replace '^\./', ''
+          $editorExe = Join-Path $env:GITHUB_WORKSPACE $binPath
+          $consoleEditorExe = $editorExe -replace '\.exe$', '.console.exe'
+          if (Test-Path $consoleEditorExe) {
+            $editorExe = $consoleEditorExe
+          }
+
+          Push-Location $apiDir
+          if ($editorExe.EndsWith('.console.exe')) {
+            & $editorExe --headless --dump-extension-api
+            $editorExitCode = $LASTEXITCODE
+          } else {
+            $process = Start-Process -FilePath $editorExe -ArgumentList @('--headless', '--dump-extension-api') -Wait -PassThru
+            $editorExitCode = $process.ExitCode
+          }
+          Pop-Location
+          if ($editorExitCode -ne 0) {
+            throw "Editor failed to dump extension API (exit code $editorExitCode)"
+          }
+
+          $apiFile = Join-Path $apiDir "extension_api.json"
+          if (!(Test-Path $apiFile)) {
+            $exeDir = Split-Path $editorExe -Parent
+            $exeApiFile = Join-Path $exeDir "extension_api.json"
+            if (Test-Path $exeApiFile) {
+              Copy-Item -Force $exeApiFile $apiFile
+            }
+          }
+          if (!(Test-Path $apiFile)) {
+            Write-Host "extension_api.json was not generated" -ForegroundColor Red
+            Write-Host "API dir: $apiDir" -ForegroundColor Yellow
+            Write-Host "Editor dir: $(Split-Path $editorExe -Parent)" -ForegroundColor Yellow
+            throw "extension_api.json was not generated"
+          }
+
+          python ./misc/scripts/sanitize_extension_api.py "$apiFile"
+
+          $gdtermAddonSconsCache = Join-Path $env:GITHUB_WORKSPACE ".scons_cache\addons\gdterm\${{ matrix.cache-name }}"
+          ./misc/scripts/build_gdterm.ps1 -Platform windows -ApiFile "$apiFile" -SConsCachePath "$gdtermAddonSconsCache"
+        shell: pwsh
+
+      - name: Save GDTerm addon cache
+        if: matrix.target == 'editor' && matrix.compiler == 'msvc' && steps.gdterm-addon-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        continue-on-error: true
+        with:
+          path: bin/addons/gdterm
+          key: ${{ runner.os }}|${{ matrix.cache-name }}|gdterm-addon|${{ steps.extension-api-hash.outputs.hash }}|${{ steps.addon-deps.outputs.godot_cpp_sha }}|${{ steps.addon-deps.outputs.gdterm_sha }}|${{ hashFiles('modules/ultimate_ai/external/gdterm/**', 'misc/scripts/build_gdterm.ps1', 'misc/scripts/build_gdterm.sh', 'misc/scripts/sanitize_extension_api.py') }}
+
       - name: Save Phoenix build cache
         uses: ./.github/actions/phoenix-cache-save
         with:
@@ -276,7 +481,8 @@ jobs:
             $requiredAddonDirs = @(
               (Join-Path $env:GITHUB_WORKSPACE "bin\addons\godot-git-plugin"),
               (Join-Path $env:GITHUB_WORKSPACE "bin\addons\net.yarvis.pixel_pen"),
-              (Join-Path $env:GITHUB_WORKSPACE "bin\addons\diff-margin")
+              (Join-Path $env:GITHUB_WORKSPACE "bin\addons\diff-margin"),
+              (Join-Path $env:GITHUB_WORKSPACE "bin\addons\gdterm")
             )
 
             foreach ($addonDir in $requiredAddonDirs) {

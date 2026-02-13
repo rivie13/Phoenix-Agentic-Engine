@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="UltimateAITerminalBridge" inherits="Object" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
+	<brief_description>
+	</brief_description>
+	<description>
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="close_terminal" qualifiers="const">
+			<return type="bool" />
+			<param index="0" name="terminal_id" type="int" />
+			<description>
+			</description>
+		</method>
+		<method name="create_terminal" qualifiers="const">
+			<return type="int" />
+			<param index="0" name="name" type="String" default="&quot;&quot;" />
+			<param index="1" name="ai_terminal" type="bool" default="true" />
+			<description>
+			</description>
+		</method>
+		<method name="execute_terminal_action" qualifiers="const">
+			<return type="Variant" />
+			<param index="0" name="action" type="String" />
+			<param index="1" name="args" type="Dictionary" default="{}" />
+			<description>
+			</description>
+		</method>
+		<method name="is_available" qualifiers="const">
+			<return type="bool" />
+			<description>
+			</description>
+		</method>
+		<method name="list_terminals" qualifiers="const">
+			<return type="Array" />
+			<description>
+			</description>
+		</method>
+		<method name="restart_terminal" qualifiers="const">
+			<return type="bool" />
+			<param index="0" name="terminal_id" type="int" />
+			<description>
+			</description>
+		</method>
+		<method name="select_terminal" qualifiers="const">
+			<return type="bool" />
+			<param index="0" name="terminal_id" type="int" />
+			<description>
+			</description>
+		</method>
+		<method name="send_terminal_input" qualifiers="const">
+			<return type="bool" />
+			<param index="0" name="terminal_id" type="int" />
+			<param index="1" name="text" type="String" />
+			<param index="2" name="append_newline" type="bool" default="true" />
+			<description>
+			</description>
+		</method>
+		<method name="send_to_active_terminal" qualifiers="const">
+			<return type="bool" />
+			<param index="0" name="text" type="String" />
+			<param index="1" name="append_newline" type="bool" default="true" />
+			<description>
+			</description>
+		</method>
+	</methods>
+</class>

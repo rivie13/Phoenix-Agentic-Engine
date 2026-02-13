@@ -148,11 +148,21 @@ jobs:
             throw "Failed to resolve diff-margin SHA"
           }
 
+          $gdtermPath = Join-Path $env:GITHUB_WORKSPACE "modules\ultimate_ai\external\gdterm"
+          if (!(Test-Path $gdtermPath)) {
+            throw "gdterm path not found at $gdtermPath"
+          }
+          $gdtermSha = (git -C $gdtermPath rev-parse HEAD).Trim()
+          if (-not $gdtermSha) {
+            throw "Failed to resolve gdterm SHA"
+          }
+
           "godot_cpp_ref=$godotCppRef" >> $env:GITHUB_OUTPUT
           "godot_cpp_sha=$godotCppSha" >> $env:GITHUB_OUTPUT
           "git_plugin_sha=$gitPluginSha" >> $env:GITHUB_OUTPUT
           "pixelpen_sha=$pixelpenSha" >> $env:GITHUB_OUTPUT
           "diff_margin_sha=$diffMarginSha" >> $env:GITHUB_OUTPUT
+          "gdterm_sha=$gdtermSha" >> $env:GITHUB_OUTPUT
 
       - name: Restore Git Plugin addon cache
         id: git-plugin-addon-cache
@@ -244,6 +254,35 @@ jobs:
             bin/addons/diff-margin
           key: ${{ runner.os }}|pixelpen-addon|${{ github.ref_name }}|${{ steps.extension-api-hash.outputs.hash }}|${{ steps.addon-deps.outputs.godot_cpp_sha }}|${{ steps.addon-deps.outputs.pixelpen_sha }}|${{ steps.addon-deps.outputs.diff_margin_sha }}|${{ hashFiles('misc/scripts/sanitize_extension_api.py') }}
 
+      - name: Restore GDTerm addon cache
+        id: gdterm-addon-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: bin/addons/gdterm
+          key: ${{ runner.os }}|gdterm-addon|${{ github.ref_name }}|${{ steps.extension-api-hash.outputs.hash }}|${{ steps.addon-deps.outputs.godot_cpp_sha }}|${{ steps.addon-deps.outputs.gdterm_sha }}|${{ hashFiles('misc/scripts/sanitize_extension_api.py', 'misc/scripts/build_gdterm.ps1') }}
+
+      - name: Build GDTerm addon
+        if: steps.gdterm-addon-cache.outputs.cache-hit != 'true'
+        run: |
+          $apiFile = Join-Path $env:RUNNER_TEMP "extension_api\extension_api.json"
+          if (!(Test-Path $apiFile)) {
+            throw "extension_api.json missing at $apiFile"
+          }
+
+          python ./misc/scripts/sanitize_extension_api.py "$apiFile"
+
+          $gdtermAddonSconsCache = Join-Path $env:GITHUB_WORKSPACE ".scons_cache\addons\gdterm\${{ env.SCONS_CACHE_NAME }}"
+          ./misc/scripts/build_gdterm.ps1 -Platform windows -ApiFile "$apiFile" -SConsCachePath "$gdtermAddonSconsCache"
+        shell: pwsh
+
+      - name: Save GDTerm addon cache
+        if: steps.gdterm-addon-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        continue-on-error: true
+        with:
+          path: bin/addons/gdterm
+          key: ${{ runner.os }}|gdterm-addon|${{ github.ref_name }}|${{ steps.extension-api-hash.outputs.hash }}|${{ steps.addon-deps.outputs.godot_cpp_sha }}|${{ steps.addon-deps.outputs.gdterm_sha }}|${{ hashFiles('misc/scripts/sanitize_extension_api.py', 'misc/scripts/build_gdterm.ps1') }}
+
       - name: Save SCons cache
         uses: ./.github/actions/phoenix-cache-save
         with:
@@ -271,7 +310,8 @@ jobs:
           $requiredAddonDirs = @(
             (Join-Path $env:GITHUB_WORKSPACE "bin\addons\godot-git-plugin"),
             (Join-Path $env:GITHUB_WORKSPACE "bin\addons\net.yarvis.pixel_pen"),
-            (Join-Path $env:GITHUB_WORKSPACE "bin\addons\diff-margin")
+            (Join-Path $env:GITHUB_WORKSPACE "bin\addons\diff-margin"),
+            (Join-Path $env:GITHUB_WORKSPACE "bin\addons\gdterm")
           )
 
           foreach ($requiredFile in $requiredFiles) {

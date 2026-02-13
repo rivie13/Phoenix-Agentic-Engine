@@ -101,8 +101,110 @@ jobs:
           platform: macos
           target: ${{ matrix.target }}
 
-      - name: Build Git Plugin addon
+      - name: Compute addon extension API hash
         if: matrix.target == 'editor'
+        id: extension-api-hash
+        run: |
+          api_dir="${RUNNER_TEMP:-/tmp}/addon_cache_extension_api"
+          mkdir -p "$api_dir"
+          host_arch="$(uname -m)"
+          editor_exe="${GITHUB_WORKSPACE}/bin/phoenix_agentic.macos.editor.${host_arch}"
+          if [ ! -f "$editor_exe" ]; then
+            echo "::warning::macOS: Expected editor binary not found for host arch '${host_arch}' at '${editor_exe}', falling back to x86_64." >&2
+            editor_exe="${GITHUB_WORKSPACE}/bin/phoenix_agentic.macos.editor.x86_64"
+          fi
+          chmod +x "$editor_exe" || true
+          pushd "$api_dir" >/dev/null
+          "$editor_exe" --headless --dump-extension-api
+          popd >/dev/null
+
+          api_file="$api_dir/extension_api.json"
+          if [ ! -f "$api_file" ]; then
+            echo "extension_api.json was not generated" >&2
+            exit 1
+          fi
+
+          api_hash="$(python3 -c "import hashlib,sys;print(hashlib.sha256(open(sys.argv[1],'rb').read()).hexdigest())" "$api_file")"
+          echo "hash=$api_hash" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve addon dependency refs
+        if: matrix.target == 'editor'
+        id: addon-deps
+        run: |
+          api_file="${RUNNER_TEMP:-/tmp}/addon_cache_extension_api/extension_api.json"
+          if [ ! -f "$api_file" ]; then
+            echo "extension_api.json missing at $api_file" >&2
+            exit 1
+          fi
+
+          godot_cpp_ref="$(python3 -c "import json,sys; h=json.load(open(sys.argv[1], encoding='utf-8')).get('header', {}); major=h.get('version_major'); minor=h.get('version_minor'); status=h.get('version_status'); print(f'godot-{major}.{minor}-stable' if status == 'stable' else f'{major}.{minor}')" "$api_file")"
+
+          godot_cpp_head_line="$(git ls-remote https://github.com/godotengine/godot-cpp.git "refs/heads/$godot_cpp_ref" | head -n1)"
+          if [ -z "$godot_cpp_head_line" ]; then
+            godot_cpp_ref="master"
+            godot_cpp_head_line="$(git ls-remote https://github.com/godotengine/godot-cpp.git refs/heads/master | head -n1)"
+          fi
+          if [ -z "$godot_cpp_head_line" ]; then
+            echo "Failed to resolve godot-cpp ref" >&2
+            exit 1
+          fi
+          godot_cpp_sha="$(printf '%s' "$godot_cpp_head_line" | awk '{print $1}')"
+
+          git_plugin_sha="$(git ls-remote https://github.com/rivie13/godot-git-plugin.git refs/heads/master | head -n1 | awk '{print $1}')"
+          if [ -z "$git_plugin_sha" ]; then
+            echo "Failed to resolve godot-git-plugin master ref" >&2
+            exit 1
+          fi
+
+          pixelpen_path="${GITHUB_WORKSPACE}/modules/ultimate_ai/external/pixelpen"
+          if [ ! -d "$pixelpen_path" ]; then
+            echo "PixelPen path not found at $pixelpen_path" >&2
+            exit 1
+          fi
+          pixelpen_sha="$(git -C "$pixelpen_path" rev-parse HEAD)"
+          if [ -z "$pixelpen_sha" ]; then
+            echo "Failed to resolve PixelPen SHA" >&2
+            exit 1
+          fi
+
+          diff_margin_path="${GITHUB_WORKSPACE}/modules/ultimate_ai/external/godot-diff-margin"
+          if [ ! -d "$diff_margin_path" ]; then
+            echo "diff-margin path not found at $diff_margin_path" >&2
+            exit 1
+          fi
+          diff_margin_sha="$(git -C "$diff_margin_path" rev-parse HEAD)"
+          if [ -z "$diff_margin_sha" ]; then
+            echo "Failed to resolve diff-margin SHA" >&2
+            exit 1
+          fi
+
+          gdterm_path="${GITHUB_WORKSPACE}/modules/ultimate_ai/external/gdterm"
+          if [ ! -d "$gdterm_path" ]; then
+            echo "gdterm path not found at $gdterm_path" >&2
+            exit 1
+          fi
+          gdterm_sha="$(git -C "$gdterm_path" rev-parse HEAD)"
+          if [ -z "$gdterm_sha" ]; then
+            echo "Failed to resolve gdterm SHA" >&2
+            exit 1
+          fi
+
+          echo "godot_cpp_sha=$godot_cpp_sha" >> "$GITHUB_OUTPUT"
+          echo "git_plugin_sha=$git_plugin_sha" >> "$GITHUB_OUTPUT"
+          echo "pixelpen_sha=$pixelpen_sha" >> "$GITHUB_OUTPUT"
+          echo "diff_margin_sha=$diff_margin_sha" >> "$GITHUB_OUTPUT"
+          echo "gdterm_sha=$gdterm_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Restore Git Plugin addon cache
+        if: matrix.target == 'editor'
+        id: git-plugin-addon-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: bin/addons/godot-git-plugin
+          key: ${{ runner.os }}|${{ matrix.cache-name }}|git-plugin-addon|${{ steps.extension-api-hash.outputs.hash }}|${{ steps.addon-deps.outputs.git_plugin_sha }}|${{ steps.addon-deps.outputs.godot_cpp_sha }}|${{ hashFiles('modules/ultimate_ai/external/godot-git-plugin/**', 'misc/scripts/build_godot_git_plugin.sh', 'misc/scripts/build_godot_git_plugin.ps1', 'misc/scripts/sanitize_extension_api.py') }}
+
+      - name: Build Git Plugin addon
+        if: matrix.target == 'editor' && steps.git-plugin-addon-cache.outputs.cache-hit != 'true'
         run: |
           api_dir="${RUNNER_TEMP:-/tmp}/extension_api"
           mkdir -p "$api_dir"
@@ -124,8 +226,24 @@ jobs:
           export SCONS_CACHE_PATH="${GITHUB_WORKSPACE}/.scons_cache/addons/godot-git-plugin/${{ matrix.cache-name }}"
           bash ./misc/scripts/build_godot_git_plugin.sh macos "$PWD" "$api_dir/extension_api.json"
 
-      - name: Build PixelPen addon
+      - name: Save Git Plugin addon cache
+        if: matrix.target == 'editor' && steps.git-plugin-addon-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        continue-on-error: true
+        with:
+          path: bin/addons/godot-git-plugin
+          key: ${{ runner.os }}|${{ matrix.cache-name }}|git-plugin-addon|${{ steps.extension-api-hash.outputs.hash }}|${{ steps.addon-deps.outputs.git_plugin_sha }}|${{ steps.addon-deps.outputs.godot_cpp_sha }}|${{ hashFiles('modules/ultimate_ai/external/godot-git-plugin/**', 'misc/scripts/build_godot_git_plugin.sh', 'misc/scripts/build_godot_git_plugin.ps1', 'misc/scripts/sanitize_extension_api.py') }}
+
+      - name: Restore PixelPen addon cache
         if: matrix.target == 'editor'
+        id: pixelpen-addon-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: modules/ultimate_ai/external/pixelpen/project/addons/net.yarvis.pixel_pen
+          key: ${{ runner.os }}|${{ matrix.cache-name }}|pixelpen-addon|${{ steps.extension-api-hash.outputs.hash }}|${{ steps.addon-deps.outputs.godot_cpp_sha }}|${{ steps.addon-deps.outputs.pixelpen_sha }}|${{ steps.addon-deps.outputs.diff_margin_sha }}|${{ hashFiles('modules/ultimate_ai/external/pixelpen/**', 'modules/ultimate_ai/external/godot-diff-margin/**', 'misc/scripts/sanitize_extension_api.py') }}
+
+      - name: Build PixelPen addon
+        if: matrix.target == 'editor' && steps.pixelpen-addon-cache.outputs.cache-hit != 'true'
         run: |
           api_dir="${RUNNER_TEMP:-/tmp}/pixelpen_extension_api"
           mkdir -p "$api_dir"
@@ -165,12 +283,61 @@ jobs:
 
           python3 -m SCons -C ./modules/ultimate_ai/external/pixelpen platform=macos target=template_debug precision=single generate_bindings=yes custom_api_file="$api_file"
 
+      - name: Save PixelPen addon cache
+        if: matrix.target == 'editor' && steps.pixelpen-addon-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        continue-on-error: true
+        with:
+          path: modules/ultimate_ai/external/pixelpen/project/addons/net.yarvis.pixel_pen
+          key: ${{ runner.os }}|${{ matrix.cache-name }}|pixelpen-addon|${{ steps.extension-api-hash.outputs.hash }}|${{ steps.addon-deps.outputs.godot_cpp_sha }}|${{ steps.addon-deps.outputs.pixelpen_sha }}|${{ steps.addon-deps.outputs.diff_margin_sha }}|${{ hashFiles('modules/ultimate_ai/external/pixelpen/**', 'modules/ultimate_ai/external/godot-diff-margin/**', 'misc/scripts/sanitize_extension_api.py') }}
+
+      - name: Restore GDTerm addon cache
+        if: matrix.target == 'editor'
+        id: gdterm-addon-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: bin/addons/gdterm
+          key: ${{ runner.os }}|${{ matrix.cache-name }}|gdterm-addon|${{ steps.extension-api-hash.outputs.hash }}|${{ steps.addon-deps.outputs.godot_cpp_sha }}|${{ steps.addon-deps.outputs.gdterm_sha }}|${{ hashFiles('modules/ultimate_ai/external/gdterm/**', 'misc/scripts/build_gdterm.sh', 'misc/scripts/build_gdterm.ps1', 'misc/scripts/sanitize_extension_api.py') }}
+
+      - name: Build GDTerm addon
+        if: matrix.target == 'editor' && steps.gdterm-addon-cache.outputs.cache-hit != 'true'
+        run: |
+          api_dir="${RUNNER_TEMP:-/tmp}/gdterm_extension_api"
+          mkdir -p "$api_dir"
+          host_arch="$(uname -m)"
+          editor_exe="${GITHUB_WORKSPACE}/bin/phoenix_agentic.macos.editor.${host_arch}"
+          if [ ! -f "$editor_exe" ]; then
+            echo "::warning::macOS: Expected editor binary not found for host arch '${host_arch}' at '${editor_exe}', falling back to x86_64." >&2
+            editor_exe="${GITHUB_WORKSPACE}/bin/phoenix_agentic.macos.editor.x86_64"
+          fi
+          chmod +x "$editor_exe" || true
+          pushd "$api_dir" >/dev/null
+          "$editor_exe" --headless --dump-extension-api
+          popd >/dev/null
+          if [ ! -f "$api_dir/extension_api.json" ]; then
+            echo "extension_api.json was not generated" >&2
+            exit 1
+          fi
+
+          python3 ./misc/scripts/sanitize_extension_api.py "$api_dir/extension_api.json"
+          export SCONS_CACHE_PATH="${GITHUB_WORKSPACE}/.scons_cache/addons/gdterm/${{ matrix.cache-name }}"
+          bash ./misc/scripts/build_gdterm.sh macos "$PWD" "$api_dir/extension_api.json"
+
+      - name: Save GDTerm addon cache
+        if: matrix.target == 'editor' && steps.gdterm-addon-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        continue-on-error: true
+        with:
+          path: bin/addons/gdterm
+          key: ${{ runner.os }}|${{ matrix.cache-name }}|gdterm-addon|${{ steps.extension-api-hash.outputs.hash }}|${{ steps.addon-deps.outputs.godot_cpp_sha }}|${{ steps.addon-deps.outputs.gdterm_sha }}|${{ hashFiles('modules/ultimate_ai/external/gdterm/**', 'misc/scripts/build_gdterm.sh', 'misc/scripts/build_gdterm.ps1', 'misc/scripts/sanitize_extension_api.py') }}
+
       - name: Stage editor addons
         if: matrix.target == 'editor'
         run: |
           git_plugin_src="./bin/addons/godot-git-plugin"
           pixelpen_src="./modules/ultimate_ai/external/pixelpen/project/addons/net.yarvis.pixel_pen"
           diff_margin_src="./modules/ultimate_ai/external/godot-diff-margin/addons/diff-margin"
+          gdterm_src="./bin/addons/gdterm"
 
           if [ ! -d "$git_plugin_src" ]; then
             echo "Missing Git plugin addon directory: $git_plugin_src" >&2
@@ -182,6 +349,10 @@ jobs:
           fi
           if [ ! -d "$diff_margin_src" ]; then
             echo "Missing diff-margin addon directory: $diff_margin_src" >&2
+            exit 1
+          fi
+          if [ ! -d "$gdterm_src" ]; then
+            echo "Missing gdterm addon directory: $gdterm_src" >&2
             exit 1
           fi
 
@@ -216,7 +387,7 @@ jobs:
           fi
 
           if [ "${{ matrix.target }}" = "editor" ]; then
-            for addon in godot-git-plugin net.yarvis.pixel_pen diff-margin; do
+            for addon in godot-git-plugin net.yarvis.pixel_pen diff-margin gdterm; do
               if [ ! -d "./bin/addons/$addon" ]; then
                 echo "Missing expected addon directory: ./bin/addons/$addon" >&2
                 ls -la ./bin/addons || true
