@@ -186,6 +186,13 @@ jobs:
           platform: linuxbsd
           target: ${{ matrix.target }}
 
+      - name: Prepare Mono assemblies for addon API dump
+        if: matrix.target == 'editor' && matrix.build-mono
+        run: |
+          "${{ matrix.bin }}" --headless --generate-mono-glue ./modules/mono/glue
+          dotnet --info
+          ./modules/mono/build_scripts/build_assemblies.py --godot-output-dir=./bin --godot-platform=linuxbsd --werror
+
       - name: Compute addon extension API hash
         if: matrix.target == 'editor'
         id: extension-api-hash
@@ -205,15 +212,7 @@ jobs:
             exit 1
           fi
 
-            api_hash="$(API_FILE="$api_file" python3 - <<'PY'
-            import hashlib
-            import os
-
-            api_file = os.environ["API_FILE"]
-            with open(api_file, "rb") as fh:
-              print(hashlib.sha256(fh.read()).hexdigest())
-            PY
-            )"
+          api_hash="$(python3 -c "import hashlib,sys;print(hashlib.sha256(open(sys.argv[1],'rb').read()).hexdigest())" "$api_file")"
           echo "hash=$api_hash" >> "$GITHUB_OUTPUT"
 
       - name: Resolve addon dependency refs
@@ -226,22 +225,7 @@ jobs:
             exit 1
           fi
 
-            godot_cpp_ref="$(API_FILE="$api_file" python3 - <<'PY'
-            import json
-            import os
-
-            with open(os.environ["API_FILE"], "r", encoding="utf-8") as fh:
-              api = json.load(fh)
-            header = api.get("header", {})
-            major = header.get("version_major")
-            minor = header.get("version_minor")
-            status = header.get("version_status")
-            if status == "stable":
-              print(f"godot-{major}.{minor}-stable")
-            else:
-              print(f"{major}.{minor}")
-            PY
-            )"
+          godot_cpp_ref="$(python3 -c "import json,sys; h=json.load(open(sys.argv[1], encoding='utf-8')).get('header', {}); major=h.get('version_major'); minor=h.get('version_minor'); status=h.get('version_status'); print(f'godot-{major}.{minor}-stable' if status == 'stable' else f'{major}.{minor}')" "$api_file")"
 
           godot_cpp_head_line="$(git ls-remote https://github.com/godotengine/godot-cpp.git "refs/heads/$godot_cpp_ref" | head -n1)"
           if [ -z "$godot_cpp_head_line" ]; then
@@ -310,11 +294,6 @@ jobs:
       - name: Build Git Plugin addon
         if: (matrix.build-git-plugin == true || (matrix.target == 'editor' && matrix.artifact == true)) && steps.git-plugin-addon-cache.outputs.cache-hit != 'true'
         run: |
-          if [ "${{ matrix.build-mono }}" = "true" ]; then
-            "${{ matrix.bin }}" --headless --generate-mono-glue ./modules/mono/glue
-            dotnet --info
-            ./modules/mono/build_scripts/build_assemblies.py --godot-output-dir=./bin --godot-platform=linuxbsd --werror
-          fi
           api_dir="${RUNNER_TEMP:-/tmp}/extension_api"
           mkdir -p "$api_dir"
           bin_path="${{ matrix.bin }}"
