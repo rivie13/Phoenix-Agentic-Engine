@@ -239,30 +239,39 @@ bool GDTermEditorPlugin::_addon_has_extension_binary(const String &p_addon_path)
 		return false;
 	}
 
+	const char *const *candidates = nullptr;
+	uint32_t candidate_count = 0;
+
 #if defined(LINUXBSD_ENABLED)
-	const char *const candidates[] = {
+	static const char *const linux_candidates[] = {
 		"bin/libgdterm.linux.template_debug.x86_64.so",
 		"bin/libgdterm.linux.template_release.x86_64.so",
 		"bin/libgdterm.linux.template_debug.arm64.so",
 		"bin/libgdterm.linux.template_release.arm64.so",
 	};
+	candidates = linux_candidates;
+	candidate_count = sizeof(linux_candidates) / sizeof(linux_candidates[0]);
 #elif defined(WINDOWS_ENABLED)
-	const char *const candidates[] = {
+	static const char *const windows_candidates[] = {
 		"bin/libgdterm.windows.template_debug.x86_64.dll",
 		"bin/libgdterm.windows.template_release.x86_64.dll",
 		"bin/libgdterm.windows.template_debug.arm64.dll",
 		"bin/libgdterm.windows.template_release.arm64.dll",
 	};
+	candidates = windows_candidates;
+	candidate_count = sizeof(windows_candidates) / sizeof(windows_candidates[0]);
 #elif defined(MACOS_ENABLED)
-	const char *const candidates[] = {
+	static const char *const macos_candidates[] = {
 		"bin/libgdterm.macos.template_debug.framework",
 		"bin/libgdterm.macos.template_release.framework",
 	};
+	candidates = macos_candidates;
+	candidate_count = sizeof(macos_candidates) / sizeof(macos_candidates[0]);
 #else
 	return true;
 #endif
 
-	for (uint32_t i = 0; i < sizeof(candidates) / sizeof(candidates[0]); i++) {
+	for (uint32_t i = 0; i < candidate_count; i++) {
 		const String library_path = p_addon_path.path_join(candidates[i]);
 		if (FileAccess::exists(library_path) || DirAccess::dir_exists_absolute(library_path)) {
 			return true;
