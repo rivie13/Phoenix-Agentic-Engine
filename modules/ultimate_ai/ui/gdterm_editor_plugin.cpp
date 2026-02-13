@@ -258,9 +258,6 @@ bool GDTermEditorPlugin::_addon_has_extension_binary(const String &p_addon_path)
 		"bin/libgdterm.macos.template_debug.framework",
 		"bin/libgdterm.macos.template_release.framework",
 	};
-#else
-	return true;
-#endif
 
 	for (uint32_t i = 0; i < sizeof(candidates) / sizeof(candidates[0]); i++) {
 		const String library_path = p_addon_path.path_join(candidates[i]);
@@ -270,6 +267,9 @@ bool GDTermEditorPlugin::_addon_has_extension_binary(const String &p_addon_path)
 	}
 
 	return false;
+#else
+	return true;
+#endif
 }
 
 String GDTermEditorPlugin::_find_source_addon_path() const {
