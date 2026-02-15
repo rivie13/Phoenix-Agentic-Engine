@@ -1,5 +1,5 @@
 /**************************************************************************/
-/*  diff_margin_editor_plugin.cpp                                         */
+/*  bfxr_editor_plugin.cpp                                                */
 /**************************************************************************/
 /*                         This file is part of:                          */
 /*                             GODOT ENGINE                               */
@@ -28,53 +28,87 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
 /**************************************************************************/
 
-#include "diff_margin_editor_plugin.h"
+#include "bfxr_editor_plugin.h"
 
-#include "addon_bootstrap_utils.h"
+#include "bfxr_panel.h"
 
 #include "core/config/project_settings.h"
+#include "core/io/config_file.h"
 #include "core/io/dir_access.h"
 #include "core/io/file_access.h"
 #include "core/os/os.h"
 #include "editor/editor_interface.h"
+#include "editor/editor_main_screen.h"
+#include "editor/editor_node.h"
 #include "editor/file_system/editor_file_system.h"
-#include "editor/settings/editor_settings.h"
+#include "scene/gui/box_container.h"
 
 namespace {
-const char *const DIFF_MARGIN_ADDON_PATH = "res://addons/diff-margin";
-const char *const DIFF_MARGIN_PLUGIN_NAME = "diff-margin";
-const char *const DIFF_MARGIN_SYNC_MARKER_FILE = ".phoenix_sync_revision";
-const char *const DIFF_MARGIN_SYNC_REVISION = "2026-02-10-diff-margin-diff-view-guard";
+const char *const BFXR_ADDON_PATH = "res://addons/bfxr2-mcp-server";
+const char *const BFXR_PLUGIN_CFG = "res://addons/bfxr2-mcp-server/plugin.cfg";
+const char *const BFXR_FALLBACK_PLUGIN_NAME = "bfxr2-mcp-server";
+const char *const BFXR_SYNC_MARKER_FILE = ".phoenix_sync_revision";
+const char *const BFXR_SYNC_REVISION = "2026-02-13-bfxr-addon-bootstrap-v1";
 } //namespace
 
-String DiffMarginEditorPlugin::get_plugin_name() const {
-	return "Diff Margin";
+String BfxrEditorPlugin::get_plugin_name() const {
+	return "BFXR";
 }
 
-DiffMarginEditorPlugin::DiffMarginEditorPlugin() {
+bool BfxrEditorPlugin::has_main_screen() const {
+	return true;
 }
 
-DiffMarginEditorPlugin::~DiffMarginEditorPlugin() {
+const Ref<Texture2D> BfxrEditorPlugin::get_plugin_icon() const {
+	return EditorInterface::get_singleton()->get_editor_theme()->get_icon("AudioStreamPlayer", "EditorIcons");
 }
 
-void DiffMarginEditorPlugin::_notification(int p_what) {
+BfxrEditorPlugin::BfxrEditorPlugin() {
+	bfxr_panel = memnew(BfxrPanel);
+	bfxr_panel->set_v_size_flags(Control::SIZE_EXPAND_FILL);
+	EditorNode::get_singleton()->get_editor_main_screen()->get_control()->add_child(bfxr_panel);
+	bfxr_panel->set_anchors_and_offsets_preset(Control::PRESET_FULL_RECT);
+	bfxr_panel->hide();
+}
+
+BfxrEditorPlugin::~BfxrEditorPlugin() {
+}
+
+void BfxrEditorPlugin::make_visible(bool p_visible) {
+	if (!bfxr_panel) {
+		return;
+	}
+	if (p_visible) {
+		bfxr_panel->show();
+	} else {
+		bfxr_panel->hide();
+	}
+}
+
+void BfxrEditorPlugin::_notification(int p_what) {
 	switch (p_what) {
 		case NOTIFICATION_ENTER_TREE: {
-			AddonBootstrapMigrator::ensure_default_gitignore_entries_once();
-			_ensure_git_path_setting();
+			_ensure_gitignore_entries();
 			set_process(true);
 			addon_ready = _ensure_addon_installed();
 			_maybe_enable_plugin();
+			if (!enable_pending) {
+				set_process(false);
+			}
 		} break;
 		case NOTIFICATION_PROCESS: {
-			if (enable_pending) {
-				EditorFileSystem *efs = EditorFileSystem::get_singleton();
-				if (!efs || !efs->is_scanning()) {
-					enable_pending = false;
-					addon_ready = _ensure_addon_installed() || addon_ready;
-					_maybe_enable_plugin();
-				}
+			if (!enable_pending) {
+				set_process(false);
+				return;
 			}
+			EditorFileSystem *efs = EditorFileSystem::get_singleton();
+			if (efs && efs->is_scanning()) {
+				return;
+			}
+			enable_pending = false;
+			addon_ready = _ensure_addon_installed() || addon_ready;
+			_maybe_enable_plugin();
+			set_process(false);
 		} break;
 		case NOTIFICATION_EXIT_TREE: {
 			enable_pending = false;
@@ -84,127 +118,105 @@ void DiffMarginEditorPlugin::_notification(int p_what) {
 	}
 }
 
-void DiffMarginEditorPlugin::_ensure_git_path_setting() {
-	EditorSettings *settings = EditorSettings::get_singleton();
-	if (!settings) {
-		return;
-	}
-
-	const String setting_key = "plugin/diff-margin/git_path";
-	if (!settings->has_setting(setting_key)) {
-		settings->set_setting(setting_key, "");
-		settings->set_initial_value(setting_key, "", false);
-	}
-
-	const String current = settings->get_setting(setting_key);
-	if (!current.is_empty()) {
-		return;
-	}
-
-	const String detected = _find_git_executable();
-	if (detected.is_empty()) {
-		return;
-	}
-
-	settings->set_setting(setting_key, detected);
-	settings->set_initial_value(setting_key, detected, false);
-	settings->save();
-}
-
-String DiffMarginEditorPlugin::_find_git_executable() const {
-	Vector<String> candidates;
-	String os_name = OS::get_singleton()->get_name();
-	const bool is_windows = os_name == "Windows";
-	const String git_exe = is_windows ? "git.exe" : "git";
-
-	String path_env = OS::get_singleton()->get_environment("PATH");
-	if (!path_env.is_empty()) {
-		PackedStringArray path_entries = path_env.split(is_windows ? ";" : ":", false);
-		for (int i = 0; i < path_entries.size(); i++) {
-			String dir = path_entries[i].strip_edges();
-			if (dir.is_empty()) {
-				continue;
-			}
-			candidates.push_back(dir.path_join(git_exe));
-		}
-	}
-
-	if (is_windows) {
-		String program_files = OS::get_singleton()->get_environment("ProgramFiles");
-		String program_files_x86 = OS::get_singleton()->get_environment("ProgramFiles(x86)");
-		String local_app_data = OS::get_singleton()->get_environment("LocalAppData");
-
-		if (!program_files.is_empty()) {
-			candidates.push_back(program_files.path_join("Git").path_join("cmd").path_join(git_exe));
-			candidates.push_back(program_files.path_join("Git").path_join("bin").path_join(git_exe));
-		}
-		if (!program_files_x86.is_empty()) {
-			candidates.push_back(program_files_x86.path_join("Git").path_join("cmd").path_join(git_exe));
-			candidates.push_back(program_files_x86.path_join("Git").path_join("bin").path_join(git_exe));
-		}
-		if (!local_app_data.is_empty()) {
-			candidates.push_back(local_app_data.path_join("Programs").path_join("Git").path_join("cmd").path_join(git_exe));
-			candidates.push_back(local_app_data.path_join("Programs").path_join("Git").path_join("bin").path_join(git_exe));
-		}
-	} else {
-		candidates.push_back("/usr/bin/" + git_exe);
-		candidates.push_back("/usr/local/bin/" + git_exe);
-		candidates.push_back("/opt/homebrew/bin/" + git_exe);
-	}
-
-	for (int i = 0; i < candidates.size(); i++) {
-		if (FileAccess::exists(candidates[i])) {
-			return candidates[i];
-		}
-	}
-
-	return "";
-}
-
-void DiffMarginEditorPlugin::_maybe_enable_plugin() {
+void BfxrEditorPlugin::_maybe_enable_plugin() {
 	if (!addon_ready) {
 		return;
 	}
-	EditorInterface *editor_interface = EditorInterface::get_singleton();
-	if (!editor_interface) {
+	if (!FileAccess::exists(BFXR_PLUGIN_CFG)) {
 		return;
 	}
 	if (_is_addon_enabled_in_project()) {
 		return;
 	}
-	if (!editor_interface->is_plugin_enabled(DIFF_MARGIN_PLUGIN_NAME)) {
-		editor_interface->set_plugin_enabled(DIFF_MARGIN_PLUGIN_NAME, true);
+
+	EditorInterface *editor_interface = EditorInterface::get_singleton();
+	if (!editor_interface) {
+		return;
+	}
+
+	String plugin_name = _read_plugin_name_from_cfg();
+	if (plugin_name.is_empty()) {
+		plugin_name = BFXR_FALLBACK_PLUGIN_NAME;
+	}
+
+	if (!editor_interface->is_plugin_enabled(plugin_name)) {
+		editor_interface->set_plugin_enabled(plugin_name, true);
 	}
 }
 
-bool DiffMarginEditorPlugin::_ensure_addon_installed() {
-	const String dst_path = ProjectSettings::get_singleton()->globalize_path(String(DIFF_MARGIN_ADDON_PATH));
-	const String dst_plugin_cfg = dst_path.path_join("plugin.cfg");
-	const String dst_marker = dst_path.path_join(DIFF_MARGIN_SYNC_MARKER_FILE);
+void BfxrEditorPlugin::_ensure_gitignore_entries() {
+	ProjectSettings *project_settings = ProjectSettings::get_singleton();
+	if (!project_settings) {
+		return;
+	}
+
+	const String gitignore_path = project_settings->globalize_path("res://.gitignore");
+	const bool has_existing = FileAccess::exists(gitignore_path);
+	String gitignore_contents;
+
+	if (has_existing) {
+		Ref<FileAccess> file = FileAccess::open(gitignore_path, FileAccess::READ);
+		if (file.is_null()) {
+			return;
+		}
+		gitignore_contents = file->get_as_text();
+	}
+
+	bool gitignore_changed = false;
+	if (!has_existing || gitignore_contents.is_empty()) {
+		gitignore_contents = "# Godot 4+ specific ignores\n.godot/\n";
+		gitignore_changed = true;
+	}
+
+	if (gitignore_contents.find("addons/bfxr2-mcp-server/") == -1) {
+		if (!gitignore_contents.ends_with("\n")) {
+			gitignore_contents += "\n";
+		}
+		gitignore_contents += "addons/bfxr2-mcp-server/\n";
+		gitignore_changed = true;
+	}
+
+	if (!gitignore_changed) {
+		return;
+	}
+
+	Ref<FileAccess> out = FileAccess::open(gitignore_path, FileAccess::WRITE);
+	if (out.is_null()) {
+		return;
+	}
+	out->store_string(gitignore_contents);
+}
+
+bool BfxrEditorPlugin::_ensure_addon_installed() {
+	const String dst_path = ProjectSettings::get_singleton()->globalize_path(String(BFXR_ADDON_PATH));
+	const String dst_marker = dst_path.path_join(BFXR_SYNC_MARKER_FILE);
+
 	String marker_revision;
 	uint64_t marker_mtime = 0;
 	const bool has_marker = _read_sync_marker(dst_marker, marker_revision, marker_mtime);
+
 	const String src_path = _find_source_addon_path();
 	if (src_path.is_empty()) {
-		ERR_PRINT("Diff Margin addon source not found. Clone the submodule into modules/ultimate_ai/external/godot-diff-margin.");
+		ERR_PRINT("BFXR runtime source not found. Clone submodule into modules/ultimate_ai/external/bfxr2-mcp-server.");
 		return false;
 	}
+
 	const uint64_t src_mtime = _get_latest_mtime(src_path);
-	const bool marker_valid = has_marker && marker_revision == DIFF_MARGIN_SYNC_REVISION && marker_mtime >= src_mtime;
-	if (FileAccess::exists(dst_plugin_cfg) && marker_valid) {
+	const bool marker_valid = has_marker && marker_revision == BFXR_SYNC_REVISION && marker_mtime >= src_mtime;
+	if (DirAccess::dir_exists_absolute(dst_path) && marker_valid) {
 		return true;
 	}
 
 	if (DirAccess::dir_exists_absolute(dst_path)) {
 		Error clear_err = _remove_dir_contents(dst_path);
 		if (clear_err != OK) {
-			ERR_PRINT("Diff Margin addon cleanup failed.");
+			ERR_PRINT("BFXR addon cleanup failed.");
 			return false;
 		}
 	}
 
 	if (_copy_dir_recursive(src_path, dst_path) != OK) {
-		ERR_PRINT("Diff Margin addon copy failed.");
+		ERR_PRINT("BFXR addon copy failed.");
 		return false;
 	}
 
@@ -214,18 +226,30 @@ bool DiffMarginEditorPlugin::_ensure_addon_installed() {
 	}
 
 	enable_pending = true;
-	_write_sync_marker(dst_marker, DIFF_MARGIN_SYNC_REVISION, src_mtime);
+	_write_sync_marker(dst_marker, BFXR_SYNC_REVISION, src_mtime);
 	return false;
 }
 
-String DiffMarginEditorPlugin::_find_source_addon_path() const {
-	String exec_dir = OS::get_singleton()->get_executable_path().get_base_dir();
+String BfxrEditorPlugin::_find_source_addon_path() const {
+	const String exec_dir = OS::get_singleton()->get_executable_path().get_base_dir();
 	Vector<String> candidates;
-	candidates.push_back(exec_dir.path_join("modules/ultimate_ai/external/godot-diff-margin/addons/diff-margin").simplify_path());
-	candidates.push_back(exec_dir.path_join("../modules/ultimate_ai/external/godot-diff-margin/addons/diff-margin").simplify_path());
-	candidates.push_back(exec_dir.path_join("../../modules/ultimate_ai/external/godot-diff-margin/addons/diff-margin").simplify_path());
-	candidates.push_back(exec_dir.path_join("../../../modules/ultimate_ai/external/godot-diff-margin/addons/diff-margin").simplify_path());
-	candidates.push_back(String(__FILE__).get_base_dir().path_join("../external/godot-diff-margin/addons/diff-margin").simplify_path());
+
+	candidates.push_back(String(__FILE__).get_base_dir().path_join("../external/bfxr2-mcp-server/addons/bfxr2-mcp-server").simplify_path());
+	candidates.push_back(String(__FILE__).get_base_dir().path_join("../external/bfxr2-mcp-server/addons/bfxr").simplify_path());
+	candidates.push_back(String(__FILE__).get_base_dir().path_join("../external/bfxr2-mcp-server/addons/bfxr2").simplify_path());
+	candidates.push_back(String(__FILE__).get_base_dir().path_join("../external/bfxr2-mcp-server").simplify_path());
+
+	candidates.push_back(exec_dir.path_join("modules/ultimate_ai/external/bfxr2-mcp-server/addons/bfxr2-mcp-server").simplify_path());
+	candidates.push_back(exec_dir.path_join("../modules/ultimate_ai/external/bfxr2-mcp-server/addons/bfxr2-mcp-server").simplify_path());
+	candidates.push_back(exec_dir.path_join("../../modules/ultimate_ai/external/bfxr2-mcp-server/addons/bfxr2-mcp-server").simplify_path());
+	candidates.push_back(exec_dir.path_join("../../../modules/ultimate_ai/external/bfxr2-mcp-server/addons/bfxr2-mcp-server").simplify_path());
+	candidates.push_back(exec_dir.path_join("modules/ultimate_ai/external/bfxr2-mcp-server").simplify_path());
+	candidates.push_back(exec_dir.path_join("../modules/ultimate_ai/external/bfxr2-mcp-server").simplify_path());
+	candidates.push_back(exec_dir.path_join("../../modules/ultimate_ai/external/bfxr2-mcp-server").simplify_path());
+	candidates.push_back(exec_dir.path_join("../../../modules/ultimate_ai/external/bfxr2-mcp-server").simplify_path());
+
+	candidates.push_back(exec_dir.path_join("addons/bfxr2-mcp-server").simplify_path());
+	candidates.push_back(exec_dir.path_join("../addons/bfxr2-mcp-server").simplify_path());
 
 	for (int i = 0; i < candidates.size(); i++) {
 		if (DirAccess::dir_exists_absolute(candidates[i])) {
@@ -236,17 +260,27 @@ String DiffMarginEditorPlugin::_find_source_addon_path() const {
 	return "";
 }
 
-bool DiffMarginEditorPlugin::_is_addon_enabled_in_project() const {
+String BfxrEditorPlugin::_read_plugin_name_from_cfg() const {
+	ConfigFile cfg;
+	if (cfg.load(BFXR_PLUGIN_CFG) != OK) {
+		return "";
+	}
+	if (!cfg.has_section_key("plugin", "name")) {
+		return "";
+	}
+	return cfg.get_value("plugin", "name", "");
+}
+
+bool BfxrEditorPlugin::_is_addon_enabled_in_project() const {
 	ProjectSettings *project_settings = ProjectSettings::get_singleton();
 	if (!project_settings || !project_settings->has_setting("editor_plugins/enabled")) {
 		return false;
 	}
 	PackedStringArray enabled = project_settings->get("editor_plugins/enabled");
-	const String addon_cfg = String(DIFF_MARGIN_ADDON_PATH).path_join("plugin.cfg");
-	return enabled.has(addon_cfg);
+	return enabled.has(String(BFXR_ADDON_PATH).path_join("plugin.cfg"));
 }
 
-Error DiffMarginEditorPlugin::_copy_dir_recursive(const String &p_src, const String &p_dst) {
+Error BfxrEditorPlugin::_copy_dir_recursive(const String &p_src, const String &p_dst) {
 	Ref<DirAccess> src_dir = DirAccess::open(p_src);
 	if (src_dir.is_null()) {
 		return ERR_CANT_OPEN;
@@ -296,7 +330,7 @@ Error DiffMarginEditorPlugin::_copy_dir_recursive(const String &p_src, const Str
 	return OK;
 }
 
-uint64_t DiffMarginEditorPlugin::_get_latest_mtime(const String &p_path) const {
+uint64_t BfxrEditorPlugin::_get_latest_mtime(const String &p_path) const {
 	Ref<DirAccess> dir = DirAccess::open(p_path);
 	if (dir.is_null()) {
 		return 0;
@@ -329,7 +363,7 @@ uint64_t DiffMarginEditorPlugin::_get_latest_mtime(const String &p_path) const {
 	return latest;
 }
 
-bool DiffMarginEditorPlugin::_read_sync_marker(const String &p_marker_path, String &r_revision, uint64_t &r_mtime) const {
+bool BfxrEditorPlugin::_read_sync_marker(const String &p_marker_path, String &r_revision, uint64_t &r_mtime) const {
 	r_revision = "";
 	r_mtime = 0;
 	if (!FileAccess::exists(p_marker_path)) {
@@ -353,7 +387,7 @@ bool DiffMarginEditorPlugin::_read_sync_marker(const String &p_marker_path, Stri
 	return !r_revision.is_empty();
 }
 
-void DiffMarginEditorPlugin::_write_sync_marker(const String &p_marker_path, const String &p_revision, uint64_t p_mtime) const {
+void BfxrEditorPlugin::_write_sync_marker(const String &p_marker_path, const String &p_revision, uint64_t p_mtime) const {
 	Ref<FileAccess> marker_writer = FileAccess::open(p_marker_path, FileAccess::WRITE);
 	if (marker_writer.is_null()) {
 		return;
@@ -362,7 +396,7 @@ void DiffMarginEditorPlugin::_write_sync_marker(const String &p_marker_path, con
 	marker_writer->store_string(String("mtime=") + String::num_uint64(p_mtime) + "\n");
 }
 
-Error DiffMarginEditorPlugin::_remove_dir_contents(const String &p_path) const {
+Error BfxrEditorPlugin::_remove_dir_contents(const String &p_path) const {
 	Ref<DirAccess> dir = DirAccess::open(p_path);
 	if (dir.is_null()) {
 		return ERR_CANT_OPEN;

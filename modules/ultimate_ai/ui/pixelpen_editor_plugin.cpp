@@ -30,6 +30,7 @@
 
 #include "pixelpen_editor_plugin.h"
 
+#include "addon_bootstrap_utils.h"
 #include "assistant_panel.h"
 
 #include "core/config/project_settings.h"
@@ -86,6 +87,7 @@ PixelPenEditorPlugin::~PixelPenEditorPlugin() {
 void PixelPenEditorPlugin::_notification(int p_what) {
 	switch (p_what) {
 		case NOTIFICATION_ENTER_TREE: {
+			AddonBootstrapMigrator::ensure_default_gitignore_entries_once();
 			add_tool_menu_item(TTR(PIXELPEN_MENU_OPEN_WINDOW), callable_mp(this, &PixelPenEditorPlugin::_open_window));
 			connect(SNAME("main_screen_changed"), callable_mp(this, &PixelPenEditorPlugin::_on_main_screen_changed));
 			addon_preload_pending = true;

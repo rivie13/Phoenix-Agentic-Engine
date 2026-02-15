@@ -1,5 +1,5 @@
 /**************************************************************************/
-/*  register_types.cpp                                                    */
+/*  bfxr_runtime_bridge.h                                                 */
 /**************************************************************************/
 /*                         This file is part of:                          */
 /*                             GODOT ENGINE                               */
@@ -28,41 +28,30 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
 /**************************************************************************/
 
-#include "register_types.h"
+#pragma once
 
-#ifdef TOOLS_ENABLED
-#include "core/bfxr_runtime_bridge.h"
-#include "core/object/class_db.h"
-#include "core/terminal_orchestrator_bridge.h"
-#include "ui/bfxr_editor_plugin.h"
-#include "ui/diff_margin_editor_plugin.h"
-#include "ui/gdterm_editor_plugin.h"
-#include "ui/git_plugin_editor_plugin.h"
-#include "ui/pixelpen_editor_plugin.h"
-#include "ui/ultimate_ai_editor_plugin.h"
-#endif
+#include "core/object/ref_counted.h"
 
-void initialize_ultimate_ai_module(ModuleInitializationLevel p_level) {
-	if (p_level != MODULE_INITIALIZATION_LEVEL_EDITOR) {
-		return;
-	}
+class BfxrRuntimeBridge : public RefCounted {
+	GDCLASS(BfxrRuntimeBridge, RefCounted);
 
-#ifdef TOOLS_ENABLED
-	ClassDB::register_class<BfxrRuntimeBridge>();
-	ClassDB::register_class<UltimateAITerminalBridge>();
-	EditorPlugins::add_by_type<UltimateAIEditorPlugin>();
-	EditorPlugins::add_by_type<BfxrEditorPlugin>();
-	EditorPlugins::add_by_type<DiffMarginEditorPlugin>();
-	EditorPlugins::add_by_type<GDTermEditorPlugin>();
-	EditorPlugins::add_by_type<GitPluginEditorPlugin>();
-	EditorPlugins::add_by_type<PixelPenEditorPlugin>();
-#endif
-}
+	mutable String last_error;
 
-void uninitialize_ultimate_ai_module(ModuleInitializationLevel p_level) {
-	if (p_level != MODULE_INITIALIZATION_LEVEL_EDITOR) {
-		return;
-	}
+	Dictionary _run_bridge_command(const String &p_command, const Dictionary &p_args = Dictionary()) const;
+	String _find_node_path() const;
+	String _find_bridge_script_path() const;
+	void _set_last_error(const String &p_error) const;
+	bool _is_node_invocable(const String &p_node_path) const;
 
-	// TODO: Unregister classes for the Ultimate AI module.
-}
+protected:
+	static void _bind_methods();
+
+public:
+	bool is_runtime_available() const;
+	String get_last_error() const;
+
+	Dictionary list_synths() const;
+	Dictionary list_presets(const String &p_synth = "bfxr") const;
+	Dictionary list_params(const String &p_synth = "bfxr") const;
+	Dictionary generate_wav(const Dictionary &p_options) const;
+};
