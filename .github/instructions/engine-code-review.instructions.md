@@ -1,5 +1,4 @@
 ---
-applyTo: "**"
 excludeAgent: "coding-agent"
 ---
 

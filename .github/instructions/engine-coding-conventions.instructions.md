@@ -1,6 +1,3 @@
----
-applyTo: "**"
----
 
 # Coding conventions — Phoenix Agentic Engine (Godot fork)
 

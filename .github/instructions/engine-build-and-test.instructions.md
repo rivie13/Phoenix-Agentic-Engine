@@ -1,6 +1,3 @@
----
-applyTo: "**"
----
 
 # Build and test — Phoenix Agentic Engine (Godot fork)
 
