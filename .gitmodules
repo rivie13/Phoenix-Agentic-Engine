@@ -11,3 +11,6 @@
 [submodule "modules/ultimate_ai/external/gdterm"]
 	path = modules/ultimate_ai/external/gdterm
 	url = https://github.com/rivie13/gdterm.git
+[submodule "modules/ultimate_ai/external/bfxr2-mcp-server"]
+	path = modules/ultimate_ai/external/bfxr2-mcp-server
+	url = https://github.com/rivie13/bfxr2-mcp-server.git
