@@ -41,6 +41,7 @@
 #include "core/string/translation.h"
 #include "editor/file_system/editor_file_system.h"
 #include "scene/audio/audio_stream_player.h"
+#include "scene/gui/box_container.h"
 #include "scene/gui/button.h"
 #include "scene/gui/label.h"
 #include "scene/gui/line_edit.h"
@@ -50,7 +51,6 @@
 #include "scene/gui/split_container.h"
 #include "scene/gui/tab_container.h"
 #include "scene/gui/text_edit.h"
-#include "scene/gui/box_container.h"
 #include "scene/resources/audio_stream_wav.h"
 
 namespace {
@@ -77,7 +77,7 @@ Vector<uint8_t> _decode_base64_bytes(const String &p_base64) {
 	bytes.resize(decoded_len);
 	return bytes;
 }
-}
+} //namespace
 
 void BfxrPanel::_bind_methods() {
 }
