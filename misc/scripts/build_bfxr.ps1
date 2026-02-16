@@ -66,3 +66,4 @@ foreach ($requiredFile in $requiredFiles) {
 }
 
 Write-Host "[bfxr] Staged runtime payload for platform: $Platform" -ForegroundColor Green
+$global:LASTEXITCODE = 0
