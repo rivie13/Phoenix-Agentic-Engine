@@ -168,6 +168,15 @@ jobs:
             throw "Failed to resolve bfxr2-mcp-server SHA"
           }
 
+          $gutPath = Join-Path $env:GITHUB_WORKSPACE "modules\ultimate_ai\external\gut"
+          if (!(Test-Path $gutPath)) {
+            throw "gut path not found at $gutPath"
+          }
+          $gutSha = (git -C $gutPath rev-parse HEAD).Trim()
+          if (-not $gutSha) {
+            throw "Failed to resolve gut SHA"
+          }
+
           "godot_cpp_ref=$godotCppRef" >> $env:GITHUB_OUTPUT
           "godot_cpp_sha=$godotCppSha" >> $env:GITHUB_OUTPUT
           "git_plugin_sha=$gitPluginSha" >> $env:GITHUB_OUTPUT
@@ -175,6 +184,7 @@ jobs:
           "diff_margin_sha=$diffMarginSha" >> $env:GITHUB_OUTPUT
           "gdterm_sha=$gdtermSha" >> $env:GITHUB_OUTPUT
           "bfxr_sha=$bfxrSha" >> $env:GITHUB_OUTPUT
+          "gut_sha=$gutSha" >> $env:GITHUB_OUTPUT
 
 
       - name: Restore Git Plugin addon cache
@@ -317,6 +327,27 @@ jobs:
           path: bin/addons/bfxr2-mcp-server
           key: ${{ runner.os }}|bfxr-addon|${{ github.ref_name }}|${{ steps.addon-deps.outputs.bfxr_sha }}|${{ hashFiles('misc/scripts/build_bfxr.ps1', 'misc/scripts/build_bfxr.sh', 'modules/ultimate_ai/tools/phoenix_bridge.js') }}
 
+      - name: Restore GUT addon cache
+        id: gut-addon-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: bin/addons/gut
+          key: ${{ runner.os }}|gut-addon|${{ github.ref_name }}|${{ steps.addon-deps.outputs.gut_sha }}|${{ hashFiles('misc/scripts/build_gut.ps1', 'misc/scripts/build_gut.sh') }}
+
+      - name: Build GUT addon
+        if: steps.gut-addon-cache.outputs.cache-hit != 'true'
+        run: |
+          ./misc/scripts/build_gut.ps1 -Platform windows -EngineRoot "$PWD"
+        shell: pwsh
+
+      - name: Save GUT addon cache
+        if: steps.gut-addon-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        continue-on-error: true
+        with:
+          path: bin/addons/gut
+          key: ${{ runner.os }}|gut-addon|${{ github.ref_name }}|${{ steps.addon-deps.outputs.gut_sha }}|${{ hashFiles('misc/scripts/build_gut.ps1', 'misc/scripts/build_gut.sh') }}
+
       - name: Restore bundled Node runtime cache
         id: node-runtime-cache
         uses: actions/cache/restore@v4
@@ -367,7 +398,8 @@ jobs:
             (Join-Path $env:GITHUB_WORKSPACE "bin\addons\net.yarvis.pixel_pen"),
             (Join-Path $env:GITHUB_WORKSPACE "bin\addons\diff-margin"),
             (Join-Path $env:GITHUB_WORKSPACE "bin\addons\gdterm"),
-            (Join-Path $env:GITHUB_WORKSPACE "bin\addons\bfxr2-mcp-server")
+            (Join-Path $env:GITHUB_WORKSPACE "bin\addons\bfxr2-mcp-server"),
+            (Join-Path $env:GITHUB_WORKSPACE "bin\addons\gut")
           )
           $requiredRuntimeFiles = @(
             (Join-Path $env:GITHUB_WORKSPACE "bin\tools\node\windows\node.exe")

@@ -2,7 +2,7 @@
 
 ## Fork Notice (Phoenix Agentic Engine)
 
-This repository is a fork of [Godot Engine](https://github.com/godotengine/godot). Phoenix Agentic Engine is an AI-native edition of the Godot editor focused on agentic workflows for game development. Planning docs live in [phoenix_docs](phoenix_docs), and implementation is designed to keep core engine changes minimal.
+This repository is a fork of [Godot Engine](https://github.com/godotengine/godot). Phoenix Agentic Engine is an AI-native edition of the Godot editor focused on agentic workflows for game development. Public docs live in [phoenix_docs_public](phoenix_docs_public), and implementation is designed to keep core engine changes minimal.
 
 <p align="center">
   <a>
@@ -37,7 +37,7 @@ Phoenix enables a workflow like:
 4. Assets, scripts, and scenes are created or modified in-editor
 5. Results are summarized and optionally committed
 
-See [phoenix_docs/UX_ASSISTANT.md](phoenix_docs/UX_ASSISTANT.md) and [phoenix_docs/ARCHITECTURE.md](phoenix_docs/ARCHITECTURE.md) for the current UX and architecture plans.
+See [phoenix_docs_public/UX_ASSISTANT.md](phoenix_docs_public/UX_ASSISTANT.md) and [phoenix_docs_public/ARCHITECTURE.md](phoenix_docs_public/ARCHITECTURE.md) for the current UX and architecture overview.
 
 ## Open Source And Managed Services
 
@@ -46,11 +46,13 @@ Phoenix follows a dual-track model:
 - Open source editor integration (MIT), including BYOK support
 - Optional managed service for convenience, billing, and hosted models
 
-The managed service backend is proprietary and not required to use Phoenix. See [phoenix_docs/MONETIZATION.md](phoenix_docs/MONETIZATION.md) for details.
+The managed service backend is proprietary and not required to use Phoenix. See [phoenix_docs_public/MONETIZATION.md](phoenix_docs_public/MONETIZATION.md) for an overview.
 
 ## Integrations
 
-Phoenix is designed to integrate with editor-native tools and external MCP servers for docs, audio, asset tooling, and project management. See [phoenix_docs/INTEGRATIONS.md](phoenix_docs/INTEGRATIONS.md) and [phoenix_docs/GLUE_ARCHITECTURE.md](phoenix_docs/GLUE_ARCHITECTURE.md) for the current inventory and planned integrations.
+Phoenix is designed to integrate with editor-native tools and external tool servers for docs, audio, asset tooling, and project management. See [phoenix_docs_public/INTEGRATIONS.md](phoenix_docs_public/INTEGRATIONS.md) and [phoenix_docs_public/GLUE_ARCHITECTURE.md](phoenix_docs_public/GLUE_ARCHITECTURE.md) for the current inventory and integration overview.
+
+Current editor-native integration targets include Git/VCS workflows, PixelPen, GDTerm, BFXR tooling, and GUT-based in-editor unit testing.
 
 ## 2D and 3D cross-platform game engine
 
