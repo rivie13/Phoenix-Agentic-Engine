@@ -13,6 +13,7 @@ def get_doc_classes():
         "ToolAdapter",
         "AssistantPanel",
         "UltimateAITerminalBridge",
+        "BfxrRuntimeBridge",
     ]
 
 

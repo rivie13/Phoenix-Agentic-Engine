@@ -11,6 +11,7 @@ env:
     debug_symbols=no
     "angle_libs=${{ github.workspace }}/"
     "accesskit_sdk_path=${{ github.workspace }}/accesskit-c-0.18.0/"
+  NODE_RUNTIME_VERSION: 20.19.0
   SCONS_CACHE_MSVC_CONFIG: true
   PYTHONIOENCODING: utf8
 
@@ -212,11 +213,21 @@ jobs:
             throw "Failed to resolve gdterm SHA"
           }
 
+          $bfxrPath = Join-Path $env:GITHUB_WORKSPACE "modules\ultimate_ai\external\bfxr2-mcp-server"
+          if (!(Test-Path $bfxrPath)) {
+            throw "bfxr2-mcp-server path not found at $bfxrPath"
+          }
+          $bfxrSha = (git -C $bfxrPath rev-parse HEAD).Trim()
+          if (-not $bfxrSha) {
+            throw "Failed to resolve bfxr2-mcp-server SHA"
+          }
+
           "godot_cpp_sha=$godotCppSha" >> $env:GITHUB_OUTPUT
           "git_plugin_sha=$gitPluginSha" >> $env:GITHUB_OUTPUT
           "pixelpen_sha=$pixelpenSha" >> $env:GITHUB_OUTPUT
           "diff_margin_sha=$diffMarginSha" >> $env:GITHUB_OUTPUT
           "gdterm_sha=$gdtermSha" >> $env:GITHUB_OUTPUT
+          "bfxr_sha=$bfxrSha" >> $env:GITHUB_OUTPUT
         shell: pwsh
 
       - name: Restore Git Plugin addon cache
@@ -225,7 +236,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: bin/addons/godot-git-plugin
-          key: ${{ runner.os }}|${{ matrix.cache-name }}|git-plugin-addon|${{ steps.extension-api-hash.outputs.hash }}|${{ steps.addon-deps.outputs.git_plugin_sha }}|${{ steps.addon-deps.outputs.godot_cpp_sha }}|${{ hashFiles('modules/ultimate_ai/external/godot-git-plugin/**', 'misc/scripts/build_godot_git_plugin.ps1', 'misc/scripts/build_godot_git_plugin.sh', 'misc/scripts/sanitize_extension_api.py') }}
+          key: ${{ runner.os }}|${{ matrix.cache-name }}|git-plugin-addon|${{ steps.extension-api-hash.outputs.hash }}|${{ steps.addon-deps.outputs.git_plugin_sha }}|${{ steps.addon-deps.outputs.godot_cpp_sha }}|${{ hashFiles('misc/scripts/build_godot_git_plugin.ps1', 'misc/scripts/build_godot_git_plugin.sh', 'misc/scripts/sanitize_extension_api.py') }}
 
       - name: Build Git Plugin addon
         if: matrix.target == 'editor' && steps.git-plugin-addon-cache.outputs.cache-hit != 'true'
@@ -277,7 +288,7 @@ jobs:
         continue-on-error: true
         with:
           path: bin/addons/godot-git-plugin
-          key: ${{ runner.os }}|${{ matrix.cache-name }}|git-plugin-addon|${{ steps.extension-api-hash.outputs.hash }}|${{ steps.addon-deps.outputs.git_plugin_sha }}|${{ steps.addon-deps.outputs.godot_cpp_sha }}|${{ hashFiles('modules/ultimate_ai/external/godot-git-plugin/**', 'misc/scripts/build_godot_git_plugin.ps1', 'misc/scripts/build_godot_git_plugin.sh', 'misc/scripts/sanitize_extension_api.py') }}
+          key: ${{ runner.os }}|${{ matrix.cache-name }}|git-plugin-addon|${{ steps.extension-api-hash.outputs.hash }}|${{ steps.addon-deps.outputs.git_plugin_sha }}|${{ steps.addon-deps.outputs.godot_cpp_sha }}|${{ hashFiles('misc/scripts/build_godot_git_plugin.ps1', 'misc/scripts/build_godot_git_plugin.sh', 'misc/scripts/sanitize_extension_api.py') }}
 
       - name: Restore PixelPen addon cache
         if: matrix.target == 'editor' && matrix.compiler == 'msvc'
@@ -287,7 +298,7 @@ jobs:
           path: |
             bin/addons/net.yarvis.pixel_pen
             bin/addons/diff-margin
-          key: ${{ runner.os }}|${{ matrix.cache-name }}|pixelpen-addon|${{ steps.extension-api-hash.outputs.hash }}|${{ steps.addon-deps.outputs.godot_cpp_sha }}|${{ steps.addon-deps.outputs.pixelpen_sha }}|${{ steps.addon-deps.outputs.diff_margin_sha }}|${{ hashFiles('modules/ultimate_ai/external/pixelpen/**', 'modules/ultimate_ai/external/godot-diff-margin/**', 'misc/scripts/sanitize_extension_api.py') }}
+          key: ${{ runner.os }}|${{ matrix.cache-name }}|pixelpen-addon|${{ steps.extension-api-hash.outputs.hash }}|${{ steps.addon-deps.outputs.godot_cpp_sha }}|${{ steps.addon-deps.outputs.pixelpen_sha }}|${{ steps.addon-deps.outputs.diff_margin_sha }}|${{ hashFiles('misc/scripts/sanitize_extension_api.py') }}
 
       - name: Build PixelPen addon
         # Only stage PixelPen for the primary MSVC editor artifact.
@@ -390,7 +401,7 @@ jobs:
           path: |
             bin/addons/net.yarvis.pixel_pen
             bin/addons/diff-margin
-          key: ${{ runner.os }}|${{ matrix.cache-name }}|pixelpen-addon|${{ steps.extension-api-hash.outputs.hash }}|${{ steps.addon-deps.outputs.godot_cpp_sha }}|${{ steps.addon-deps.outputs.pixelpen_sha }}|${{ steps.addon-deps.outputs.diff_margin_sha }}|${{ hashFiles('modules/ultimate_ai/external/pixelpen/**', 'modules/ultimate_ai/external/godot-diff-margin/**', 'misc/scripts/sanitize_extension_api.py') }}
+          key: ${{ runner.os }}|${{ matrix.cache-name }}|pixelpen-addon|${{ steps.extension-api-hash.outputs.hash }}|${{ steps.addon-deps.outputs.godot_cpp_sha }}|${{ steps.addon-deps.outputs.pixelpen_sha }}|${{ steps.addon-deps.outputs.diff_margin_sha }}|${{ hashFiles('misc/scripts/sanitize_extension_api.py') }}
 
       - name: Restore GDTerm addon cache
         if: matrix.target == 'editor' && matrix.compiler == 'msvc'
@@ -398,7 +409,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: bin/addons/gdterm
-          key: ${{ runner.os }}|${{ matrix.cache-name }}|gdterm-addon|${{ steps.extension-api-hash.outputs.hash }}|${{ steps.addon-deps.outputs.godot_cpp_sha }}|${{ steps.addon-deps.outputs.gdterm_sha }}|${{ hashFiles('modules/ultimate_ai/external/gdterm/**', 'misc/scripts/build_gdterm.ps1', 'misc/scripts/build_gdterm.sh', 'misc/scripts/sanitize_extension_api.py') }}
+          key: ${{ runner.os }}|${{ matrix.cache-name }}|gdterm-addon|${{ steps.extension-api-hash.outputs.hash }}|${{ steps.addon-deps.outputs.godot_cpp_sha }}|${{ steps.addon-deps.outputs.gdterm_sha }}|${{ hashFiles('misc/scripts/build_gdterm.ps1', 'misc/scripts/build_gdterm.sh', 'misc/scripts/sanitize_extension_api.py') }}
 
       - name: Build GDTerm addon
         # Only stage GDTerm for the primary MSVC editor artifact.
@@ -453,7 +464,51 @@ jobs:
         continue-on-error: true
         with:
           path: bin/addons/gdterm
-          key: ${{ runner.os }}|${{ matrix.cache-name }}|gdterm-addon|${{ steps.extension-api-hash.outputs.hash }}|${{ steps.addon-deps.outputs.godot_cpp_sha }}|${{ steps.addon-deps.outputs.gdterm_sha }}|${{ hashFiles('modules/ultimate_ai/external/gdterm/**', 'misc/scripts/build_gdterm.ps1', 'misc/scripts/build_gdterm.sh', 'misc/scripts/sanitize_extension_api.py') }}
+          key: ${{ runner.os }}|${{ matrix.cache-name }}|gdterm-addon|${{ steps.extension-api-hash.outputs.hash }}|${{ steps.addon-deps.outputs.godot_cpp_sha }}|${{ steps.addon-deps.outputs.gdterm_sha }}|${{ hashFiles('misc/scripts/build_gdterm.ps1', 'misc/scripts/build_gdterm.sh', 'misc/scripts/sanitize_extension_api.py') }}
+
+      - name: Restore BFXR addon cache
+        if: matrix.target == 'editor' && matrix.compiler == 'msvc'
+        id: bfxr-addon-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: bin/addons/bfxr2-mcp-server
+          key: ${{ runner.os }}|${{ matrix.cache-name }}|bfxr-addon|${{ steps.addon-deps.outputs.bfxr_sha }}|${{ hashFiles('misc/scripts/build_bfxr.ps1', 'misc/scripts/build_bfxr.sh', 'modules/ultimate_ai/tools/phoenix_bridge.js') }}
+
+      - name: Build BFXR addon
+        if: matrix.target == 'editor' && matrix.compiler == 'msvc' && steps.bfxr-addon-cache.outputs.cache-hit != 'true'
+        run: |
+          ./misc/scripts/build_bfxr.ps1 -Platform windows -EngineRoot "$PWD"
+        shell: pwsh
+
+      - name: Save BFXR addon cache
+        if: matrix.target == 'editor' && matrix.compiler == 'msvc' && steps.bfxr-addon-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        continue-on-error: true
+        with:
+          path: bin/addons/bfxr2-mcp-server
+          key: ${{ runner.os }}|${{ matrix.cache-name }}|bfxr-addon|${{ steps.addon-deps.outputs.bfxr_sha }}|${{ hashFiles('misc/scripts/build_bfxr.ps1', 'misc/scripts/build_bfxr.sh', 'modules/ultimate_ai/tools/phoenix_bridge.js') }}
+
+      - name: Restore bundled Node runtime cache
+        if: matrix.target == 'editor' && matrix.compiler == 'msvc'
+        id: node-runtime-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: bin/tools/node
+          key: ${{ runner.os }}|${{ matrix.cache-name }}|node-runtime|${{ env.NODE_RUNTIME_VERSION }}|${{ hashFiles('misc/scripts/stage_node_runtime.ps1', 'misc/scripts/stage_node_runtime.sh', 'modules/ultimate_ai/core/bfxr_runtime_bridge.cpp') }}
+
+      - name: Stage bundled Node runtime
+        if: matrix.target == 'editor' && matrix.compiler == 'msvc' && steps.node-runtime-cache.outputs.cache-hit != 'true'
+        run: |
+          ./misc/scripts/stage_node_runtime.ps1 -Platform windows -EngineRoot "$PWD" -NodeVersion "${{ env.NODE_RUNTIME_VERSION }}"
+        shell: pwsh
+
+      - name: Save bundled Node runtime cache
+        if: matrix.target == 'editor' && matrix.compiler == 'msvc' && steps.node-runtime-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        continue-on-error: true
+        with:
+          path: bin/tools/node
+          key: ${{ runner.os }}|${{ matrix.cache-name }}|node-runtime|${{ env.NODE_RUNTIME_VERSION }}|${{ hashFiles('misc/scripts/stage_node_runtime.ps1', 'misc/scripts/stage_node_runtime.sh', 'modules/ultimate_ai/core/bfxr_runtime_bridge.cpp') }}
 
       - name: Save Phoenix build cache
         uses: ./.github/actions/phoenix-cache-save
@@ -482,7 +537,12 @@ jobs:
               (Join-Path $env:GITHUB_WORKSPACE "bin\addons\godot-git-plugin"),
               (Join-Path $env:GITHUB_WORKSPACE "bin\addons\net.yarvis.pixel_pen"),
               (Join-Path $env:GITHUB_WORKSPACE "bin\addons\diff-margin"),
-              (Join-Path $env:GITHUB_WORKSPACE "bin\addons\gdterm")
+              (Join-Path $env:GITHUB_WORKSPACE "bin\addons\gdterm"),
+              (Join-Path $env:GITHUB_WORKSPACE "bin\addons\bfxr2-mcp-server")
+            )
+
+            $requiredRuntimeFiles = @(
+              (Join-Path $env:GITHUB_WORKSPACE "bin\tools\node\windows\node.exe")
             )
 
             foreach ($addonDir in $requiredAddonDirs) {
@@ -490,6 +550,14 @@ jobs:
                 Write-Host "Missing expected addon directory: $addonDir" -ForegroundColor Red
                 Get-ChildItem (Join-Path $env:GITHUB_WORKSPACE 'bin\addons') -Force -ErrorAction SilentlyContinue | Format-Table -AutoSize
                 throw "Addon directory missing"
+              }
+            }
+
+            foreach ($runtimeFile in $requiredRuntimeFiles) {
+              if (!(Test-Path $runtimeFile)) {
+                Write-Host "Missing expected bundled Node runtime: $runtimeFile" -ForegroundColor Red
+                Get-ChildItem (Join-Path $env:GITHUB_WORKSPACE 'bin\tools\node') -Force -Recurse -ErrorAction SilentlyContinue | Select-Object FullName | Format-Table -AutoSize
+                throw "Bundled Node runtime missing"
               }
             }
           }

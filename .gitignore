@@ -87,6 +87,10 @@ phoenix_docs_private/
 phoenix_docs_private/ARCHITECTURE.md
 .github/copilot-instructions.md
 
+# Private Copilot instruction files (local only — never commit)
+.github/instructions/private-*.instructions.md
+.github/instructions/engine-private-*.instructions.md
+
 # Android
 .gradle/
 local.properties

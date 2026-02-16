@@ -30,6 +30,8 @@
 
 #include "git_plugin_editor_plugin.h"
 
+#include "addon_bootstrap_utils.h"
+
 #include "core/config/project_settings.h"
 #include "core/io/dir_access.h"
 #include "core/io/file_access.h"
@@ -58,6 +60,7 @@ GitPluginEditorPlugin::GitPluginEditorPlugin() {
 void GitPluginEditorPlugin::_notification(int p_what) {
 	switch (p_what) {
 		case NOTIFICATION_ENTER_TREE: {
+			AddonBootstrapMigrator::ensure_default_gitignore_entries_once();
 			bool needs_scan = false;
 			if (_ensure_addon_installed(needs_scan)) {
 				_enable_addon();

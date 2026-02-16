@@ -1,5 +1,5 @@
 /**************************************************************************/
-/*  register_types.cpp                                                    */
+/*  bfxr_editor_plugin.h                                                  */
 /**************************************************************************/
 /*                         This file is part of:                          */
 /*                             GODOT ENGINE                               */
@@ -28,41 +28,39 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
 /**************************************************************************/
 
-#include "register_types.h"
+#pragma once
 
-#ifdef TOOLS_ENABLED
-#include "core/bfxr_runtime_bridge.h"
-#include "core/object/class_db.h"
-#include "core/terminal_orchestrator_bridge.h"
-#include "ui/bfxr_editor_plugin.h"
-#include "ui/diff_margin_editor_plugin.h"
-#include "ui/gdterm_editor_plugin.h"
-#include "ui/git_plugin_editor_plugin.h"
-#include "ui/pixelpen_editor_plugin.h"
-#include "ui/ultimate_ai_editor_plugin.h"
-#endif
+#include "editor/plugins/editor_plugin.h"
 
-void initialize_ultimate_ai_module(ModuleInitializationLevel p_level) {
-	if (p_level != MODULE_INITIALIZATION_LEVEL_EDITOR) {
-		return;
-	}
+class BfxrPanel;
 
-#ifdef TOOLS_ENABLED
-	ClassDB::register_class<BfxrRuntimeBridge>();
-	ClassDB::register_class<UltimateAITerminalBridge>();
-	EditorPlugins::add_by_type<UltimateAIEditorPlugin>();
-	EditorPlugins::add_by_type<BfxrEditorPlugin>();
-	EditorPlugins::add_by_type<DiffMarginEditorPlugin>();
-	EditorPlugins::add_by_type<GDTermEditorPlugin>();
-	EditorPlugins::add_by_type<GitPluginEditorPlugin>();
-	EditorPlugins::add_by_type<PixelPenEditorPlugin>();
-#endif
-}
+class BfxrEditorPlugin : public EditorPlugin {
+	GDCLASS(BfxrEditorPlugin, EditorPlugin);
 
-void uninitialize_ultimate_ai_module(ModuleInitializationLevel p_level) {
-	if (p_level != MODULE_INITIALIZATION_LEVEL_EDITOR) {
-		return;
-	}
+	bool enable_pending = false;
+	bool addon_ready = false;
+	BfxrPanel *bfxr_panel = nullptr;
 
-	// TODO: Unregister classes for the Ultimate AI module.
-}
+	void _notification(int p_what);
+	void _maybe_enable_plugin();
+	void _ensure_gitignore_entries();
+	bool _is_addon_enabled_in_project() const;
+	String _read_plugin_name_from_cfg() const;
+
+	bool _ensure_addon_installed();
+	String _find_source_addon_path() const;
+	Error _copy_dir_recursive(const String &p_src, const String &p_dst);
+	uint64_t _get_latest_mtime(const String &p_path) const;
+	bool _read_sync_marker(const String &p_marker_path, String &r_revision, uint64_t &r_mtime) const;
+	void _write_sync_marker(const String &p_marker_path, const String &p_revision, uint64_t p_mtime) const;
+	Error _remove_dir_contents(const String &p_path) const;
+
+public:
+	String get_plugin_name() const override;
+	bool has_main_screen() const override;
+	const Ref<Texture2D> get_plugin_icon() const override;
+	void make_visible(bool p_visible) override;
+
+	BfxrEditorPlugin();
+	~BfxrEditorPlugin();
+};

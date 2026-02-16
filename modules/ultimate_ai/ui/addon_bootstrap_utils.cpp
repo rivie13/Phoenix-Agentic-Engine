@@ -1,5 +1,5 @@
 /**************************************************************************/
-/*  register_types.cpp                                                    */
+/*  addon_bootstrap_utils.cpp                                             */
 /**************************************************************************/
 /*                         This file is part of:                          */
 /*                             GODOT ENGINE                               */
@@ -28,41 +28,54 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
 /**************************************************************************/
 
-#include "register_types.h"
+#include "addon_bootstrap_utils.h"
 
-#ifdef TOOLS_ENABLED
-#include "core/bfxr_runtime_bridge.h"
-#include "core/object/class_db.h"
-#include "core/terminal_orchestrator_bridge.h"
-#include "ui/bfxr_editor_plugin.h"
-#include "ui/diff_margin_editor_plugin.h"
-#include "ui/gdterm_editor_plugin.h"
-#include "ui/git_plugin_editor_plugin.h"
-#include "ui/pixelpen_editor_plugin.h"
-#include "ui/ultimate_ai_editor_plugin.h"
-#endif
+#include "core/config/project_settings.h"
+#include "core/io/file_access.h"
 
-void initialize_ultimate_ai_module(ModuleInitializationLevel p_level) {
-	if (p_level != MODULE_INITIALIZATION_LEVEL_EDITOR) {
+void AddonBootstrapMigrator::ensure_default_gitignore_entries_once() {
+	static bool initialized = false;
+	if (initialized) {
+		return;
+	}
+	initialized = true;
+
+	ProjectSettings *project_settings = ProjectSettings::get_singleton();
+	if (!project_settings) {
 		return;
 	}
 
-#ifdef TOOLS_ENABLED
-	ClassDB::register_class<BfxrRuntimeBridge>();
-	ClassDB::register_class<UltimateAITerminalBridge>();
-	EditorPlugins::add_by_type<UltimateAIEditorPlugin>();
-	EditorPlugins::add_by_type<BfxrEditorPlugin>();
-	EditorPlugins::add_by_type<DiffMarginEditorPlugin>();
-	EditorPlugins::add_by_type<GDTermEditorPlugin>();
-	EditorPlugins::add_by_type<GitPluginEditorPlugin>();
-	EditorPlugins::add_by_type<PixelPenEditorPlugin>();
-#endif
-}
+	const String gitignore_path = project_settings->globalize_path("res://.gitignore");
+	const bool has_existing = FileAccess::exists(gitignore_path);
+	String gitignore_contents;
 
-void uninitialize_ultimate_ai_module(ModuleInitializationLevel p_level) {
-	if (p_level != MODULE_INITIALIZATION_LEVEL_EDITOR) {
+	if (has_existing) {
+		Ref<FileAccess> file = FileAccess::open(gitignore_path, FileAccess::READ);
+		if (file.is_null()) {
+			return;
+		}
+		gitignore_contents = file->get_as_text();
+	}
+
+	bool gitignore_changed = false;
+	if (!has_existing || gitignore_contents.is_empty()) {
+		gitignore_contents = "# Godot 4+ specific ignores\n.godot/\n";
+		gitignore_changed = true;
+	} else if (gitignore_contents.find(".godot/") == -1) {
+		if (!gitignore_contents.ends_with("\n")) {
+			gitignore_contents += "\n";
+		}
+		gitignore_contents += ".godot/\n";
+		gitignore_changed = true;
+	}
+
+	if (!gitignore_changed) {
 		return;
 	}
 
-	// TODO: Unregister classes for the Ultimate AI module.
+	Ref<FileAccess> out = FileAccess::open(gitignore_path, FileAccess::WRITE);
+	if (out.is_null()) {
+		return;
+	}
+	out->store_string(gitignore_contents);
 }
