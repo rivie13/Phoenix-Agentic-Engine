@@ -11,6 +11,7 @@ env:
   SCONS_CACHE_NAME: windows-editor
   NODE_RUNTIME_VERSION: 20.19.0
 
+
 jobs:
   build-windows:
     runs-on: windows-latest
@@ -174,6 +175,7 @@ jobs:
           "diff_margin_sha=$diffMarginSha" >> $env:GITHUB_OUTPUT
           "gdterm_sha=$gdtermSha" >> $env:GITHUB_OUTPUT
           "bfxr_sha=$bfxrSha" >> $env:GITHUB_OUTPUT
+
 
       - name: Restore Git Plugin addon cache
         id: git-plugin-addon-cache
