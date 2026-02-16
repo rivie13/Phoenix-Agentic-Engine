@@ -62,45 +62,45 @@ void GutEditorPlugin::_notification(int p_what) {
 			AddonBootstrapMigrator::ensure_default_gitignore_entries_once();
 			_ensure_gitignore_entries();
 			addon_ready = _ensure_addon_installed();
-				addon_activation_pending = addon_ready;
-				addon_enable_delay_frames = addon_ready ? 1 : 0;
-				set_process(enable_pending || addon_activation_pending);
+			addon_activation_pending = addon_ready;
+			addon_enable_delay_frames = addon_ready ? 1 : 0;
+			set_process(enable_pending || addon_activation_pending);
 		} break;
 		case NOTIFICATION_PROCESS: {
-				if (enable_pending) {
-					EditorFileSystem *efs = EditorFileSystem::get_singleton();
-					if (efs && efs->is_scanning()) {
-						return;
-					}
+			if (enable_pending) {
+				EditorFileSystem *efs = EditorFileSystem::get_singleton();
+				if (efs && efs->is_scanning()) {
+					return;
+				}
 
-					enable_pending = false;
-					addon_ready = _ensure_addon_installed() || addon_ready;
-					if (addon_ready) {
-						addon_activation_pending = true;
-						addon_enable_delay_frames = 1;
-					}
+				enable_pending = false;
+				addon_ready = _ensure_addon_installed() || addon_ready;
+				if (addon_ready) {
+					addon_activation_pending = true;
+					addon_enable_delay_frames = 1;
+				}
 			}
 
-				if (addon_activation_pending && addon_ready) {
-					if (addon_enable_delay_frames > 0) {
-						addon_enable_delay_frames--;
-						return;
-					}
-
-					if (_maybe_enable_plugin()) {
-						addon_activation_pending = false;
-					}
+			if (addon_activation_pending && addon_ready) {
+				if (addon_enable_delay_frames > 0) {
+					addon_enable_delay_frames--;
+					return;
 				}
 
-				if (!enable_pending && !addon_activation_pending) {
-					set_process(false);
+				if (_maybe_enable_plugin()) {
+					addon_activation_pending = false;
 				}
+			}
+
+			if (!enable_pending && !addon_activation_pending) {
+				set_process(false);
+			}
 		} break;
 		case NOTIFICATION_EXIT_TREE: {
 			enable_pending = false;
 			addon_ready = false;
-				addon_activation_pending = false;
-				addon_enable_delay_frames = 0;
+			addon_activation_pending = false;
+			addon_enable_delay_frames = 0;
 			set_process(false);
 		} break;
 	}
