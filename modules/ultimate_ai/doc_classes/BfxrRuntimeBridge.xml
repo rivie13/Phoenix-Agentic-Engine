@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="BfxrRuntimeBridge" inherits="RefCounted" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
+	<brief_description>
+	</brief_description>
+	<description>
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="generate_wav" qualifiers="const">
+			<return type="Dictionary" />
+			<param index="0" name="options" type="Dictionary" />
+			<description>
+			</description>
+		</method>
+		<method name="get_last_error" qualifiers="const">
+			<return type="String" />
+			<description>
+			</description>
+		</method>
+		<method name="is_runtime_available" qualifiers="const">
+			<return type="bool" />
+			<description>
+			</description>
+		</method>
+		<method name="list_params" qualifiers="const">
+			<return type="Dictionary" />
+			<param index="0" name="synth" type="String" default="&quot;bfxr&quot;" />
+			<description>
+			</description>
+		</method>
+		<method name="list_presets" qualifiers="const">
+			<return type="Dictionary" />
+			<param index="0" name="synth" type="String" default="&quot;bfxr&quot;" />
+			<description>
+			</description>
+		</method>
+		<method name="list_synths" qualifiers="const">
+			<return type="Dictionary" />
+			<description>
+			</description>
+		</method>
+	</methods>
+</class>

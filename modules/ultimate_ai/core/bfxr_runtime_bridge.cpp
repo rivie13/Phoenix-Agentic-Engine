@@ -40,15 +40,28 @@
 namespace {
 const char *const BFXR_BRIDGE_SCRIPT_NAME = "phoenix_bridge.js";
 
-String _platform_node_subdir() {
+Vector<String> _platform_node_subdirs() {
 #if defined(WINDOWS_ENABLED)
-	return "windows";
+	Vector<String> subdirs;
+	subdirs.push_back("windows");
+	return subdirs;
 #elif defined(MACOS_ENABLED)
-	return "macos";
+	Vector<String> subdirs;
+#if defined(ARM64_ENABLED)
+	subdirs.push_back("macos-arm64");
+	subdirs.push_back("macos-x64");
+#elif defined(X86_64_ENABLED)
+	subdirs.push_back("macos-x64");
+	subdirs.push_back("macos-arm64");
+#endif
+	subdirs.push_back("macos");
+	return subdirs;
 #elif defined(LINUXBSD_ENABLED)
-	return "linux";
+	Vector<String> subdirs;
+	subdirs.push_back("linux");
+	return subdirs;
 #else
-	return "";
+	return Vector<String>();
 #endif
 }
 
@@ -133,18 +146,21 @@ bool BfxrRuntimeBridge::is_runtime_available() const {
 String BfxrRuntimeBridge::_find_node_path() const {
 	const String exec_dir = OS::get_singleton()->get_executable_path().get_base_dir();
 	Vector<String> candidates;
-	const String node_subdir = _platform_node_subdir();
+	const Vector<String> node_subdirs = _platform_node_subdirs();
 
-	if (!node_subdir.is_empty()) {
+	if (!node_subdirs.is_empty()) {
 		const String node_binary =
 #if defined(WINDOWS_ENABLED)
 				"node.exe";
 #else
 				"node";
 #endif
-		candidates.push_back(exec_dir.path_join("tools/node").path_join(node_subdir).path_join(node_binary).simplify_path());
-		candidates.push_back(exec_dir.path_join("../tools/node").path_join(node_subdir).path_join(node_binary).simplify_path());
-		candidates.push_back(exec_dir.path_join("../../tools/node").path_join(node_subdir).path_join(node_binary).simplify_path());
+		for (int i = 0; i < node_subdirs.size(); i++) {
+			const String node_subdir = node_subdirs[i];
+			candidates.push_back(exec_dir.path_join("tools/node").path_join(node_subdir).path_join(node_binary).simplify_path());
+			candidates.push_back(exec_dir.path_join("../tools/node").path_join(node_subdir).path_join(node_binary).simplify_path());
+			candidates.push_back(exec_dir.path_join("../../tools/node").path_join(node_subdir).path_join(node_binary).simplify_path());
+		}
 	}
 
 	for (int i = 0; i < candidates.size(); i++) {

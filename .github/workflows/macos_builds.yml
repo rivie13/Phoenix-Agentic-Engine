@@ -9,6 +9,7 @@ env:
     dev_mode=yes
     module_text_server_fb_enabled=yes
     "accesskit_sdk_path=${{ github.workspace }}/accesskit-c-0.18.0/"
+  NODE_RUNTIME_VERSION: 20.19.0
 
 jobs:
   build-macos:
@@ -189,11 +190,23 @@ jobs:
             exit 1
           fi
 
+          bfxr_path="${GITHUB_WORKSPACE}/modules/ultimate_ai/external/bfxr2-mcp-server"
+          if [ ! -d "$bfxr_path" ]; then
+            echo "bfxr2-mcp-server path not found at $bfxr_path" >&2
+            exit 1
+          fi
+          bfxr_sha="$(git -C "$bfxr_path" rev-parse HEAD)"
+          if [ -z "$bfxr_sha" ]; then
+            echo "Failed to resolve bfxr2-mcp-server SHA" >&2
+            exit 1
+          fi
+
           echo "godot_cpp_sha=$godot_cpp_sha" >> "$GITHUB_OUTPUT"
           echo "git_plugin_sha=$git_plugin_sha" >> "$GITHUB_OUTPUT"
           echo "pixelpen_sha=$pixelpen_sha" >> "$GITHUB_OUTPUT"
           echo "diff_margin_sha=$diff_margin_sha" >> "$GITHUB_OUTPUT"
           echo "gdterm_sha=$gdterm_sha" >> "$GITHUB_OUTPUT"
+          echo "bfxr_sha=$bfxr_sha" >> "$GITHUB_OUTPUT"
 
       - name: Restore Git Plugin addon cache
         if: matrix.target == 'editor'
@@ -201,7 +214,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: bin/addons/godot-git-plugin
-          key: ${{ runner.os }}|${{ matrix.cache-name }}|git-plugin-addon|${{ steps.extension-api-hash.outputs.hash }}|${{ steps.addon-deps.outputs.git_plugin_sha }}|${{ steps.addon-deps.outputs.godot_cpp_sha }}|${{ hashFiles('modules/ultimate_ai/external/godot-git-plugin/**', 'misc/scripts/build_godot_git_plugin.sh', 'misc/scripts/build_godot_git_plugin.ps1', 'misc/scripts/sanitize_extension_api.py') }}
+          key: ${{ runner.os }}|${{ matrix.cache-name }}|git-plugin-addon|${{ steps.extension-api-hash.outputs.hash }}|${{ steps.addon-deps.outputs.git_plugin_sha }}|${{ steps.addon-deps.outputs.godot_cpp_sha }}|${{ hashFiles('misc/scripts/build_godot_git_plugin.sh', 'misc/scripts/build_godot_git_plugin.ps1', 'misc/scripts/sanitize_extension_api.py') }}
 
       - name: Build Git Plugin addon
         if: matrix.target == 'editor' && steps.git-plugin-addon-cache.outputs.cache-hit != 'true'
@@ -232,7 +245,7 @@ jobs:
         continue-on-error: true
         with:
           path: bin/addons/godot-git-plugin
-          key: ${{ runner.os }}|${{ matrix.cache-name }}|git-plugin-addon|${{ steps.extension-api-hash.outputs.hash }}|${{ steps.addon-deps.outputs.git_plugin_sha }}|${{ steps.addon-deps.outputs.godot_cpp_sha }}|${{ hashFiles('modules/ultimate_ai/external/godot-git-plugin/**', 'misc/scripts/build_godot_git_plugin.sh', 'misc/scripts/build_godot_git_plugin.ps1', 'misc/scripts/sanitize_extension_api.py') }}
+          key: ${{ runner.os }}|${{ matrix.cache-name }}|git-plugin-addon|${{ steps.extension-api-hash.outputs.hash }}|${{ steps.addon-deps.outputs.git_plugin_sha }}|${{ steps.addon-deps.outputs.godot_cpp_sha }}|${{ hashFiles('misc/scripts/build_godot_git_plugin.sh', 'misc/scripts/build_godot_git_plugin.ps1', 'misc/scripts/sanitize_extension_api.py') }}
 
       - name: Restore PixelPen addon cache
         if: matrix.target == 'editor'
@@ -240,7 +253,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: modules/ultimate_ai/external/pixelpen/project/addons/net.yarvis.pixel_pen
-          key: ${{ runner.os }}|${{ matrix.cache-name }}|pixelpen-addon|${{ steps.extension-api-hash.outputs.hash }}|${{ steps.addon-deps.outputs.godot_cpp_sha }}|${{ steps.addon-deps.outputs.pixelpen_sha }}|${{ steps.addon-deps.outputs.diff_margin_sha }}|${{ hashFiles('modules/ultimate_ai/external/pixelpen/**', 'modules/ultimate_ai/external/godot-diff-margin/**', 'misc/scripts/sanitize_extension_api.py') }}
+          key: ${{ runner.os }}|${{ matrix.cache-name }}|pixelpen-addon|${{ steps.extension-api-hash.outputs.hash }}|${{ steps.addon-deps.outputs.godot_cpp_sha }}|${{ steps.addon-deps.outputs.pixelpen_sha }}|${{ steps.addon-deps.outputs.diff_margin_sha }}|${{ hashFiles('misc/scripts/sanitize_extension_api.py') }}
 
       - name: Build PixelPen addon
         if: matrix.target == 'editor' && steps.pixelpen-addon-cache.outputs.cache-hit != 'true'
@@ -289,7 +302,7 @@ jobs:
         continue-on-error: true
         with:
           path: modules/ultimate_ai/external/pixelpen/project/addons/net.yarvis.pixel_pen
-          key: ${{ runner.os }}|${{ matrix.cache-name }}|pixelpen-addon|${{ steps.extension-api-hash.outputs.hash }}|${{ steps.addon-deps.outputs.godot_cpp_sha }}|${{ steps.addon-deps.outputs.pixelpen_sha }}|${{ steps.addon-deps.outputs.diff_margin_sha }}|${{ hashFiles('modules/ultimate_ai/external/pixelpen/**', 'modules/ultimate_ai/external/godot-diff-margin/**', 'misc/scripts/sanitize_extension_api.py') }}
+          key: ${{ runner.os }}|${{ matrix.cache-name }}|pixelpen-addon|${{ steps.extension-api-hash.outputs.hash }}|${{ steps.addon-deps.outputs.godot_cpp_sha }}|${{ steps.addon-deps.outputs.pixelpen_sha }}|${{ steps.addon-deps.outputs.diff_margin_sha }}|${{ hashFiles('misc/scripts/sanitize_extension_api.py') }}
 
       - name: Restore GDTerm addon cache
         if: matrix.target == 'editor'
@@ -297,7 +310,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: bin/addons/gdterm
-          key: ${{ runner.os }}|${{ matrix.cache-name }}|gdterm-addon|${{ steps.extension-api-hash.outputs.hash }}|${{ steps.addon-deps.outputs.godot_cpp_sha }}|${{ steps.addon-deps.outputs.gdterm_sha }}|${{ hashFiles('modules/ultimate_ai/external/gdterm/**', 'misc/scripts/build_gdterm.sh', 'misc/scripts/build_gdterm.ps1', 'misc/scripts/sanitize_extension_api.py') }}
+          key: ${{ runner.os }}|${{ matrix.cache-name }}|gdterm-addon|${{ steps.extension-api-hash.outputs.hash }}|${{ steps.addon-deps.outputs.godot_cpp_sha }}|${{ steps.addon-deps.outputs.gdterm_sha }}|${{ hashFiles('misc/scripts/build_gdterm.sh', 'misc/scripts/build_gdterm.ps1', 'misc/scripts/sanitize_extension_api.py') }}
 
       - name: Build GDTerm addon
         if: matrix.target == 'editor' && steps.gdterm-addon-cache.outputs.cache-hit != 'true'
@@ -329,7 +342,49 @@ jobs:
         continue-on-error: true
         with:
           path: bin/addons/gdterm
-          key: ${{ runner.os }}|${{ matrix.cache-name }}|gdterm-addon|${{ steps.extension-api-hash.outputs.hash }}|${{ steps.addon-deps.outputs.godot_cpp_sha }}|${{ steps.addon-deps.outputs.gdterm_sha }}|${{ hashFiles('modules/ultimate_ai/external/gdterm/**', 'misc/scripts/build_gdterm.sh', 'misc/scripts/build_gdterm.ps1', 'misc/scripts/sanitize_extension_api.py') }}
+          key: ${{ runner.os }}|${{ matrix.cache-name }}|gdterm-addon|${{ steps.extension-api-hash.outputs.hash }}|${{ steps.addon-deps.outputs.godot_cpp_sha }}|${{ steps.addon-deps.outputs.gdterm_sha }}|${{ hashFiles('misc/scripts/build_gdterm.sh', 'misc/scripts/build_gdterm.ps1', 'misc/scripts/sanitize_extension_api.py') }}
+
+      - name: Restore BFXR addon cache
+        if: matrix.target == 'editor'
+        id: bfxr-addon-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: bin/addons/bfxr2-mcp-server
+          key: ${{ runner.os }}|${{ matrix.cache-name }}|bfxr-addon|${{ steps.addon-deps.outputs.bfxr_sha }}|${{ hashFiles('misc/scripts/build_bfxr.sh', 'misc/scripts/build_bfxr.ps1', 'modules/ultimate_ai/tools/phoenix_bridge.js') }}
+
+      - name: Build BFXR addon
+        if: matrix.target == 'editor' && steps.bfxr-addon-cache.outputs.cache-hit != 'true'
+        run: |
+          bash ./misc/scripts/build_bfxr.sh macos "$PWD"
+
+      - name: Save BFXR addon cache
+        if: matrix.target == 'editor' && steps.bfxr-addon-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        continue-on-error: true
+        with:
+          path: bin/addons/bfxr2-mcp-server
+          key: ${{ runner.os }}|${{ matrix.cache-name }}|bfxr-addon|${{ steps.addon-deps.outputs.bfxr_sha }}|${{ hashFiles('misc/scripts/build_bfxr.sh', 'misc/scripts/build_bfxr.ps1', 'modules/ultimate_ai/tools/phoenix_bridge.js') }}
+
+      - name: Restore bundled Node runtime cache
+        if: matrix.target == 'editor'
+        id: node-runtime-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: bin/tools/node
+          key: ${{ runner.os }}|${{ matrix.cache-name }}|node-runtime|${{ env.NODE_RUNTIME_VERSION }}|${{ hashFiles('misc/scripts/stage_node_runtime.sh', 'misc/scripts/stage_node_runtime.ps1', 'modules/ultimate_ai/core/bfxr_runtime_bridge.cpp') }}
+
+      - name: Stage bundled Node runtime
+        if: matrix.target == 'editor' && steps.node-runtime-cache.outputs.cache-hit != 'true'
+        run: |
+          bash ./misc/scripts/stage_node_runtime.sh macos "$PWD" "${{ env.NODE_RUNTIME_VERSION }}"
+
+      - name: Save bundled Node runtime cache
+        if: matrix.target == 'editor' && steps.node-runtime-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        continue-on-error: true
+        with:
+          path: bin/tools/node
+          key: ${{ runner.os }}|${{ matrix.cache-name }}|node-runtime|${{ env.NODE_RUNTIME_VERSION }}|${{ hashFiles('misc/scripts/stage_node_runtime.sh', 'misc/scripts/stage_node_runtime.ps1', 'modules/ultimate_ai/core/bfxr_runtime_bridge.cpp') }}
 
       - name: Stage editor addons
         if: matrix.target == 'editor'
@@ -338,6 +393,7 @@ jobs:
           pixelpen_src="./modules/ultimate_ai/external/pixelpen/project/addons/net.yarvis.pixel_pen"
           diff_margin_src="./modules/ultimate_ai/external/godot-diff-margin/addons/diff-margin"
           gdterm_src="./bin/addons/gdterm"
+          bfxr_src="./bin/addons/bfxr2-mcp-server"
 
           if [ ! -d "$git_plugin_src" ]; then
             echo "Missing Git plugin addon directory: $git_plugin_src" >&2
@@ -353,6 +409,10 @@ jobs:
           fi
           if [ ! -d "$gdterm_src" ]; then
             echo "Missing gdterm addon directory: $gdterm_src" >&2
+            exit 1
+          fi
+          if [ ! -d "$bfxr_src" ]; then
+            echo "Missing bfxr addon directory: $bfxr_src" >&2
             exit 1
           fi
 
@@ -387,10 +447,18 @@ jobs:
           fi
 
           if [ "${{ matrix.target }}" = "editor" ]; then
-            for addon in godot-git-plugin net.yarvis.pixel_pen diff-margin gdterm; do
+            for addon in godot-git-plugin net.yarvis.pixel_pen diff-margin gdterm bfxr2-mcp-server; do
               if [ ! -d "./bin/addons/$addon" ]; then
                 echo "Missing expected addon directory: ./bin/addons/$addon" >&2
                 ls -la ./bin/addons || true
+                exit 1
+              fi
+            done
+
+            for node_bin in ./bin/tools/node/macos/node ./bin/tools/node/macos-arm64/node ./bin/tools/node/macos-x64/node; do
+              if [ ! -x "$node_bin" ]; then
+                echo "Missing expected bundled Node runtime: $node_bin" >&2
+                ls -la ./bin/tools/node || true
                 exit 1
               fi
             done

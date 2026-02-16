@@ -28,6 +28,40 @@ This file tracks intentional Phoenix-specific changes that are expected to diver
 - Why: unify GDTerm addon build behavior across local dev and CI while keeping the main repo lean.
 - Merge note: keep platform mapping (`linuxbsd` -> `linux`) and addon staging path (`bin/addons/gdterm`) stable.
 
+### `misc/scripts/build_bfxr.ps1`
+
+- Added Windows BFXR payload staging script that:
+  - stages `modules/ultimate_ai/external/bfxr2-mcp-server` into `bin/addons/bfxr2-mcp-server`,
+  - excludes VCS/editor metadata folders,
+  - injects `modules/ultimate_ai/tools/phoenix_bridge.js` into staged payload,
+  - validates required runtime files exist.
+- Why: ensure Windows editor artifacts ship BFXR runtime payload consistently for first-run addon sync.
+- Merge note: keep staged path and injected bridge filename (`phoenix_bridge.js`) stable.
+
+### `misc/scripts/build_bfxr.sh`
+
+- Added Linux/macOS BFXR payload staging script mirroring Windows behavior.
+- Why: provide one deterministic cross-platform BFXR artifact staging path for CI.
+- Merge note: preserve exclusions and staged destination (`bin/addons/bfxr2-mcp-server`).
+
+### `misc/scripts/stage_node_runtime.ps1`
+
+- Added Windows Node runtime staging script that:
+  - downloads pinned official Node distribution archive,
+  - extracts and stages `node.exe` into `bin/tools/node/windows/node.exe`,
+  - validates staged runtime file presence for artifact guard compatibility.
+- Why: ensure Windows editor artifacts include a bundled Node runtime for BFXR users without system Node installed.
+- Merge note: keep staged destination (`bin/tools/node/windows/node.exe`) and pinned version input stable.
+
+### `misc/scripts/stage_node_runtime.sh`
+
+- Added Linux/macOS Node runtime staging script that:
+  - downloads pinned official Node distribution archive for the current platform/arch,
+  - stages Linux runtime at `bin/tools/node/linux/node`,
+  - stages macOS runtime at both `bin/tools/node/macos-<arch>/node` and compatibility fallback `bin/tools/node/macos/node`.
+- Why: ensure Linux/macOS editor artifacts include a bundled Node runtime for BFXR users without system Node installed.
+- Merge note: preserve staged paths and arch mapping so `BfxrRuntimeBridge` runtime discovery remains deterministic.
+
 ### `misc/scripts/build_godot_git_plugin.sh`
 
 - Patch the cloned git-plugin build to disable libgit2 Clar tests and apply macOS-specific fixes for clang warnings and zlib `fdopen` macro conflicts.
@@ -69,6 +103,15 @@ This file tracks intentional Phoenix-specific changes that are expected to diver
 - Added GDTerm addon build step for editor artifact jobs and included `gdterm` in artifact guard checks.
 - Why: Linux downloadable editor artifacts now ship GDTerm prebuilt alongside other Phoenix addons.
 - Merge note: keep GDTerm build/staging wired through `misc/scripts/build_gdterm.sh` and `bin/addons/gdterm`.
+- Added BFXR dependency SHA resolution, cache keying, build invocation, and artifact guard checks for editor artifact jobs.
+- Why: Linux downloadable editor artifacts now ship BFXR runtime payload (`bin/addons/bfxr2-mcp-server`) alongside other Phoenix addons.
+- Merge note: keep BFXR cache keys tied to submodule SHA and `build_bfxr` scripts.
+- Added bundled Node runtime cache/stage/save and artifact guard checks (`bin/tools/node/linux/node`) for editor artifact jobs.
+- Why: Linux downloadable editor artifacts now ship a pinned Node runtime for BFXR bridge execution when system Node is unavailable.
+- Merge note: keep Node runtime cache key inputs aligned with `stage_node_runtime` scripts and `bfxr_runtime_bridge.cpp` lookup behavior.
+- Updated addon cache keys to stop hashing mutable addon source directories (`modules/ultimate_ai/external/**`) and hash only stable script inputs plus resolved dependency SHAs.
+- Why: addon builds mutate files under external directories during CI, which caused restore/save key drift and persistent cache misses between runs.
+- Merge note: avoid key inputs that can change after restore within the same job.
 
 ### `.github/workflows/macos_builds.yml`
 
@@ -90,6 +133,15 @@ This file tracks intentional Phoenix-specific changes that are expected to diver
 - Added GDTerm addon build step for editor jobs and included `gdterm` in artifact guard checks.
 - Why: macOS downloadable editor artifacts now ship GDTerm prebuilt alongside other Phoenix addons.
 - Merge note: keep GDTerm build/staging wired through `misc/scripts/build_gdterm.sh` and `bin/addons/gdterm`.
+- Added BFXR dependency SHA resolution, cache keying, build invocation, and artifact guard checks for editor jobs.
+- Why: macOS downloadable editor artifacts now ship BFXR runtime payload (`bin/addons/bfxr2-mcp-server`) alongside other Phoenix addons.
+- Merge note: keep BFXR cache keys tied to submodule SHA and `build_bfxr` scripts.
+- Added bundled Node runtime cache/stage/save and artifact guard checks for editor jobs (`macos`, `macos-arm64`, `macos-x64` runtime locations).
+- Why: macOS downloadable editor artifacts now ship a pinned Node runtime for BFXR bridge execution when system Node is unavailable.
+- Merge note: keep multi-path guard checks aligned with bridge fallback order and staged layout.
+- Updated addon cache keys to stop hashing mutable addon source directories (`modules/ultimate_ai/external/**`) and hash only stable script inputs plus resolved dependency SHAs.
+- Why: addon builds mutate files under external directories during CI, which caused restore/save key drift and persistent cache misses between runs.
+- Merge note: avoid key inputs that can change after restore within the same job.
 
 ### `.github/workflows/windows_builds.yml`
 
@@ -109,6 +161,15 @@ This file tracks intentional Phoenix-specific changes that are expected to diver
 - Added GDTerm addon build step for MSVC editor artifact jobs and included `gdterm` in artifact guard checks.
 - Why: Windows downloadable editor artifacts now ship GDTerm prebuilt alongside other Phoenix addons.
 - Merge note: keep GDTerm build/staging wired through `misc/scripts/build_gdterm.ps1` and `bin/addons/gdterm`.
+- Added BFXR dependency SHA resolution, cache keying, build invocation, and artifact guard checks for MSVC editor artifact jobs.
+- Why: Windows downloadable editor artifacts now ship BFXR runtime payload (`bin/addons/bfxr2-mcp-server`) alongside other Phoenix addons.
+- Merge note: keep BFXR cache keys tied to submodule SHA and `build_bfxr` scripts.
+- Added bundled Node runtime cache/stage/save and artifact guard checks for MSVC editor artifact jobs (`bin/tools/node/windows/node.exe`).
+- Why: Windows downloadable editor artifacts now ship a pinned Node runtime for BFXR bridge execution when system Node is unavailable.
+- Merge note: keep Node runtime cache key inputs aligned with `stage_node_runtime` scripts and runtime lookup path policy.
+- Updated addon cache keys to stop hashing mutable addon source directories (`modules/ultimate_ai/external/**`) and hash only stable script inputs plus resolved dependency SHAs.
+- Why: addon builds mutate files under external directories during CI, which caused restore/save key drift and persistent cache misses between runs.
+- Merge note: avoid key inputs that can change after restore within the same job.
 
 ### `.github/workflows/android_builds.yml`
 
@@ -148,6 +209,27 @@ This file tracks intentional Phoenix-specific changes that are expected to diver
 - Added GDTerm dependency SHA resolution, cache keying, build invocation, cache paths, and artifact guard checks in the aggregate Windows build workflow.
 - Why: ensures aggregate downloadable editor artifacts include GDTerm prebuilt and validates packaging completeness before upload.
 - Merge note: keep cache key inputs and required addon directories aligned with the addon payload policy.
+- Added BFXR dependency SHA resolution, cache keying, build invocation, and artifact guard checks in the aggregate Windows build workflow.
+- Why: ensures aggregate downloadable editor artifacts include BFXR runtime payload and validates packaging completeness before upload.
+- Merge note: keep BFXR cache key inputs aligned with submodule SHA and `build_bfxr` scripts.
+- Added bundled Node runtime cache/stage/save and artifact guard checks (`bin/tools/node/windows/node.exe`) in the aggregate Windows build workflow.
+- Why: ensures aggregate downloadable editor artifacts include pinned Node runtime support for BFXR on hosts without system Node.
+- Merge note: keep Node runtime version and cache key inputs aligned with platform workflows.
+- Updated git-plugin and BFXR cache keys to stop hashing mutable addon source directories (`modules/ultimate_ai/external/**`) and hash only stable script inputs plus resolved dependency SHAs.
+- Why: addon builds mutate files under external directories during CI, which caused restore/save key drift and persistent cache misses between runs.
+- Merge note: avoid key inputs that can change after restore within the same job.
+
+### `modules/ultimate_ai/core/bfxr_runtime_bridge.cpp`
+
+- Updated bundled Node runtime discovery to probe multiple platform-specific subdirectories (including macOS arch-specific paths) before system `node` fallback.
+- Why: supports bundled runtime layouts produced by CI and keeps runtime resolution stable across universal and single-arch artifact layouts.
+- Merge note: preserve path probe ordering to avoid regressions in bundled-runtime-first behavior.
+
+### `modules/ultimate_ai/doc_classes/BfxrRuntimeBridge.xml`
+
+- Added class reference XML for `BfxrRuntimeBridge`.
+- Why: class reference/doctool CI requires committed XML for newly exposed classes; missing file failed docs gate.
+- Merge note: keep this XML updated if class methods/properties change.
 
 ### `core/extension/extension_api_dump.cpp`
 
