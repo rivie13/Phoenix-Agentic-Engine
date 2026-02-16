@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="UltimateAIBackendContractAdapter" inherits="Object" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../class.xsd">
+	<brief_description>
+		Backend contract adapter for Phoenix gateway API requests.
+	</brief_description>
+	<description>
+		Exposes typed helper methods for gateway contract operations used by the Ultimate AI assistant.
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="apply_runtime_config">
+			<return type="void" />
+			<param index="0" name="config" type="Dictionary" />
+			<description>
+			</description>
+		</method>
+		<method name="auth_handshake" qualifiers="const">
+			<return type="Dictionary" />
+			<param index="0" name="payload" type="Dictionary" />
+			<description>
+			</description>
+		</method>
+		<method name="evaluate_command_trust" qualifiers="const">
+			<return type="Dictionary" />
+			<param index="0" name="command" type="Dictionary" />
+			<description>
+			</description>
+		</method>
+		<method name="get_command_allowlist" qualifiers="const">
+			<return type="PackedStringArray" />
+			<description>
+			</description>
+		</method>
+		<method name="get_runtime_config" qualifiers="const">
+			<return type="Dictionary" />
+			<description>
+			</description>
+		</method>
+		<method name="get_task_status" qualifiers="const">
+			<return type="Dictionary" />
+			<param index="0" name="plan_id" type="String" />
+			<description>
+			</description>
+		</method>
+		<method name="invoke_tool" qualifiers="const">
+			<return type="Dictionary" />
+			<param index="0" name="payload" type="Dictionary" />
+			<description>
+			</description>
+		</method>
+		<method name="list_tools" qualifiers="const">
+			<return type="Dictionary" />
+			<description>
+			</description>
+		</method>
+		<method name="request_task" qualifiers="const">
+			<return type="Dictionary" />
+			<param index="0" name="payload" type="Dictionary" />
+			<description>
+			</description>
+		</method>
+		<method name="set_command_allowlist">
+			<return type="void" />
+			<param index="0" name="allowlist" type="PackedStringArray" />
+			<description>
+			</description>
+		</method>
+		<method name="start_session" qualifiers="const">
+			<return type="Dictionary" />
+			<param index="0" name="payload" type="Dictionary" />
+			<description>
+			</description>
+		</method>
+		<method name="submit_approval" qualifiers="const">
+			<return type="Dictionary" />
+			<param index="0" name="plan_id" type="String" />
+			<param index="1" name="payload" type="Dictionary" />
+			<description>
+			</description>
+		</method>
+	</methods>
+</class>
