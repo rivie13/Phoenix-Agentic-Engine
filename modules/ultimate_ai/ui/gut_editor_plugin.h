@@ -1,5 +1,5 @@
 /**************************************************************************/
-/*  terminal_orchestrator_bridge.h                                        */
+/*  gut_editor_plugin.h                                                   */
 /**************************************************************************/
 /*                         This file is part of:                          */
 /*                     PHOENIX AGENTIC GAME ENGINE                        */
@@ -33,25 +33,32 @@
 
 #pragma once
 
-#include "core/object/object.h"
+#include "editor/plugins/editor_plugin.h"
 
-class UltimateAITerminalBridge : public Object {
-	GDCLASS(UltimateAITerminalBridge, Object);
+class GutEditorPlugin : public EditorPlugin {
+	GDCLASS(GutEditorPlugin, EditorPlugin);
 
-	Object *_get_terminal_api_target() const;
+	bool enable_pending = false;
+	bool addon_ready = false;
+	bool addon_activation_pending = false;
+	int addon_enable_delay_frames = 0;
 
-protected:
-	static void _bind_methods();
+	void _notification(int p_what);
+	bool _maybe_enable_plugin();
+	void _ensure_gitignore_entries();
+	bool _is_addon_enabled_in_project() const;
+
+	bool _ensure_addon_installed();
+	String _find_source_addon_path() const;
+	Error _copy_dir_recursive(const String &p_src, const String &p_dst);
+	uint64_t _get_latest_mtime(const String &p_path) const;
+	bool _read_sync_marker(const String &p_marker_path, String &r_revision, uint64_t &r_mtime) const;
+	void _write_sync_marker(const String &p_marker_path, const String &p_revision, uint64_t p_mtime) const;
+	Error _remove_dir_contents(const String &p_path) const;
 
 public:
-	bool is_available() const;
-	Variant execute_terminal_action(const String &p_action, const Dictionary &p_args = Dictionary()) const;
+	String get_plugin_name() const override;
 
-	Array list_terminals() const;
-	int create_terminal(const String &p_name = "", bool p_ai_terminal = true) const;
-	bool select_terminal(int p_terminal_id) const;
-	bool close_terminal(int p_terminal_id) const;
-	bool send_terminal_input(int p_terminal_id, const String &p_text, bool p_append_newline = true) const;
-	bool send_to_active_terminal(const String &p_text, bool p_append_newline = true) const;
-	bool restart_terminal(int p_terminal_id) const;
+	GutEditorPlugin();
+	~GutEditorPlugin();
 };

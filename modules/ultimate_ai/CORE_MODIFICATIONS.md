@@ -8,6 +8,8 @@ This file tracks intentional Phoenix-specific changes that are expected to diver
 
 - Added submodule entry:
   - `modules/ultimate_ai/external/gdterm` -> `https://github.com/rivie13/gdterm.git`
+- Added submodule entry:
+  - `modules/ultimate_ai/external/gut` -> `https://github.com/rivie13/GUT-Godot-Unit-Test.git`
 - Why: track GDTerm as an external addon source repository under the Phoenix submodule model.
 - Merge note: keep URL/path aligned with Phoenix fork ownership and external addon layout.
 
@@ -27,6 +29,21 @@ This file tracks intentional Phoenix-specific changes that are expected to diver
 - Added Linux/macOS GDTerm build script mirroring the Windows temp-build workflow.
 - Why: unify GDTerm addon build behavior across local dev and CI while keeping the main repo lean.
 - Merge note: keep platform mapping (`linuxbsd` -> `linux`) and addon staging path (`bin/addons/gdterm`) stable.
+
+### `misc/scripts/build_gut.ps1`
+
+- Added Windows GUT payload staging script that:
+  - stages `modules/ultimate_ai/external/gut/addons/gut` into `bin/addons/gut`,
+  - excludes VCS/editor metadata folders,
+  - validates required addon files (`plugin.cfg`, `gut_plugin.gd`) exist.
+- Why: ensure Windows editor artifacts ship GUT plugin payload consistently for first-run addon sync.
+- Merge note: keep staged path (`bin/addons/gut`) stable for editor bootstrap + CI guards.
+
+### `misc/scripts/build_gut.sh`
+
+- Added Linux/macOS GUT payload staging script mirroring Windows behavior.
+- Why: provide one deterministic cross-platform GUT artifact staging path for CI.
+- Merge note: preserve exclusions and staged destination (`bin/addons/gut`).
 
 ### `misc/scripts/build_bfxr.ps1`
 
@@ -112,6 +129,9 @@ This file tracks intentional Phoenix-specific changes that are expected to diver
 - Updated addon cache keys to stop hashing mutable addon source directories (`modules/ultimate_ai/external/**`) and hash only stable script inputs plus resolved dependency SHAs.
 - Why: addon builds mutate files under external directories during CI, which caused restore/save key drift and persistent cache misses between runs.
 - Merge note: avoid key inputs that can change after restore within the same job.
+- Added GUT dependency SHA resolution, cache keying, staging invocation (`build_gut.sh`), and stage/guard checks for editor artifact jobs.
+- Why: Linux downloadable editor artifacts now ship GUT (`bin/addons/gut`) alongside other Phoenix addons.
+- Merge note: keep GUT cache keys tied to submodule SHA and `build_gut` scripts.
 
 ### `.github/workflows/macos_builds.yml`
 
@@ -142,6 +162,9 @@ This file tracks intentional Phoenix-specific changes that are expected to diver
 - Updated addon cache keys to stop hashing mutable addon source directories (`modules/ultimate_ai/external/**`) and hash only stable script inputs plus resolved dependency SHAs.
 - Why: addon builds mutate files under external directories during CI, which caused restore/save key drift and persistent cache misses between runs.
 - Merge note: avoid key inputs that can change after restore within the same job.
+- Added GUT dependency SHA resolution, cache keying, staging invocation (`build_gut.sh`), and stage/guard checks for editor jobs.
+- Why: macOS downloadable editor artifacts now ship GUT (`bin/addons/gut`) alongside other Phoenix addons.
+- Merge note: keep GUT cache keys tied to submodule SHA and `build_gut` scripts.
 
 ### `.github/workflows/windows_builds.yml`
 
@@ -170,6 +193,9 @@ This file tracks intentional Phoenix-specific changes that are expected to diver
 - Updated addon cache keys to stop hashing mutable addon source directories (`modules/ultimate_ai/external/**`) and hash only stable script inputs plus resolved dependency SHAs.
 - Why: addon builds mutate files under external directories during CI, which caused restore/save key drift and persistent cache misses between runs.
 - Merge note: avoid key inputs that can change after restore within the same job.
+- Added GUT dependency SHA resolution, cache keying, staging invocation (`build_gut.ps1`), and artifact guard checks for MSVC editor artifact jobs.
+- Why: Windows downloadable editor artifacts now ship GUT (`bin/addons/gut`) alongside other Phoenix addons.
+- Merge note: keep GUT cache keys tied to submodule SHA and `build_gut` scripts.
 
 ### `.github/workflows/android_builds.yml`
 
@@ -218,6 +244,9 @@ This file tracks intentional Phoenix-specific changes that are expected to diver
 - Updated git-plugin and BFXR cache keys to stop hashing mutable addon source directories (`modules/ultimate_ai/external/**`) and hash only stable script inputs plus resolved dependency SHAs.
 - Why: addon builds mutate files under external directories during CI, which caused restore/save key drift and persistent cache misses between runs.
 - Merge note: avoid key inputs that can change after restore within the same job.
+- Added GUT dependency SHA resolution, cache keying, staging invocation (`build_gut.ps1`), and artifact guard checks in the aggregate Windows build workflow.
+- Why: aggregate downloadable editor artifacts now include GUT (`bin/addons/gut`) by default.
+- Merge note: keep GUT cache key inputs aligned with submodule SHA and `build_gut` scripts.
 
 ### `modules/ultimate_ai/core/bfxr_runtime_bridge.cpp`
 

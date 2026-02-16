@@ -201,12 +201,24 @@ jobs:
             exit 1
           fi
 
+          gut_path="${GITHUB_WORKSPACE}/modules/ultimate_ai/external/gut"
+          if [ ! -d "$gut_path" ]; then
+            echo "gut path not found at $gut_path" >&2
+            exit 1
+          fi
+          gut_sha="$(git -C "$gut_path" rev-parse HEAD)"
+          if [ -z "$gut_sha" ]; then
+            echo "Failed to resolve gut SHA" >&2
+            exit 1
+          fi
+
           echo "godot_cpp_sha=$godot_cpp_sha" >> "$GITHUB_OUTPUT"
           echo "git_plugin_sha=$git_plugin_sha" >> "$GITHUB_OUTPUT"
           echo "pixelpen_sha=$pixelpen_sha" >> "$GITHUB_OUTPUT"
           echo "diff_margin_sha=$diff_margin_sha" >> "$GITHUB_OUTPUT"
           echo "gdterm_sha=$gdterm_sha" >> "$GITHUB_OUTPUT"
           echo "bfxr_sha=$bfxr_sha" >> "$GITHUB_OUTPUT"
+          echo "gut_sha=$gut_sha" >> "$GITHUB_OUTPUT"
 
       - name: Restore Git Plugin addon cache
         if: matrix.target == 'editor'
@@ -365,6 +377,27 @@ jobs:
           path: bin/addons/bfxr2-mcp-server
           key: ${{ runner.os }}|${{ matrix.cache-name }}|bfxr-addon|${{ steps.addon-deps.outputs.bfxr_sha }}|${{ hashFiles('misc/scripts/build_bfxr.sh', 'misc/scripts/build_bfxr.ps1', 'modules/ultimate_ai/tools/phoenix_bridge.js') }}
 
+      - name: Restore GUT addon cache
+        if: matrix.target == 'editor'
+        id: gut-addon-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: bin/addons/gut
+          key: ${{ runner.os }}|${{ matrix.cache-name }}|gut-addon|${{ steps.addon-deps.outputs.gut_sha }}|${{ hashFiles('misc/scripts/build_gut.sh', 'misc/scripts/build_gut.ps1') }}
+
+      - name: Build GUT addon
+        if: matrix.target == 'editor' && steps.gut-addon-cache.outputs.cache-hit != 'true'
+        run: |
+          bash ./misc/scripts/build_gut.sh macos "$PWD"
+
+      - name: Save GUT addon cache
+        if: matrix.target == 'editor' && steps.gut-addon-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        continue-on-error: true
+        with:
+          path: bin/addons/gut
+          key: ${{ runner.os }}|${{ matrix.cache-name }}|gut-addon|${{ steps.addon-deps.outputs.gut_sha }}|${{ hashFiles('misc/scripts/build_gut.sh', 'misc/scripts/build_gut.ps1') }}
+
       - name: Restore bundled Node runtime cache
         if: matrix.target == 'editor'
         id: node-runtime-cache
@@ -394,6 +427,7 @@ jobs:
           diff_margin_src="./modules/ultimate_ai/external/godot-diff-margin/addons/diff-margin"
           gdterm_src="./bin/addons/gdterm"
           bfxr_src="./bin/addons/bfxr2-mcp-server"
+          gut_src="./bin/addons/gut"
 
           if [ ! -d "$git_plugin_src" ]; then
             echo "Missing Git plugin addon directory: $git_plugin_src" >&2
@@ -413,6 +447,10 @@ jobs:
           fi
           if [ ! -d "$bfxr_src" ]; then
             echo "Missing bfxr addon directory: $bfxr_src" >&2
+            exit 1
+          fi
+          if [ ! -d "$gut_src" ]; then
+            echo "Missing gut addon directory: $gut_src" >&2
             exit 1
           fi
 
@@ -447,7 +485,7 @@ jobs:
           fi
 
           if [ "${{ matrix.target }}" = "editor" ]; then
-            for addon in godot-git-plugin net.yarvis.pixel_pen diff-margin gdterm bfxr2-mcp-server; do
+            for addon in godot-git-plugin net.yarvis.pixel_pen diff-margin gdterm bfxr2-mcp-server gut; do
               if [ ! -d "./bin/addons/$addon" ]; then
                 echo "Missing expected addon directory: ./bin/addons/$addon" >&2
                 ls -la ./bin/addons || true

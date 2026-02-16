@@ -2,11 +2,14 @@
 /*  assistant_panel.cpp                                                   */
 /**************************************************************************/
 /*                         This file is part of:                          */
-/*                             GODOT ENGINE                               */
-/*                        https://godotengine.org                         */
+/*                     PHOENIX AGENTIC GAME ENGINE                        */
+/*                     Based on the Godot Engine                          */
+/*                       https://godotengine.org                          */
 /**************************************************************************/
 /* Copyright (c) 2014-present Godot Engine contributors (see AUTHORS.md). */
 /* Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur.                  */
+/* Copyright (c) 2026-present Phoenix Agentic Game Engine contributors     */
+/* (see AUTHORS.md).                                                       */
 /*                                                                        */
 /* Permission is hereby granted, free of charge, to any person obtaining  */
 /* a copy of this software and associated documentation files (the        */
@@ -32,8 +35,14 @@
 
 #include "assistant_settings_dialog.h"
 
+#include "core/backend_contract_adapter.h"
+
+#include "core/config/project_settings.h"
 #include "core/io/resource_loader.h"
 #include "core/object/class_db.h"
+#include "core/os/os.h"
+#include "core/os/time.h"
+#include "core/string/print_string.h"
 #include "core/string/ustring.h"
 #include "editor/file_system/editor_file_system.h"
 #include "scene/gui/box_container.h"
@@ -65,6 +74,117 @@ bool UltimateAssistantPanel::s_shared_initialized = false;
 namespace {
 const char *const PIXELPEN_SNAPSHOT_KIND = "pixelpen_snapshot";
 const char *const PIXELPEN_LAYER_KIND = "pixelpen_layer";
+const char *const MODE_ASK = "ask";
+const char *const MODE_PLAN = "plan";
+const char *const MODE_AGENT = "agent";
+
+bool _has_nonempty_string_field(const Dictionary &p_dict, const char *p_key) {
+	if (!p_dict.has(p_key)) {
+		return false;
+	}
+	Variant value = p_dict[p_key];
+	if (value.get_type() != Variant::STRING) {
+		return false;
+	}
+	return !String(value).strip_edges().is_empty();
+}
+
+bool _is_valid_task_request_accepted_payload(const Dictionary &p_body) {
+	if (!_has_nonempty_string_field(p_body, "schema_version") || String(p_body["schema_version"]) != "v1") {
+		return false;
+	}
+	if (!_has_nonempty_string_field(p_body, "event") || String(p_body["event"]) != "task_queued_ack") {
+		return false;
+	}
+	if (!p_body.has("accepted") || p_body["accepted"].get_type() != Variant::BOOL || !bool(p_body["accepted"])) {
+		return false;
+	}
+	if (!_has_nonempty_string_field(p_body, "session_id") || !_has_nonempty_string_field(p_body, "task_id")) {
+		return false;
+	}
+	if (!_has_nonempty_string_field(p_body, "plan_id") || !_has_nonempty_string_field(p_body, "job_id")) {
+		return false;
+	}
+	if (!_has_nonempty_string_field(p_body, "status") || String(p_body["status"]).to_lower() != "queued") {
+		return false;
+	}
+	if (!_has_nonempty_string_field(p_body, "tier")) {
+		return false;
+	}
+	return true;
+}
+
+bool _is_known_task_status(const String &p_status) {
+	return p_status == "queued" || p_status == "planning" || p_status == "awaiting_approval" ||
+			p_status == "approved" || p_status == "executing" || p_status == "done" || p_status == "error";
+}
+
+bool _is_valid_task_status_payload(const Dictionary &p_body, const String &p_expected_plan_id) {
+	if (!_has_nonempty_string_field(p_body, "schema_version") || String(p_body["schema_version"]) != "v1") {
+		return false;
+	}
+	if (!_has_nonempty_string_field(p_body, "plan_id") || !_has_nonempty_string_field(p_body, "job_id") || !_has_nonempty_string_field(p_body, "session_id")) {
+		return false;
+	}
+	if (!_has_nonempty_string_field(p_body, "tier") || !_has_nonempty_string_field(p_body, "updated_at")) {
+		return false;
+	}
+	String plan_id = String(p_body["plan_id"]);
+	if (!p_expected_plan_id.is_empty() && plan_id != p_expected_plan_id) {
+		return false;
+	}
+	if (!_has_nonempty_string_field(p_body, "status") || !_is_known_task_status(String(p_body["status"]).to_lower())) {
+		return false;
+	}
+	return true;
+}
+
+String _readable_mode_from_selector(OptionButton *p_selector) {
+	if (!p_selector) {
+		return MODE_ASK;
+	}
+	int selected = p_selector->get_selected();
+	if (selected == 1) {
+		return MODE_PLAN;
+	}
+	if (selected == 2) {
+		return MODE_AGENT;
+	}
+	return MODE_ASK;
+}
+
+String _sanitize_reviewer_id(const String &p_value) {
+	String trimmed = p_value.strip_edges();
+	if (trimmed.is_empty()) {
+		return String();
+	}
+
+	String sanitized;
+	for (int i = 0; i < trimmed.length(); i++) {
+		char32_t chr = trimmed[i];
+		bool is_ascii_letter = (chr >= 'a' && chr <= 'z') || (chr >= 'A' && chr <= 'Z');
+		bool is_digit = chr >= '0' && chr <= '9';
+		bool is_safe_punctuation = chr == '-' || chr == '_' || chr == '.';
+		if (is_ascii_letter || is_digit || is_safe_punctuation) {
+			sanitized += String::chr(chr);
+		}
+	}
+
+	if (sanitized.length() > 64) {
+		sanitized = sanitized.substr(0, 64);
+	}
+
+	return sanitized;
+}
+String _now_iso8601_utc() {
+	return Time::get_singleton()->get_datetime_string_from_system(true, false) + "Z";
+}
+
+String _id_with_prefix(const String &p_prefix) {
+	uint64_t unix_time = (uint64_t)Time::get_singleton()->get_unix_time_from_system();
+	uint64_t ticks = OS::get_singleton()->get_ticks_usec();
+	return vformat("%s-%llu-%llu", p_prefix, unix_time, ticks);
+}
 } //namespace
 
 void UltimateAssistantPanel::_bind_methods() {
@@ -88,6 +208,9 @@ void UltimateAssistantPanel::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_previous_reopen_pressed"), &UltimateAssistantPanel::_on_previous_reopen_pressed);
 	ClassDB::bind_method(D_METHOD("_on_previous_session_activated", "index"), &UltimateAssistantPanel::_on_previous_session_activated);
 	ClassDB::bind_method(D_METHOD("_on_session_name_changed", "text", "tab_id"), &UltimateAssistantPanel::_on_session_name_changed);
+	ClassDB::bind_method(D_METHOD("_on_approve_pressed", "tab_id"), &UltimateAssistantPanel::_on_approve_pressed);
+	ClassDB::bind_method(D_METHOD("_on_reject_pressed", "tab_id"), &UltimateAssistantPanel::_on_reject_pressed);
+	ClassDB::bind_method(D_METHOD("_on_resync_pressed", "tab_id"), &UltimateAssistantPanel::_on_resync_pressed);
 }
 
 UltimateAssistantPanel::UltimateAssistantPanel() {
@@ -137,6 +260,9 @@ UltimateAssistantPanel::UltimateAssistantPanel() {
 	settings_dialog = memnew(UltimateAISettingsDialog);
 	settings_dialog->connect(SceneStringName(confirmed), callable_mp(this, &UltimateAssistantPanel::_on_settings_confirmed));
 	add_child(settings_dialog);
+
+	backend_adapter = memnew(UltimateAIBackendContractAdapter);
+	backend_adapter->apply_runtime_config(settings_dialog->get_runtime_config());
 
 	context_dialog = memnew(AcceptDialog);
 	context_dialog->set_title(TTR("Add Context"));
@@ -224,6 +350,10 @@ void UltimateAssistantPanel::_notification(int p_what) {
 					s_instances.remove_at(i);
 					break;
 				}
+			}
+			if (backend_adapter) {
+				memdelete(backend_adapter);
+				backend_adapter = nullptr;
 			}
 		} break;
 		default:
@@ -450,12 +580,49 @@ void UltimateAssistantPanel::_add_chat_tab(int p_forced_id) {
 	steer_button->set_visible(false);
 	input_actions->add_child(steer_button);
 
+	Button *resync_button = memnew(Button);
+	resync_button->set_text(TTR("Resync"));
+	resync_button->set_visible(false);
+	input_actions->add_child(resync_button);
+
+	Label *status_label = memnew(Label);
+	status_label->set_text(TTR("Ready"));
+	input_block->add_child(status_label);
+
+	VBoxContainer *approval_section = memnew(VBoxContainer);
+	approval_section->set_h_size_flags(Control::SIZE_EXPAND_FILL);
+	approval_section->set_visible(false);
+	input_block->add_child(approval_section);
+
+	Label *approval_label = memnew(Label);
+	approval_label->set_text(TTR("Pending approvals"));
+	approval_section->add_child(approval_label);
+
+	ItemList *approval_list = memnew(ItemList);
+	approval_list->set_v_size_flags(Control::SIZE_FILL);
+	approval_list->set_custom_minimum_size(Size2(0, 80));
+	approval_section->add_child(approval_list);
+
+	HBoxContainer *approval_actions = memnew(HBoxContainer);
+	approval_section->add_child(approval_actions);
+
+	Button *approve_button = memnew(Button);
+	approve_button->set_text(TTR("Approve"));
+	approval_actions->add_child(approve_button);
+
+	Button *reject_button = memnew(Button);
+	reject_button->set_text(TTR("Reject"));
+	approval_actions->add_child(reject_button);
+
 	int tab_id = p_forced_id >= 0 ? p_forced_id : (tab_counter + 1);
 	if (tab_id > tab_counter) {
 		tab_counter = tab_id;
 	}
 	send_button->connect(SceneStringName(pressed), callable_mp(this, &UltimateAssistantPanel::_on_send_pressed).bind(tab_id));
 	steer_button->connect(SceneStringName(pressed), callable_mp(this, &UltimateAssistantPanel::_on_steer_pressed).bind(tab_id));
+	resync_button->connect(SceneStringName(pressed), callable_mp(this, &UltimateAssistantPanel::_on_resync_pressed).bind(tab_id));
+	approve_button->connect(SceneStringName(pressed), callable_mp(this, &UltimateAssistantPanel::_on_approve_pressed).bind(tab_id));
+	reject_button->connect(SceneStringName(pressed), callable_mp(this, &UltimateAssistantPanel::_on_reject_pressed).bind(tab_id));
 	mode_selector->connect(SceneStringName(item_selected), callable_mp(this, &UltimateAssistantPanel::_on_tab_setting_changed).bind(tab_id));
 	model_selector->connect(SceneStringName(item_selected), callable_mp(this, &UltimateAssistantPanel::_on_tab_setting_changed).bind(tab_id));
 	agent_mode_selector->connect(SceneStringName(item_selected), callable_mp(this, &UltimateAssistantPanel::_on_tab_setting_changed).bind(tab_id));
@@ -481,8 +648,15 @@ void UltimateAssistantPanel::_add_chat_tab(int p_forced_id) {
 	tab.context_remove_button = context_remove_button;
 	tab.chat_display = chat_display;
 	tab.input_text = input_text;
+	tab.status_label = status_label;
 	tab.send_button = send_button;
 	tab.steer_button = steer_button;
+	tab.resync_button = resync_button;
+	tab.approval_section = approval_section;
+	tab.approval_label = approval_label;
+	tab.approval_list = approval_list;
+	tab.approve_button = approve_button;
+	tab.reject_button = reject_button;
 	tab.transcript = chat_display->get_text();
 
 	tabs.push_back(tab);
@@ -610,6 +784,15 @@ void UltimateAssistantPanel::_add_chat_tab_from_state(const SharedChatTabState &
 	}
 	if (tab.steer_button) {
 		tab.steer_button->set_visible(p_state.is_active);
+	}
+	if (tab.status_label) {
+		tab.status_label->set_text(p_state.is_active ? TTR("Busy") : TTR("Ready"));
+	}
+	if (tab.resync_button) {
+		tab.resync_button->set_visible(false);
+	}
+	if (tab.approval_section) {
+		tab.approval_section->set_visible(false);
 	}
 
 	int container_index = _find_tab_container_index(tab.root);
@@ -930,15 +1113,12 @@ void UltimateAssistantPanel::_on_send_pressed(int p_tab_id) {
 	if (!input) {
 		return;
 	}
-	_on_input_submitted(input->get_text(), p_tab_id);
-	tab.is_active = true;
-	if (tab.send_button) {
-		tab.send_button->set_text(TTR("Interrupt"));
+	String request_text = input->get_text().strip_edges();
+	if (request_text.is_empty()) {
+		return;
 	}
-	if (tab.steer_button) {
-		tab.steer_button->set_visible(true);
-	}
-	_broadcast_shared_state();
+	_on_input_submitted(request_text, p_tab_id);
+	_request_task_for_tab(p_tab_id, request_text);
 }
 
 void UltimateAssistantPanel::_on_input_submitted(const String &p_text, int p_tab_id) {
@@ -960,34 +1140,650 @@ void UltimateAssistantPanel::_on_interrupt_pressed(int p_tab_id) {
 	if (tab_index < 0) {
 		return;
 	}
+	_append_message(p_tab_id, TTR("User"), TTR("[interrupt]"));
+	_request_task_for_tab(p_tab_id, "[interrupt]");
+}
+
+void UltimateAssistantPanel::_on_steer_pressed(int p_tab_id) {
+	int tab_index = _find_tab_index_by_id(p_tab_id);
+	if (tab_index < 0) {
+		return;
+	}
+	String steer_prompt = TTR("Please steer the current plan toward the latest user intent.");
+	if (tabs[tab_index].input_text) {
+		String candidate = tabs[tab_index].input_text->get_text().strip_edges();
+		if (!candidate.is_empty()) {
+			steer_prompt = candidate;
+			tabs[tab_index].input_text->clear();
+		}
+	}
+	_append_message(p_tab_id, TTR("User"), "[steer] " + steer_prompt);
+	_request_task_for_tab(p_tab_id, "[steer] " + steer_prompt);
+}
+
+void UltimateAssistantPanel::_set_tab_busy(int p_tab_id, bool p_busy, const String &p_status) {
+	int tab_index = _find_tab_index_by_id(p_tab_id);
+	if (tab_index < 0 || tab_index >= tabs.size()) {
+		return;
+	}
 	ChatTab &tab = tabs.write[tab_index];
-	_append_message(p_tab_id, TTR("System"), TTR("Interrupt requested (stub)."));
-	tab.is_active = false;
+	tab.is_active = p_busy;
+
 	if (tab.send_button) {
-		tab.send_button->set_text(TTR("Send"));
+		tab.send_button->set_text(p_busy ? TTR("Interrupt") : TTR("Send"));
 	}
 	if (tab.steer_button) {
-		tab.steer_button->set_visible(false);
+		tab.steer_button->set_visible(p_busy);
+	}
+	if (!p_status.is_empty()) {
+		_set_tab_status(p_tab_id, p_status, false);
 	}
 	_broadcast_shared_state();
 }
 
-void UltimateAssistantPanel::_on_steer_pressed(int p_tab_id) {
-	_append_message(p_tab_id, TTR("System"), TTR("Steer requested (stub)."));
+void UltimateAssistantPanel::_set_tab_status(int p_tab_id, const String &p_status, bool p_error) {
+	int tab_index = _find_tab_index_by_id(p_tab_id);
+	if (tab_index < 0 || tab_index >= tabs.size()) {
+		return;
+	}
+	ChatTab &tab = tabs.write[tab_index];
+	if (!tab.status_label) {
+		return;
+	}
+
+	if (p_error) {
+		tab.status_label->set_text(TTR("Error: ") + p_status);
+	} else {
+		tab.status_label->set_text(p_status.is_empty() ? TTR("Ready") : p_status);
+	}
+}
+
+Dictionary UltimateAssistantPanel::_build_project_map_payload(int p_tab_id) const {
+	Dictionary project_map;
+	ProjectSettings *project_settings = ProjectSettings::get_singleton();
+
+	String project_name = "phoenix-project";
+	String main_scene = "res://";
+	if (project_settings) {
+		if (project_settings->has_setting("application/config/name")) {
+			project_name = String(project_settings->get("application/config/name")).strip_edges();
+		}
+		if (project_settings->has_setting("application/run/main_scene")) {
+			main_scene = String(project_settings->get("application/run/main_scene")).strip_edges();
+		}
+	}
+
+	Dictionary resources;
+	resources["audio"] = Array();
+	resources["sprites"] = Array();
+	resources["tilesets"] = Array();
+
+	Dictionary extras;
+	extras["tab_id"] = p_tab_id;
+
+	String hash_input = vformat("%s|%s|%s", project_name, main_scene, _now_iso8601_utc());
+
+	project_map["name"] = project_name;
+	project_map["godot_version"] = "phoenix-editor";
+	project_map["main_scene"] = main_scene;
+	project_map["scenes"] = Dictionary();
+	project_map["scripts"] = Array();
+	project_map["resources"] = resources;
+	project_map["file_hash"] = "sha256:" + hash_input.sha256_text();
+	project_map["extras"] = extras;
+
+	return project_map;
+}
+
+Dictionary UltimateAssistantPanel::_build_task_context_payload(int p_tab_id) const {
+	Dictionary context;
+	context["current_file"] = "";
+	context["scene_tree"] = Dictionary();
+
+	Array open_files;
+	int tab_index = _find_tab_index_by_id(p_tab_id);
+	if (tab_index >= 0 && tab_index < tabs.size()) {
+		const ChatTab &tab = tabs[tab_index];
+		if (tab.context_list) {
+			int count = tab.context_list->get_item_count();
+			for (int i = 0; i < count; i++) {
+				Variant item_metadata = tab.context_list->get_item_metadata(i);
+				if (item_metadata.get_type() == Variant::STRING) {
+					open_files.push_back(String(item_metadata));
+				}
+			}
+		}
+	}
+	context["open_files"] = open_files;
+
+	Dictionary project_settings;
+	project_settings["editor"] = "phoenix";
+	project_settings["tab_id"] = p_tab_id;
+	context["project_settings"] = project_settings;
+
+	return context;
+}
+
+bool UltimateAssistantPanel::_start_session_for_tab(int p_tab_id, bool p_force_resync) {
+	if (!backend_adapter) {
+		_set_tab_status(p_tab_id, TTR("Backend adapter unavailable."), true);
+		return false;
+	}
+
+	int tab_index = _find_tab_index_by_id(p_tab_id);
+	if (tab_index < 0 || tab_index >= tabs.size()) {
+		return false;
+	}
+	ChatTab &tab = tabs.write[tab_index];
+
+	if (!p_force_resync && !tab.session_id.is_empty() && !tab.idempotency_key.is_empty()) {
+		return true;
+	}
+
+	if (tab.session_id.is_empty()) {
+		tab.session_id = _id_with_prefix(vformat("sess-%d", p_tab_id));
+	}
+
+	String idempotency_key = _id_with_prefix(vformat("idem-%d", p_tab_id));
+
+	Dictionary payload;
+	payload["schema_version"] = "v1";
+	payload["event"] = "session_start";
+	payload["session_id"] = tab.session_id;
+	payload["idempotency_key"] = idempotency_key;
+	payload["sent_at"] = _now_iso8601_utc();
+	payload["project_map"] = _build_project_map_payload(p_tab_id);
+
+	Dictionary response = backend_adapter->start_session(payload);
+	_log_request_context("session/start", response);
+
+	if (!bool(response.get("ok", false))) {
+		if (int(response.get("status_code", 0)) == HTTPClient::RESPONSE_CONFLICT) {
+			_apply_conflict_state(p_tab_id, response);
+		} else {
+			String error = String(response.get("error", TTR("Session start failed.")));
+			_set_tab_status(p_tab_id, error, true);
+			_append_message(p_tab_id, TTR("System"), vformat("Session start failed: %s", error));
+		}
+		return false;
+	}
+
+	tab.idempotency_key = idempotency_key;
+	_clear_conflict_state(p_tab_id);
+	return true;
+}
+
+void UltimateAssistantPanel::_request_task_for_tab(int p_tab_id, const String &p_user_input) {
+	if (!backend_adapter) {
+		_set_tab_status(p_tab_id, TTR("Backend adapter unavailable."), true);
+		return;
+	}
+
+	String request_text = p_user_input.strip_edges();
+	if (request_text.is_empty()) {
+		return;
+	}
+
+	int tab_index = _find_tab_index_by_id(p_tab_id);
+	if (tab_index < 0 || tab_index >= tabs.size()) {
+		return;
+	}
+	ChatTab &tab = tabs.write[tab_index];
+
+	_set_tab_busy(p_tab_id, true, TTR("Starting session..."));
+	if (!_start_session_for_tab(p_tab_id, false)) {
+		_set_tab_busy(p_tab_id, false);
+		return;
+	}
+
+	tab.task_counter += 1;
+	String task_id = vformat("task-%d-%d", p_tab_id, tab.task_counter);
+
+	Dictionary payload;
+	payload["schema_version"] = "v1";
+	payload["session_id"] = tab.session_id;
+	payload["task_id"] = task_id;
+	payload["user_input"] = request_text;
+	payload["mode"] = _readable_mode_from_selector(tab.mode_selector);
+	payload["submitted_at"] = _now_iso8601_utc();
+	payload["project_context"] = _build_task_context_payload(p_tab_id);
+
+	_set_tab_status(p_tab_id, TTR("Requesting task plan..."), false);
+	Dictionary response = backend_adapter->request_task(payload);
+	_log_request_context("task/request", response);
+
+	if (!bool(response.get("ok", false))) {
+		if (int(response.get("status_code", 0)) == HTTPClient::RESPONSE_CONFLICT) {
+			_apply_conflict_state(p_tab_id, response);
+		} else {
+			String error = String(response.get("error", TTR("Task request failed.")));
+			_set_tab_status(p_tab_id, error, true);
+			_append_message(p_tab_id, TTR("System"), vformat("Task request failed: %s", error));
+		}
+		_set_tab_busy(p_tab_id, false);
+		return;
+	}
+
+	_clear_conflict_state(p_tab_id);
+
+	Variant body_v = response.get("body", Variant());
+	if (body_v.get_type() != Variant::DICTIONARY) {
+		_set_tab_status(p_tab_id, TTR("Invalid backend response."), true);
+		_append_message(p_tab_id, TTR("System"), TTR("Backend response did not contain a valid JSON object."));
+		_set_tab_busy(p_tab_id, false);
+		return;
+	}
+
+	Dictionary body = body_v;
+	String response_event = String(body.get("event", String())).to_lower();
+	if ((body.has("accepted") || response_event == "task_queued_ack") && !_is_valid_task_request_accepted_payload(body)) {
+		_set_tab_status(p_tab_id, TTR("Task request response does not match Interface contract."), true);
+		_append_message(p_tab_id, TTR("System"), TTR("Gateway returned an invalid task_request response shape (expected task_queued_ack)."));
+		_set_tab_busy(p_tab_id, false);
+		return;
+	}
+
+	if (body.has("actions")) {
+		_show_approval_batch(p_tab_id, body);
+		bool requires_approval = bool(body.get("requires_approval", false));
+		String summary = String(body.get("approval_summary", String()));
+		if (requires_approval) {
+			_append_message(p_tab_id, TTR("System"), summary.is_empty() ? TTR("Approval required before execution.") : summary);
+		} else {
+			Array commands;
+			Array actions = body.get("actions", Array());
+			for (int i = 0; i < actions.size(); i++) {
+				Variant action_v = actions[i];
+				if (action_v.get_type() != Variant::DICTIONARY) {
+					continue;
+				}
+				Dictionary action = action_v;
+				if (action.has("command") && action["command"].get_type() == Variant::DICTIONARY) {
+					commands.push_back(action["command"]);
+				}
+			}
+			_clear_approval_batch(p_tab_id);
+			_execute_commands_for_tab(p_tab_id, commands);
+		}
+	} else if (body.has("commands") && body["commands"].get_type() == Variant::ARRAY) {
+		_execute_commands_for_tab(p_tab_id, body["commands"]);
+	} else if (bool(body.get("accepted", false)) && body.has("plan_id")) {
+		String plan_id = String(body.get("plan_id", String()));
+		String task_status = String(body.get("status", String("queued"))).to_lower();
+		tab.last_plan_id = plan_id;
+		_append_message(p_tab_id, TTR("System"), vformat("Gateway accepted task %s (status: %s).", plan_id, task_status));
+		_set_tab_status(p_tab_id, vformat("Gateway task: %s", task_status.replace("_", " ")), false);
+		if (!_poll_task_status_for_tab(p_tab_id, plan_id)) {
+			if (!tab.has_conflict) {
+				_append_message(p_tab_id, TTR("System"), TTR("Task remains queued. Click Resync to refresh gateway task status."));
+			}
+		}
+	}
+
+	_set_tab_status(p_tab_id, TTR("Ready"), false);
+	_set_tab_busy(p_tab_id, false);
+}
+
+void UltimateAssistantPanel::_apply_conflict_state(int p_tab_id, const Dictionary &p_response) {
+	int tab_index = _find_tab_index_by_id(p_tab_id);
+	if (tab_index < 0 || tab_index >= tabs.size()) {
+		return;
+	}
+	ChatTab &tab = tabs.write[tab_index];
+	tab.has_conflict = true;
+
+	if (tab.resync_button) {
+		tab.resync_button->set_visible(true);
+	}
+
+	String detail = String(p_response.get("error", TTR("Session conflict.")));
+	_set_tab_status(p_tab_id, vformat("Conflict (409): %s", detail), true);
+	_append_message(p_tab_id, TTR("System"), vformat("Conflict detected (%s). Use Resync to refresh session state.", detail));
+	_broadcast_shared_state();
+}
+
+void UltimateAssistantPanel::_clear_conflict_state(int p_tab_id) {
+	int tab_index = _find_tab_index_by_id(p_tab_id);
+	if (tab_index < 0 || tab_index >= tabs.size()) {
+		return;
+	}
+	ChatTab &tab = tabs.write[tab_index];
+	tab.has_conflict = false;
+	if (tab.resync_button) {
+		tab.resync_button->set_visible(false);
+	}
+}
+
+void UltimateAssistantPanel::_show_approval_batch(int p_tab_id, const Dictionary &p_batch) {
+	int tab_index = _find_tab_index_by_id(p_tab_id);
+	if (tab_index < 0 || tab_index >= tabs.size()) {
+		return;
+	}
+	ChatTab &tab = tabs.write[tab_index];
+
+	tab.last_plan_id = String(p_batch.get("plan_id", String()));
+	tab.pending_action_ids.clear();
+	tab.pending_actions.clear();
+
+	if (tab.approval_list) {
+		tab.approval_list->clear();
+	}
+
+	Array actions = p_batch.get("actions", Array());
+	for (int i = 0; i < actions.size(); i++) {
+		Variant action_v = actions[i];
+		if (action_v.get_type() != Variant::DICTIONARY) {
+			continue;
+		}
+		Dictionary action = action_v;
+		String action_id = String(action.get("action_id", String()));
+		if (!action_id.is_empty()) {
+			tab.pending_action_ids.push_back(action_id);
+		}
+		tab.pending_actions.push_back(action);
+
+		if (tab.approval_list) {
+			Dictionary command = action.get("command", Dictionary());
+			String action_name = String(command.get("action", "unknown"));
+			String risk = String(action.get("risk_level", "unknown"));
+			String label = vformat("%s  |  %s  |  risk=%s", action_id, action_name, risk);
+			int idx = tab.approval_list->add_item(label);
+			tab.approval_list->set_item_metadata(idx, action_id);
+		}
+	}
+
+	if (tab.approval_label) {
+		String summary = String(p_batch.get("approval_summary", String()));
+		if (summary.is_empty()) {
+			summary = TTR("Pending approval");
+		}
+		tab.approval_label->set_text(summary);
+	}
+
+	if (tab.approval_section) {
+		tab.approval_section->set_visible(!tab.pending_action_ids.is_empty());
+	}
+	_refresh_hub();
+	_broadcast_shared_state();
+}
+
+void UltimateAssistantPanel::_clear_approval_batch(int p_tab_id) {
+	int tab_index = _find_tab_index_by_id(p_tab_id);
+	if (tab_index < 0 || tab_index >= tabs.size()) {
+		return;
+	}
+	ChatTab &tab = tabs.write[tab_index];
+	tab.pending_action_ids.clear();
+	tab.pending_actions.clear();
+	tab.last_plan_id = "";
+
+	if (tab.approval_list) {
+		tab.approval_list->clear();
+	}
+	if (tab.approval_section) {
+		tab.approval_section->set_visible(false);
+	}
+	_refresh_hub();
+	_broadcast_shared_state();
+}
+
+bool UltimateAssistantPanel::_poll_task_status_for_tab(int p_tab_id, const String &p_plan_id) {
+	if (!backend_adapter || p_plan_id.is_empty()) {
+		return false;
+	}
+
+	Dictionary response = backend_adapter->get_task_status(p_plan_id);
+	_log_request_context("task/status", response);
+
+	if (bool(response.get("ok", false))) {
+		Variant body_v = response.get("body", Variant());
+		if (body_v.get_type() == Variant::DICTIONARY) {
+			Dictionary body = body_v;
+			if (!_is_valid_task_status_payload(body, p_plan_id)) {
+				_set_tab_status(p_tab_id, TTR("Task status response does not match Interface contract."), true);
+				_append_message(p_tab_id, TTR("System"), TTR("Gateway returned an invalid task_status response shape."));
+				return false;
+			}
+
+			String task_status = String(body.get("status", String())).to_lower();
+			if (!task_status.is_empty()) {
+				_set_tab_status(p_tab_id, vformat("Gateway task: %s", task_status.replace("_", " ")), false);
+				if (task_status == "error") {
+					_append_message(p_tab_id, TTR("System"), TTR("Gateway reported task execution error."));
+					return false;
+				}
+			}
+
+			Variant proposed_batch_v = body.get("proposed_action_batch", Variant());
+			if (proposed_batch_v.get_type() == Variant::DICTIONARY) {
+				Dictionary proposed_batch = proposed_batch_v;
+				if (!proposed_batch.has("plan_id")) {
+					proposed_batch["plan_id"] = p_plan_id;
+				}
+				_show_approval_batch(p_tab_id, proposed_batch);
+
+				bool requires_approval = bool(proposed_batch.get("requires_approval", false));
+				if (requires_approval) {
+					String summary = String(proposed_batch.get("approval_summary", String()));
+					_append_message(p_tab_id, TTR("System"), summary.is_empty() ? TTR("Approval required before execution.") : summary);
+					return true;
+				}
+
+				Array commands;
+				Array actions = proposed_batch.get("actions", Array());
+				for (int i = 0; i < actions.size(); i++) {
+					Variant action_v = actions[i];
+					if (action_v.get_type() != Variant::DICTIONARY) {
+						continue;
+					}
+					Dictionary action = action_v;
+					if (action.has("command") && action["command"].get_type() == Variant::DICTIONARY) {
+						commands.push_back(action["command"]);
+					}
+				}
+				_clear_approval_batch(p_tab_id);
+				_execute_commands_for_tab(p_tab_id, commands);
+				return true;
+			}
+
+			if (task_status == "done") {
+				return true;
+			}
+
+			_set_tab_status(p_tab_id, TTR("Gateway task queued; awaiting worker update."), false);
+			return false;
+		}
+
+		_set_tab_status(p_tab_id, TTR("Task status response does not match Interface contract."), true);
+		_append_message(p_tab_id, TTR("System"), TTR("Gateway returned an invalid task_status response shape."));
+		return false;
+	}
+
+	int status_code = int(response.get("status_code", 0));
+	if (status_code == HTTPClient::RESPONSE_CONFLICT) {
+		_apply_conflict_state(p_tab_id, response);
+		return false;
+	}
+	if (status_code != HTTPClient::RESPONSE_NOT_FOUND) {
+		String error = String(response.get("error", TTR("Task status request failed.")));
+		_set_tab_status(p_tab_id, error, true);
+		_append_message(p_tab_id, TTR("System"), vformat("Task status request failed: %s", error));
+		return false;
+	}
+
+	_set_tab_status(p_tab_id, TTR("Gateway task queued; awaiting worker update."), false);
+	return false;
+}
+
+void UltimateAssistantPanel::_submit_approval_for_tab(int p_tab_id, const String &p_decision) {
+	if (!backend_adapter) {
+		_set_tab_status(p_tab_id, TTR("Backend adapter unavailable."), true);
+		return;
+	}
+
+	int tab_index = _find_tab_index_by_id(p_tab_id);
+	if (tab_index < 0 || tab_index >= tabs.size()) {
+		return;
+	}
+	ChatTab &tab = tabs.write[tab_index];
+
+	if (tab.last_plan_id.is_empty() || tab.pending_action_ids.is_empty()) {
+		_set_tab_status(p_tab_id, TTR("No pending approval actions."), true);
+		return;
+	}
+
+	_set_tab_busy(p_tab_id, true, TTR("Submitting approval..."));
+
+	Array action_ids;
+	for (int i = 0; i < tab.pending_action_ids.size(); i++) {
+		action_ids.push_back(tab.pending_action_ids[i]);
+	}
+
+	String reviewer = "editor-user";
+	Dictionary runtime_config = backend_adapter->get_runtime_config();
+	String configured_reviewer = _sanitize_reviewer_id(String(runtime_config.get("actor_id", String())));
+	if (!configured_reviewer.is_empty()) {
+		reviewer = configured_reviewer;
+	}
+
+	Dictionary payload;
+	payload["schema_version"] = "v1";
+	payload["session_id"] = tab.session_id;
+	payload["plan_id"] = tab.last_plan_id;
+	payload["decision"] = p_decision;
+	payload["approved_action_ids"] = p_decision == "approve" ? action_ids : Array();
+	payload["rejected_action_ids"] = p_decision == "reject" ? action_ids : Array();
+	payload["reviewer_id"] = reviewer;
+	payload["decided_at"] = _now_iso8601_utc();
+
+	Dictionary response = backend_adapter->submit_approval(tab.last_plan_id, payload);
+	_log_request_context("task/approval", response);
+
+	if (!bool(response.get("ok", false))) {
+		if (int(response.get("status_code", 0)) == HTTPClient::RESPONSE_CONFLICT) {
+			_apply_conflict_state(p_tab_id, response);
+		} else {
+			String error = String(response.get("error", TTR("Approval request failed.")));
+			_set_tab_status(p_tab_id, error, true);
+			_append_message(p_tab_id, TTR("System"), vformat("Approval failed: %s", error));
+		}
+		_set_tab_busy(p_tab_id, false);
+		return;
+	}
+
+	_clear_conflict_state(p_tab_id);
+	_clear_approval_batch(p_tab_id);
+
+	Variant body_v = response.get("body", Variant());
+	if (body_v.get_type() == Variant::DICTIONARY) {
+		Dictionary body = body_v;
+		if (body.has("commands") && body["commands"].get_type() == Variant::ARRAY) {
+			_execute_commands_for_tab(p_tab_id, body["commands"]);
+		}
+	}
+
+	_set_tab_status(p_tab_id, TTR("Approval processed."), false);
+	_set_tab_busy(p_tab_id, false);
+}
+
+void UltimateAssistantPanel::_execute_commands_for_tab(int p_tab_id, const Array &p_commands) {
+	for (int i = 0; i < p_commands.size(); i++) {
+		Variant cmd_v = p_commands[i];
+		if (cmd_v.get_type() != Variant::DICTIONARY) {
+			continue;
+		}
+		_execute_single_command(p_tab_id, cmd_v);
+	}
+}
+
+void UltimateAssistantPanel::_execute_single_command(int p_tab_id, const Dictionary &p_command) {
+	if (!backend_adapter) {
+		return;
+	}
+
+	Dictionary trust = backend_adapter->evaluate_command_trust(p_command);
+	bool allowed = bool(trust.get("allowed", false));
+	bool trusted = bool(trust.get("trusted", false));
+	if (!allowed || !trusted) {
+		String reason = String(trust.get("reason", "blocked"));
+		_append_message(p_tab_id, TTR("System"), vformat("Blocked command execution: %s", reason));
+		return;
+	}
+
+	String action = String(p_command.get("action", ""));
+	if (action == "chat_message") {
+		String content = String(p_command.get("content", ""));
+		String agent = String(p_command.get("agent", "Assistant"));
+		_append_message(p_tab_id, agent.is_empty() ? TTR("Assistant") : agent, content);
+		_append_message(p_tab_id, TTR("System"), TTR("Executed command: chat_message"));
+		return;
+	}
+
+	_append_message(p_tab_id, TTR("System"), vformat("Allowed command '%s' is not mapped in MVP executor.", action));
+}
+
+void UltimateAssistantPanel::_log_request_context(const String &p_operation, const Dictionary &p_response) const {
+	String request_id = String(p_response.get("request_id", ""));
+	String correlation_id = String(p_response.get("correlation_id", ""));
+	int status = int(p_response.get("status_code", 0));
+	print_line(vformat("[UltimateAssistantPanel] op=%s status=%d request_id=%s correlation_id=%s", p_operation, status, request_id, correlation_id));
+}
+
+void UltimateAssistantPanel::_on_approve_pressed(int p_tab_id) {
+	_submit_approval_for_tab(p_tab_id, "approve");
+}
+
+void UltimateAssistantPanel::_on_reject_pressed(int p_tab_id) {
+	_submit_approval_for_tab(p_tab_id, "reject");
+}
+
+void UltimateAssistantPanel::_on_resync_pressed(int p_tab_id) {
+	int tab_index = _find_tab_index_by_id(p_tab_id);
+	if (tab_index < 0 || tab_index >= tabs.size()) {
+		return;
+	}
+	ChatTab &tab = tabs.write[tab_index];
+
+	if (tab.has_conflict) {
+		_set_tab_busy(p_tab_id, true, TTR("Resyncing session..."));
+		if (_start_session_for_tab(p_tab_id, true)) {
+			_clear_conflict_state(p_tab_id);
+			_set_tab_status(p_tab_id, TTR("Session resynced."), false);
+			_append_message(p_tab_id, TTR("System"), TTR("Session resynced successfully."));
+		}
+		_set_tab_busy(p_tab_id, false);
+		return;
+	}
+
+	if (!tab.last_plan_id.is_empty()) {
+		_set_tab_busy(p_tab_id, true, TTR("Refreshing gateway task status..."));
+		if (!_poll_task_status_for_tab(p_tab_id, tab.last_plan_id)) {
+			_append_message(p_tab_id, TTR("System"), TTR("Gateway task is still queued or planning."));
+		}
+		_set_tab_busy(p_tab_id, false);
+		return;
+	}
+
+	_set_tab_status(p_tab_id, TTR("No conflict or gateway task to resync."), false);
 }
 
 void UltimateAssistantPanel::_on_settings_pressed() {
 	settings_dialog->set_models(available_models);
+	if (backend_adapter) {
+		settings_dialog->set_runtime_config(backend_adapter->get_runtime_config());
+	}
 	settings_dialog->popup_centered();
 }
 
 void UltimateAssistantPanel::_on_settings_confirmed() {
 	PackedStringArray selected = settings_dialog->get_selected_models();
-	if (selected.is_empty()) {
-		return;
+	if (!selected.is_empty()) {
+		available_models = selected;
+		_refresh_model_selectors();
 	}
-	available_models = selected;
-	_refresh_model_selectors();
+	if (backend_adapter) {
+		backend_adapter->apply_runtime_config(settings_dialog->get_runtime_config());
+	}
 	_broadcast_shared_state();
 }
 
@@ -1282,19 +2078,34 @@ void UltimateAssistantPanel::_refresh_hub() {
 		if (tab.agent_mode_selector && tab.agent_mode_selector->get_selected() >= 0) {
 			agent_mode = tab.agent_mode_selector->get_item_text(tab.agent_mode_selector->get_selected());
 		}
-		String status = TTR("Idle");
+		String status = tab.is_active ? TTR("Busy") : TTR("Idle");
+		if (tab.has_conflict) {
+			status = TTR("Conflict");
+		} else if (!tab.pending_action_ids.is_empty()) {
+			status = TTR("Awaiting approval");
+		} else if (!tab.last_plan_id.is_empty()) {
+			status = TTR("Gateway queued");
+		}
 		String entry = vformat("%s  |  %s  |  %s  |  %s", _get_tab_label(tab), model, agent_mode, status);
 		hub_agent_list->add_item(entry);
 
 		if (hub_pending_list) {
-			String pending = vformat("%s  |  Needs approval: edit sensitive file (stub)", _get_tab_label(tab));
-			hub_pending_list->add_item(pending);
-			String pending2 = vformat("%s  |  Run terminal command (stub)", _get_tab_label(tab));
-			hub_pending_list->add_item(pending2);
+			if (tab.has_conflict) {
+				hub_pending_list->add_item(vformat("%s  |  Conflict 409 detected (resync required)", _get_tab_label(tab)));
+			}
+			if (!tab.last_plan_id.is_empty() && tab.pending_action_ids.is_empty() && !tab.has_conflict) {
+				hub_pending_list->add_item(vformat("%s  |  Gateway task pending: %s", _get_tab_label(tab), tab.last_plan_id));
+			}
+			for (int j = 0; j < tab.pending_action_ids.size(); j++) {
+				hub_pending_list->add_item(vformat("%s  |  Pending approval: %s", _get_tab_label(tab), tab.pending_action_ids[j]));
+			}
 		}
 		if (hub_questions_list) {
-			String question = vformat("%s  |  Question: Which scene should I update? (stub)", _get_tab_label(tab));
-			hub_questions_list->add_item(question);
+			if (tab.has_conflict) {
+				hub_questions_list->add_item(vformat("%s  |  Action needed: click Resync before retrying requests.", _get_tab_label(tab)));
+			} else if (!tab.last_plan_id.is_empty() && tab.pending_action_ids.is_empty()) {
+				hub_questions_list->add_item(vformat("%s  |  Action needed: click Resync to refresh gateway task status.", _get_tab_label(tab)));
+			}
 		}
 	}
 	if (hub_previous_list) {

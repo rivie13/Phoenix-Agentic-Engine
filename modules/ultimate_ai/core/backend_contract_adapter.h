@@ -1,5 +1,5 @@
 /**************************************************************************/
-/*  terminal_orchestrator_bridge.h                                        */
+/*  backend_contract_adapter.h                                            */
 /**************************************************************************/
 /*                         This file is part of:                          */
 /*                     PHOENIX AGENTIC GAME ENGINE                        */
@@ -33,25 +33,57 @@
 
 #pragma once
 
+#include "core/io/http_client.h"
 #include "core/object/object.h"
 
-class UltimateAITerminalBridge : public Object {
-	GDCLASS(UltimateAITerminalBridge, Object);
+class UltimateAIBackendContractAdapter : public Object {
+	GDCLASS(UltimateAIBackendContractAdapter, Object);
 
-	Object *_get_terminal_api_target() const;
+	struct RuntimeConfig {
+		String base_url = "http://localhost:5244";
+		String auth_mode = "managed";
+		String token = "";
+		String token_hook = "";
+		String actor_id = "";
+		String tier = "";
+		int timeout_ms = 15000;
+		int retry_count = 1;
+		bool require_signed_commands = true;
+	};
+
+	RuntimeConfig runtime_config;
+	PackedStringArray command_allowlist;
+
+	String _now_iso8601_utc() const;
+	String _generate_request_id(const String &p_prefix) const;
+	String _resolve_auth_token() const;
+	String _extract_header_value(const List<String> &p_headers, const String &p_key) const;
+	String _extract_error_message_from_body(const Variant &p_body) const;
+	bool _is_retryable_failure(const Dictionary &p_response) const;
+	Dictionary _request_once(HTTPClient::Method p_method, const String &p_path, const Variant &p_body) const;
+
+	Dictionary _request_json(HTTPClient::Method p_method, const String &p_path, const Variant &p_body = Variant()) const;
+
+	bool _allowlist_contains(const String &p_action) const;
 
 protected:
 	static void _bind_methods();
 
 public:
-	bool is_available() const;
-	Variant execute_terminal_action(const String &p_action, const Dictionary &p_args = Dictionary()) const;
+	void apply_runtime_config(const Dictionary &p_config);
+	Dictionary get_runtime_config() const;
 
-	Array list_terminals() const;
-	int create_terminal(const String &p_name = "", bool p_ai_terminal = true) const;
-	bool select_terminal(int p_terminal_id) const;
-	bool close_terminal(int p_terminal_id) const;
-	bool send_terminal_input(int p_terminal_id, const String &p_text, bool p_append_newline = true) const;
-	bool send_to_active_terminal(const String &p_text, bool p_append_newline = true) const;
-	bool restart_terminal(int p_terminal_id) const;
+	Dictionary start_session(const Dictionary &p_payload) const;
+	Dictionary request_task(const Dictionary &p_payload) const;
+	Dictionary get_task_status(const String &p_plan_id) const;
+	Dictionary submit_approval(const String &p_plan_id, const Dictionary &p_payload) const;
+	Dictionary auth_handshake(const Dictionary &p_payload) const;
+	Dictionary list_tools() const;
+	Dictionary invoke_tool(const Dictionary &p_payload) const;
+
+	Dictionary evaluate_command_trust(const Dictionary &p_command) const;
+	PackedStringArray get_command_allowlist() const;
+	void set_command_allowlist(const PackedStringArray &p_allowlist);
+
+	UltimateAIBackendContractAdapter();
 };

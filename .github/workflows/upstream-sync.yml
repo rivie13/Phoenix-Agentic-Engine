@@ -3,46 +3,97 @@ name: Upstream Sync
 on:
   workflow_dispatch:
     inputs:
+      upstream_owner:
+        description: "Upstream repository owner"
+        required: true
+        default: "godotengine"
       upstream_branch:
-        description: "Upstream branch to mirror"
+        description: "Upstream branch to propose"
         required: true
         default: "master"
-      sync_branch:
-        description: "Fork branch to update"
+      base_branch:
+        description: "Target branch in this repository"
         required: true
-        default: "upstream-sync"
+        default: "phoenix-main"
   schedule:
     - cron: "0 6 * * 1" # Weekly on Monday
 
 permissions:
-  contents: write
+  contents: read
+  pull-requests: write
 
 jobs:
-  sync:
+  open-upstream-pr:
     runs-on: ubuntu-latest
     env:
+      UPSTREAM_OWNER: ${{ inputs.upstream_owner || 'godotengine' }}
       UPSTREAM_BRANCH: ${{ inputs.upstream_branch || 'master' }}
-      SYNC_BRANCH: ${{ inputs.sync_branch || 'upstream-sync' }}
+      BASE_BRANCH: ${{ inputs.base_branch || 'phoenix-main' }}
     steps:
-      - name: Checkout fork
-        uses: actions/checkout@v4
+      - name: Create or reuse upstream sync PR
+        uses: actions/github-script@v7
         with:
-          fetch-depth: 0
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
 
-      - name: Add upstream remote
-        run: |
-          git remote add upstream https://github.com/godotengine/godot.git
-          git remote -v
+            const upstreamOwner = process.env.UPSTREAM_OWNER;
+            const upstreamBranch = process.env.UPSTREAM_BRANCH;
+            const baseBranch = process.env.BASE_BRANCH;
+            const headRef = `${upstreamOwner}:${upstreamBranch}`;
+            const basehead = `${baseBranch}...${headRef}`;
 
-      - name: Fetch upstream
-        run: |
-          git fetch upstream
+            core.info(`Checking for changes: ${headRef} -> ${owner}:${baseBranch}`);
 
-      - name: Update sync branch
-        run: |
-          git checkout -B "${SYNC_BRANCH}"
-          git reset --hard "upstream/${UPSTREAM_BRANCH}"
+            let comparison;
+            try {
+              comparison = await github.rest.repos.compareCommitsWithBasehead({
+                owner,
+                repo,
+                basehead,
+              });
+            } catch (error) {
+              core.setFailed(`Unable to compare ${basehead}: ${error.message}`);
+              return;
+            }
 
-      - name: Push sync branch
-        run: |
-          git push origin "${SYNC_BRANCH}" --force
+            if (comparison.data.ahead_by === 0) {
+              core.notice(`No upstream changes available for ${headRef} into ${baseBranch}.`);
+              return;
+            }
+
+            const existing = await github.rest.pulls.list({
+              owner,
+              repo,
+              state: "open",
+              base: baseBranch,
+              head: headRef,
+              per_page: 1,
+            });
+
+            if (existing.data.length > 0) {
+              core.notice(`PR already open: #${existing.data[0].number}`);
+              return;
+            }
+
+            const title = `Upstream sync: ${upstreamOwner}/${upstreamBranch} -> ${baseBranch}`;
+            const body = [
+              "Automated upstream sync PR.",
+              "",
+              `- Upstream: ${upstreamOwner}/${upstreamBranch}`,
+              `- Target: ${owner}/${baseBranch}`,
+              "",
+              "Created by `.github/workflows/upstream-sync.yml`."
+            ].join("\n");
+
+            const created = await github.rest.pulls.create({
+              owner,
+              repo,
+              title,
+              head: headRef,
+              base: baseBranch,
+              body,
+              maintainer_can_modify: true,
+            });
+
+            core.notice(`Created PR #${created.data.number}: ${created.data.html_url}`);

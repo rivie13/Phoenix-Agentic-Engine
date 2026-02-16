@@ -2,11 +2,14 @@
 /*  gdterm_editor_plugin.cpp                                              */
 /**************************************************************************/
 /*                         This file is part of:                          */
-/*                             GODOT ENGINE                               */
-/*                        https://godotengine.org                         */
+/*                     PHOENIX AGENTIC GAME ENGINE                        */
+/*                     Based on the Godot Engine                          */
+/*                       https://godotengine.org                          */
 /**************************************************************************/
 /* Copyright (c) 2014-present Godot Engine contributors (see AUTHORS.md). */
 /* Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur.                  */
+/* Copyright (c) 2026-present Phoenix Agentic Game Engine contributors     */
+/* (see AUTHORS.md).                                                       */
 /*                                                                        */
 /* Permission is hereby granted, free of charge, to any person obtaining  */
 /* a copy of this software and associated documentation files (the        */
@@ -29,6 +32,8 @@
 /**************************************************************************/
 
 #include "gdterm_editor_plugin.h"
+
+#include "addon_bootstrap_utils.h"
 
 #include "core/config/project_settings.h"
 #include "core/io/dir_access.h"
@@ -61,6 +66,13 @@ GDTermEditorPlugin::~GDTermEditorPlugin() {
 void GDTermEditorPlugin::_notification(int p_what) {
 	switch (p_what) {
 		case NOTIFICATION_ENTER_TREE: {
+			if (AddonBootstrapMigrator::should_skip_addon_bootstrap()) {
+				enable_pending = false;
+				addon_ready = false;
+				layout_migrated_this_run = false;
+				set_process(false);
+				break;
+			}
 			_ensure_bottom_dock_layout_preference();
 			_ensure_gitignore_entries();
 			set_process(true);

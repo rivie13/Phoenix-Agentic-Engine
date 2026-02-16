@@ -1,5 +1,5 @@
 /**************************************************************************/
-/*  bfxr_editor_plugin.cpp                                                */
+/*  gut_editor_plugin.cpp                                                 */
 /**************************************************************************/
 /*                         This file is part of:                          */
 /*                     PHOENIX AGENTIC GAME ENGINE                        */
@@ -31,130 +31,124 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
 /**************************************************************************/
 
-#include "bfxr_editor_plugin.h"
+#include "gut_editor_plugin.h"
 
 #include "addon_bootstrap_utils.h"
-#include "bfxr_panel.h"
 
 #include "core/config/project_settings.h"
-#include "core/io/config_file.h"
 #include "core/io/dir_access.h"
 #include "core/io/file_access.h"
 #include "core/os/os.h"
-#include "editor/editor_interface.h"
-#include "editor/editor_main_screen.h"
 #include "editor/editor_node.h"
 #include "editor/file_system/editor_file_system.h"
-#include "scene/gui/box_container.h"
 
 namespace {
-const char *const BFXR_ADDON_PATH = "res://addons/bfxr2-mcp-server";
-const char *const BFXR_PLUGIN_CFG = "res://addons/bfxr2-mcp-server/plugin.cfg";
-const char *const BFXR_FALLBACK_PLUGIN_NAME = "bfxr2-mcp-server";
-const char *const BFXR_SYNC_MARKER_FILE = ".phoenix_sync_revision";
-const char *const BFXR_SYNC_REVISION = "2026-02-13-bfxr-addon-bootstrap-v1";
+const char *const GUT_ADDON_PATH = "res://addons/gut";
+const char *const GUT_PLUGIN_CFG = "res://addons/gut/plugin.cfg";
+const char *const GUT_SYNC_MARKER_FILE = ".phoenix_sync_revision";
+const char *const GUT_SYNC_REVISION = "2026-02-16-gut-addon-bootstrap-v1";
 } //namespace
 
-String BfxrEditorPlugin::get_plugin_name() const {
-	return "BFXR";
+String GutEditorPlugin::get_plugin_name() const {
+	return "GUT";
 }
 
-bool BfxrEditorPlugin::has_main_screen() const {
-	return true;
+GutEditorPlugin::GutEditorPlugin() {
 }
 
-const Ref<Texture2D> BfxrEditorPlugin::get_plugin_icon() const {
-	return EditorInterface::get_singleton()->get_editor_theme()->get_icon("AudioStreamPlayer", "EditorIcons");
+GutEditorPlugin::~GutEditorPlugin() {
 }
 
-BfxrEditorPlugin::BfxrEditorPlugin() {
-	bfxr_panel = memnew(BfxrPanel);
-	bfxr_panel->set_v_size_flags(Control::SIZE_EXPAND_FILL);
-	EditorNode::get_singleton()->get_editor_main_screen()->get_control()->add_child(bfxr_panel);
-	bfxr_panel->set_anchors_and_offsets_preset(Control::PRESET_FULL_RECT);
-	bfxr_panel->hide();
-}
-
-BfxrEditorPlugin::~BfxrEditorPlugin() {
-}
-
-void BfxrEditorPlugin::make_visible(bool p_visible) {
-	if (!bfxr_panel) {
-		return;
-	}
-	if (p_visible) {
-		bfxr_panel->show();
-	} else {
-		bfxr_panel->hide();
-	}
-}
-
-void BfxrEditorPlugin::_notification(int p_what) {
+void GutEditorPlugin::_notification(int p_what) {
 	switch (p_what) {
 		case NOTIFICATION_ENTER_TREE: {
 			if (AddonBootstrapMigrator::should_skip_addon_bootstrap()) {
 				enable_pending = false;
 				addon_ready = false;
+				addon_activation_pending = false;
+				addon_enable_delay_frames = 0;
 				set_process(false);
 				break;
 			}
+			AddonBootstrapMigrator::ensure_default_gitignore_entries_once();
 			_ensure_gitignore_entries();
-			set_process(true);
 			addon_ready = _ensure_addon_installed();
-			_maybe_enable_plugin();
-			if (!enable_pending) {
-				set_process(false);
-			}
+			addon_activation_pending = addon_ready;
+			addon_enable_delay_frames = addon_ready ? 1 : 0;
+			set_process(enable_pending || addon_activation_pending);
 		} break;
 		case NOTIFICATION_PROCESS: {
-			if (!enable_pending) {
+			if (enable_pending) {
+				EditorFileSystem *efs = EditorFileSystem::get_singleton();
+				if (efs && efs->is_scanning()) {
+					return;
+				}
+
+				enable_pending = false;
+				addon_ready = _ensure_addon_installed() || addon_ready;
+				if (addon_ready) {
+					addon_activation_pending = true;
+					addon_enable_delay_frames = 1;
+				}
+			}
+
+			if (addon_activation_pending && addon_ready) {
+				if (addon_enable_delay_frames > 0) {
+					addon_enable_delay_frames--;
+					return;
+				}
+
+				if (_maybe_enable_plugin()) {
+					addon_activation_pending = false;
+				}
+			}
+
+			if (!enable_pending && !addon_activation_pending) {
 				set_process(false);
-				return;
 			}
-			EditorFileSystem *efs = EditorFileSystem::get_singleton();
-			if (efs && efs->is_scanning()) {
-				return;
-			}
-			enable_pending = false;
-			addon_ready = _ensure_addon_installed() || addon_ready;
-			_maybe_enable_plugin();
-			set_process(false);
 		} break;
 		case NOTIFICATION_EXIT_TREE: {
 			enable_pending = false;
 			addon_ready = false;
+			addon_activation_pending = false;
+			addon_enable_delay_frames = 0;
 			set_process(false);
 		} break;
 	}
 }
 
-void BfxrEditorPlugin::_maybe_enable_plugin() {
+bool GutEditorPlugin::_maybe_enable_plugin() {
 	if (!addon_ready) {
-		return;
+		return true;
 	}
-	if (!FileAccess::exists(BFXR_PLUGIN_CFG)) {
-		return;
+
+	if (!FileAccess::exists(GUT_PLUGIN_CFG)) {
+		return true;
 	}
+
+	ProjectSettings *project_settings = ProjectSettings::get_singleton();
+	if (!project_settings || !project_settings->has_setting("editor_plugins/enabled")) {
+		return false;
+	}
+
+	EditorNode *editor_node = EditorNode::get_singleton();
+	if (!editor_node) {
+		return false;
+	}
+
 	if (_is_addon_enabled_in_project()) {
-		return;
+		return true;
 	}
 
-	EditorInterface *editor_interface = EditorInterface::get_singleton();
-	if (!editor_interface) {
-		return;
+	if (editor_node->is_addon_plugin_enabled(GUT_PLUGIN_CFG)) {
+		return true;
 	}
 
-	String plugin_name = _read_plugin_name_from_cfg();
-	if (plugin_name.is_empty()) {
-		plugin_name = BFXR_FALLBACK_PLUGIN_NAME;
-	}
-
-	if (!editor_interface->is_plugin_enabled(plugin_name)) {
-		editor_interface->set_plugin_enabled(plugin_name, true);
-	}
+	editor_node->set_addon_plugin_enabled(GUT_PLUGIN_CFG, true, true);
+	return true;
 }
 
-void BfxrEditorPlugin::_ensure_gitignore_entries() {
+void GutEditorPlugin::_ensure_gitignore_entries() {
 	ProjectSettings *project_settings = ProjectSettings::get_singleton();
 	if (!project_settings) {
 		return;
@@ -178,11 +172,11 @@ void BfxrEditorPlugin::_ensure_gitignore_entries() {
 		gitignore_changed = true;
 	}
 
-	if (gitignore_contents.find("addons/bfxr2-mcp-server/") == -1) {
+	if (gitignore_contents.find("addons/gut/") == -1) {
 		if (!gitignore_contents.ends_with("\n")) {
 			gitignore_contents += "\n";
 		}
-		gitignore_contents += "addons/bfxr2-mcp-server/\n";
+		gitignore_contents += "addons/gut/\n";
 		gitignore_changed = true;
 	}
 
@@ -197,9 +191,10 @@ void BfxrEditorPlugin::_ensure_gitignore_entries() {
 	out->store_string(gitignore_contents);
 }
 
-bool BfxrEditorPlugin::_ensure_addon_installed() {
-	const String dst_path = ProjectSettings::get_singleton()->globalize_path(String(BFXR_ADDON_PATH));
-	const String dst_marker = dst_path.path_join(BFXR_SYNC_MARKER_FILE);
+bool GutEditorPlugin::_ensure_addon_installed() {
+	const String dst_path = ProjectSettings::get_singleton()->globalize_path(String(GUT_ADDON_PATH));
+	const String dst_plugin_cfg = dst_path.path_join("plugin.cfg");
+	const String dst_marker = dst_path.path_join(GUT_SYNC_MARKER_FILE);
 
 	String marker_revision;
 	uint64_t marker_mtime = 0;
@@ -207,26 +202,26 @@ bool BfxrEditorPlugin::_ensure_addon_installed() {
 
 	const String src_path = _find_source_addon_path();
 	if (src_path.is_empty()) {
-		ERR_PRINT("BFXR runtime source not found. Clone submodule into modules/ultimate_ai/external/bfxr2-mcp-server.");
+		ERR_PRINT("GUT addon source not found. Clone submodule into modules/ultimate_ai/external/gut.");
 		return false;
 	}
 
 	const uint64_t src_mtime = _get_latest_mtime(src_path);
-	const bool marker_valid = has_marker && marker_revision == BFXR_SYNC_REVISION && marker_mtime >= src_mtime;
-	if (DirAccess::dir_exists_absolute(dst_path) && marker_valid) {
+	const bool marker_valid = has_marker && marker_revision == GUT_SYNC_REVISION && marker_mtime >= src_mtime;
+	if (FileAccess::exists(dst_plugin_cfg) && marker_valid) {
 		return true;
 	}
 
 	if (DirAccess::dir_exists_absolute(dst_path)) {
 		Error clear_err = _remove_dir_contents(dst_path);
 		if (clear_err != OK) {
-			ERR_PRINT("BFXR addon cleanup failed.");
+			ERR_PRINT("GUT addon cleanup failed.");
 			return false;
 		}
 	}
 
 	if (_copy_dir_recursive(src_path, dst_path) != OK) {
-		ERR_PRINT("BFXR addon copy failed.");
+		ERR_PRINT("GUT addon copy failed.");
 		return false;
 	}
 
@@ -236,30 +231,21 @@ bool BfxrEditorPlugin::_ensure_addon_installed() {
 	}
 
 	enable_pending = true;
-	_write_sync_marker(dst_marker, BFXR_SYNC_REVISION, src_mtime);
+	_write_sync_marker(dst_marker, GUT_SYNC_REVISION, src_mtime);
 	return false;
 }
 
-String BfxrEditorPlugin::_find_source_addon_path() const {
-	const String exec_dir = OS::get_singleton()->get_executable_path().get_base_dir();
+String GutEditorPlugin::_find_source_addon_path() const {
+	String exec_dir = OS::get_singleton()->get_executable_path().get_base_dir();
 	Vector<String> candidates;
 
-	candidates.push_back(String(__FILE__).get_base_dir().path_join("../external/bfxr2-mcp-server/addons/bfxr2-mcp-server").simplify_path());
-	candidates.push_back(String(__FILE__).get_base_dir().path_join("../external/bfxr2-mcp-server/addons/bfxr").simplify_path());
-	candidates.push_back(String(__FILE__).get_base_dir().path_join("../external/bfxr2-mcp-server/addons/bfxr2").simplify_path());
-	candidates.push_back(String(__FILE__).get_base_dir().path_join("../external/bfxr2-mcp-server").simplify_path());
-
-	candidates.push_back(exec_dir.path_join("modules/ultimate_ai/external/bfxr2-mcp-server/addons/bfxr2-mcp-server").simplify_path());
-	candidates.push_back(exec_dir.path_join("../modules/ultimate_ai/external/bfxr2-mcp-server/addons/bfxr2-mcp-server").simplify_path());
-	candidates.push_back(exec_dir.path_join("../../modules/ultimate_ai/external/bfxr2-mcp-server/addons/bfxr2-mcp-server").simplify_path());
-	candidates.push_back(exec_dir.path_join("../../../modules/ultimate_ai/external/bfxr2-mcp-server/addons/bfxr2-mcp-server").simplify_path());
-	candidates.push_back(exec_dir.path_join("modules/ultimate_ai/external/bfxr2-mcp-server").simplify_path());
-	candidates.push_back(exec_dir.path_join("../modules/ultimate_ai/external/bfxr2-mcp-server").simplify_path());
-	candidates.push_back(exec_dir.path_join("../../modules/ultimate_ai/external/bfxr2-mcp-server").simplify_path());
-	candidates.push_back(exec_dir.path_join("../../../modules/ultimate_ai/external/bfxr2-mcp-server").simplify_path());
-
-	candidates.push_back(exec_dir.path_join("addons/bfxr2-mcp-server").simplify_path());
-	candidates.push_back(exec_dir.path_join("../addons/bfxr2-mcp-server").simplify_path());
+	candidates.push_back(exec_dir.path_join("addons/gut").simplify_path());
+	candidates.push_back(exec_dir.path_join("../addons/gut").simplify_path());
+	candidates.push_back(exec_dir.path_join("modules/ultimate_ai/external/gut/addons/gut").simplify_path());
+	candidates.push_back(exec_dir.path_join("../modules/ultimate_ai/external/gut/addons/gut").simplify_path());
+	candidates.push_back(exec_dir.path_join("../../modules/ultimate_ai/external/gut/addons/gut").simplify_path());
+	candidates.push_back(exec_dir.path_join("../../../modules/ultimate_ai/external/gut/addons/gut").simplify_path());
+	candidates.push_back(String(__FILE__).get_base_dir().path_join("../external/gut/addons/gut").simplify_path());
 
 	for (int i = 0; i < candidates.size(); i++) {
 		if (DirAccess::dir_exists_absolute(candidates[i])) {
@@ -270,27 +256,17 @@ String BfxrEditorPlugin::_find_source_addon_path() const {
 	return "";
 }
 
-String BfxrEditorPlugin::_read_plugin_name_from_cfg() const {
-	ConfigFile cfg;
-	if (cfg.load(BFXR_PLUGIN_CFG) != OK) {
-		return "";
-	}
-	if (!cfg.has_section_key("plugin", "name")) {
-		return "";
-	}
-	return cfg.get_value("plugin", "name", "");
-}
-
-bool BfxrEditorPlugin::_is_addon_enabled_in_project() const {
+bool GutEditorPlugin::_is_addon_enabled_in_project() const {
 	ProjectSettings *project_settings = ProjectSettings::get_singleton();
 	if (!project_settings || !project_settings->has_setting("editor_plugins/enabled")) {
 		return false;
 	}
+
 	PackedStringArray enabled = project_settings->get("editor_plugins/enabled");
-	return enabled.has(String(BFXR_ADDON_PATH).path_join("plugin.cfg"));
+	return enabled.has(String(GUT_ADDON_PATH).path_join("plugin.cfg"));
 }
 
-Error BfxrEditorPlugin::_copy_dir_recursive(const String &p_src, const String &p_dst) {
+Error GutEditorPlugin::_copy_dir_recursive(const String &p_src, const String &p_dst) {
 	Ref<DirAccess> src_dir = DirAccess::open(p_src);
 	if (src_dir.is_null()) {
 		return ERR_CANT_OPEN;
@@ -340,7 +316,7 @@ Error BfxrEditorPlugin::_copy_dir_recursive(const String &p_src, const String &p
 	return OK;
 }
 
-uint64_t BfxrEditorPlugin::_get_latest_mtime(const String &p_path) const {
+uint64_t GutEditorPlugin::_get_latest_mtime(const String &p_path) const {
 	Ref<DirAccess> dir = DirAccess::open(p_path);
 	if (dir.is_null()) {
 		return 0;
@@ -373,12 +349,13 @@ uint64_t BfxrEditorPlugin::_get_latest_mtime(const String &p_path) const {
 	return latest;
 }
 
-bool BfxrEditorPlugin::_read_sync_marker(const String &p_marker_path, String &r_revision, uint64_t &r_mtime) const {
+bool GutEditorPlugin::_read_sync_marker(const String &p_marker_path, String &r_revision, uint64_t &r_mtime) const {
 	r_revision = "";
 	r_mtime = 0;
 	if (!FileAccess::exists(p_marker_path)) {
 		return false;
 	}
+
 	Ref<FileAccess> marker_reader = FileAccess::open(p_marker_path, FileAccess::READ);
 	if (marker_reader.is_null()) {
 		return false;
@@ -397,16 +374,17 @@ bool BfxrEditorPlugin::_read_sync_marker(const String &p_marker_path, String &r_
 	return !r_revision.is_empty();
 }
 
-void BfxrEditorPlugin::_write_sync_marker(const String &p_marker_path, const String &p_revision, uint64_t p_mtime) const {
+void GutEditorPlugin::_write_sync_marker(const String &p_marker_path, const String &p_revision, uint64_t p_mtime) const {
 	Ref<FileAccess> marker_writer = FileAccess::open(p_marker_path, FileAccess::WRITE);
 	if (marker_writer.is_null()) {
 		return;
 	}
+
 	marker_writer->store_string(String("revision=") + p_revision + "\n");
 	marker_writer->store_string(String("mtime=") + String::num_uint64(p_mtime) + "\n");
 }
 
-Error BfxrEditorPlugin::_remove_dir_contents(const String &p_path) const {
+Error GutEditorPlugin::_remove_dir_contents(const String &p_path) const {
 	Ref<DirAccess> dir = DirAccess::open(p_path);
 	if (dir.is_null()) {
 		return ERR_CANT_OPEN;

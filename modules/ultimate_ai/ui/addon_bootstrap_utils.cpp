@@ -2,11 +2,14 @@
 /*  addon_bootstrap_utils.cpp                                             */
 /**************************************************************************/
 /*                         This file is part of:                          */
-/*                             GODOT ENGINE                               */
-/*                        https://godotengine.org                         */
+/*                     PHOENIX AGENTIC GAME ENGINE                        */
+/*                     Based on the Godot Engine                          */
+/*                       https://godotengine.org                          */
 /**************************************************************************/
 /* Copyright (c) 2014-present Godot Engine contributors (see AUTHORS.md). */
 /* Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur.                  */
+/* Copyright (c) 2026-present Phoenix Agentic Game Engine contributors     */
+/* (see AUTHORS.md).                                                       */
 /*                                                                        */
 /* Permission is hereby granted, free of charge, to any person obtaining  */
 /* a copy of this software and associated documentation files (the        */
@@ -32,6 +35,7 @@
 
 #include "core/config/project_settings.h"
 #include "core/io/file_access.h"
+#include "core/os/os.h"
 
 void AddonBootstrapMigrator::ensure_default_gitignore_entries_once() {
 	static bool initialized = false;
@@ -78,4 +82,54 @@ void AddonBootstrapMigrator::ensure_default_gitignore_entries_once() {
 		return;
 	}
 	out->store_string(gitignore_contents);
+}
+
+bool AddonBootstrapMigrator::should_skip_addon_bootstrap() {
+	// Cache this decision for the current process lifetime since env/cmdline are expected
+	// to be stable during an editor run.
+	static int8_t cached_value = -1;
+	if (cached_value >= 0) {
+		return cached_value == 1;
+	}
+
+	cached_value = 0;
+	OS *os = OS::get_singleton();
+	if (!os) {
+		return false;
+	}
+
+	const String skip_env = os->get_environment("PHOENIX_SKIP_ADDON_BOOTSTRAP").strip_edges().to_lower();
+	if (skip_env == "1" || skip_env == "true" || skip_env == "yes" || skip_env == "on") {
+		cached_value = 1;
+		return true;
+	}
+
+	const bool is_github_actions = os->get_environment("GITHUB_ACTIONS").strip_edges().to_lower() == "true";
+	if (!is_github_actions) {
+		return false;
+	}
+
+	const List<String> args = os->get_cmdline_args();
+	bool has_import = false;
+	bool has_headless = false;
+	bool has_test = false;
+	bool has_recovery_mode = false;
+	for (const String &arg : args) {
+		if (arg == "--import") {
+			has_import = true;
+		} else if (arg == "--headless") {
+			has_headless = true;
+		} else if (arg == "--test") {
+			has_test = true;
+		} else if (arg == "--recovery-mode") {
+			has_recovery_mode = true;
+		}
+	}
+
+	if ((has_import && has_recovery_mode) || (has_headless && has_import) || has_test) {
+		cached_value = 1;
+		return true;
+	}
+
+	return false;
 }
