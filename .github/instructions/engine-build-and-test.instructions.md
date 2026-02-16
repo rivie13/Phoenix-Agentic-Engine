@@ -1,55 +1,38 @@
-
 # Build and test — Phoenix Agentic Engine (Godot fork)
 
-## Building (Windows)
+## Canonical Windows build
 
-Always invoke SCons with the full Python path to avoid PATH mismatches:
+Always invoke SCons with the pinned Python path:
 
 ```powershell
-# Build editor (from repo root)
 C:\Python313\python.exe -m SCons platform=windows target=editor d3d12=no
-
-# Compiled binary location
-bin\godot.windows.editor.x86_64.exe
 ```
 
-For other platforms, use the standard Godot SCons workflow:
-
-```bash
-python -m SCons platform=<platform> target=editor
-```
+Primary Windows editor binaries:
+- `bin\phoenix_agentic.windows.editor.x86_64.exe`
+- `bin\phoenix_agentic.windows.editor.x86_64.console.exe`
 
 ## Pre-commit
 
 ```powershell
-# Install
 C:\Python313\python.exe -m pip install pre-commit
-
-# Set up hooks
 C:\Python313\python.exe -m pre_commit install
-
-# Run manually
 C:\Python313\python.exe -m pre_commit run --all-files
-
-# Run on specific files
-C:\Python313\python.exe -m pre_commit run --files path/to/file.cpp path/to/another_file.gd
 ```
 
-## Upstream sync workflow
+## Phoenix addon packaging expectations
 
-```bash
-git fetch upstream
-git checkout upstream-sync
-git reset --hard upstream/master
-git push origin upstream-sync --force
-git checkout main
-git merge upstream-sync
-# Resolve conflicts, then push
-git push origin main
-```
+Editor artifact validation should include these staged paths when relevant:
+- `bin/addons/net.yarvis.pixel_pen`
+- `bin/addons/diff-margin`
+- `bin/addons/godot-git-plugin`
+- `bin/addons/gdterm`
+- `bin/addons/gut`
+- `bin/addons/bfxr2-mcp-server`
+- `bin/tools/node/<platform>/...` (bundled runtime for BFXR bridge)
 
 ## Validation expectations
 
-- PRs should include what was built, what was run, and what platform was tested.
-- Tests must be deterministic and must not require network access.
-- Build must succeed with the standard SCons command above before merging.
+- Include build/test commands and platform in PR notes.
+- Keep tests deterministic and local-only.
+- Verify changed addon integrations still stage and bootstrap in editor builds.
