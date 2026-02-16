@@ -42,6 +42,7 @@ class ItemList;
 class LineEdit;
 class OptionButton;
 class Label;
+class SpinBox;
 
 class UltimateAISettingsDialog : public AcceptDialog {
 	GDCLASS(UltimateAISettingsDialog, AcceptDialog);
@@ -51,12 +52,19 @@ class UltimateAISettingsDialog : public AcceptDialog {
 	Button *add_button = nullptr;
 	Button *remove_button = nullptr;
 	OptionButton *service_mode = nullptr;
+	LineEdit *base_url = nullptr;
 	LineEdit *local_endpoint = nullptr;
 	LineEdit *byok_key = nullptr;
 	LineEdit *managed_endpoint = nullptr;
+	LineEdit *token_hook = nullptr;
+	LineEdit *actor_id = nullptr;
+	LineEdit *tier = nullptr;
+	SpinBox *timeout_ms = nullptr;
+	SpinBox *retry_count = nullptr;
 	CheckBox *allow_background_agents = nullptr;
 	CheckBox *auto_approve_reads = nullptr;
 	CheckBox *require_approvals = nullptr;
+	CheckBox *require_signed_commands = nullptr;
 
 	void _on_add_pressed();
 	void _on_remove_pressed();
@@ -67,6 +75,8 @@ protected:
 public:
 	void set_models(const PackedStringArray &p_models);
 	PackedStringArray get_selected_models() const;
+	void set_runtime_config(const Dictionary &p_config);
+	Dictionary get_runtime_config() const;
 
 	UltimateAISettingsDialog();
 };

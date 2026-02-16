@@ -57,6 +57,7 @@ class EditorFileSystemDirectory;
 class Texture2D;
 
 class UltimateAISettingsDialog;
+class UltimateAIBackendContractAdapter;
 
 class UltimateAssistantPanel : public PanelContainer {
 	GDCLASS(UltimateAssistantPanel, PanelContainer);
@@ -78,9 +79,23 @@ class UltimateAssistantPanel : public PanelContainer {
 		Button *context_remove_button = nullptr;
 		RichTextLabel *chat_display = nullptr;
 		TextEdit *input_text = nullptr;
+		Label *status_label = nullptr;
 		Button *send_button = nullptr;
 		Button *steer_button = nullptr;
+		Button *resync_button = nullptr;
+		VBoxContainer *approval_section = nullptr;
+		Label *approval_label = nullptr;
+		ItemList *approval_list = nullptr;
+		Button *approve_button = nullptr;
+		Button *reject_button = nullptr;
 		bool is_active = false;
+		bool has_conflict = false;
+		String session_id;
+		String idempotency_key;
+		String last_plan_id;
+		PackedStringArray pending_action_ids;
+		Array pending_actions;
+		int task_counter = 0;
 	};
 
 	struct ArchivedSession {
@@ -114,6 +129,7 @@ class UltimateAssistantPanel : public PanelContainer {
 	Button *settings_button = nullptr;
 	TabContainer *tab_container = nullptr;
 	UltimateAISettingsDialog *settings_dialog = nullptr;
+	UltimateAIBackendContractAdapter *backend_adapter = nullptr;
 	AcceptDialog *context_dialog = nullptr;
 	LineEdit *context_search_input = nullptr;
 	LineEdit *context_note_input = nullptr;
@@ -167,6 +183,24 @@ class UltimateAssistantPanel : public PanelContainer {
 	void _on_previous_reopen_pressed();
 	void _on_previous_session_activated(int p_index);
 	void _on_session_name_changed(const String &p_text, int p_tab_id);
+	void _on_approve_pressed(int p_tab_id);
+	void _on_reject_pressed(int p_tab_id);
+	void _on_resync_pressed(int p_tab_id);
+	void _set_tab_busy(int p_tab_id, bool p_busy, const String &p_status = String());
+	void _set_tab_status(int p_tab_id, const String &p_status, bool p_error = false);
+	Dictionary _build_project_map_payload(int p_tab_id) const;
+	Dictionary _build_task_context_payload(int p_tab_id) const;
+	bool _start_session_for_tab(int p_tab_id, bool p_force_resync = false);
+	void _request_task_for_tab(int p_tab_id, const String &p_user_input);
+	void _apply_conflict_state(int p_tab_id, const Dictionary &p_response);
+	void _clear_conflict_state(int p_tab_id);
+	void _show_approval_batch(int p_tab_id, const Dictionary &p_batch);
+	void _clear_approval_batch(int p_tab_id);
+	bool _poll_task_status_for_tab(int p_tab_id, const String &p_plan_id);
+	void _submit_approval_for_tab(int p_tab_id, const String &p_decision);
+	void _execute_commands_for_tab(int p_tab_id, const Array &p_commands);
+	void _execute_single_command(int p_tab_id, const Dictionary &p_command);
+	void _log_request_context(const String &p_operation, const Dictionary &p_response) const;
 	void _append_message(int p_tab_id, const String &p_role, const String &p_content);
 	void _add_chat_tab(int p_forced_id = -1);
 	void _add_chat_tab_from_state(const SharedChatTabState &p_state);
