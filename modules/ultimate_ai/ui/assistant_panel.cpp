@@ -77,8 +77,6 @@ const char *const PIXELPEN_LAYER_KIND = "pixelpen_layer";
 const char *const MODE_ASK = "ask";
 const char *const MODE_PLAN = "plan";
 const char *const MODE_AGENT = "agent";
-const int TASK_STATUS_POLL_TIMEOUT_MS = 12000;
-const int TASK_STATUS_POLL_INTERVAL_MS = 500;
 
 bool _has_nonempty_string_field(const Dictionary &p_dict, const char *p_key) {
 	if (!p_dict.has(p_key)) {
@@ -155,6 +153,29 @@ String _readable_mode_from_selector(OptionButton *p_selector) {
 	return MODE_ASK;
 }
 
+String _sanitize_reviewer_id(const String &p_value) {
+	String trimmed = p_value.strip_edges();
+	if (trimmed.is_empty()) {
+		return String();
+	}
+
+	String sanitized;
+	for (int i = 0; i < trimmed.length(); i++) {
+		char32_t chr = trimmed[i];
+		bool is_ascii_letter = (chr >= 'a' && chr <= 'z') || (chr >= 'A' && chr <= 'Z');
+		bool is_digit = chr >= '0' && chr <= '9';
+		bool is_safe_punctuation = chr == '-' || chr == '_' || chr == '.';
+		if (is_ascii_letter || is_digit || is_safe_punctuation) {
+			sanitized += String::chr(chr);
+		}
+	}
+
+	if (sanitized.length() > 64) {
+		sanitized = sanitized.substr(0, 64);
+	}
+
+	return sanitized;
+}
 String _now_iso8601_utc() {
 	return Time::get_singleton()->get_datetime_string_from_system(true, false) + "Z";
 }
@@ -1511,84 +1532,83 @@ bool UltimateAssistantPanel::_poll_task_status_for_tab(int p_tab_id, const Strin
 		return false;
 	}
 
-	uint64_t start_ticks = OS::get_singleton()->get_ticks_msec();
-	while (true) {
-		Dictionary response = backend_adapter->get_task_status(p_plan_id);
-		_log_request_context("task/status", response);
+	Dictionary response = backend_adapter->get_task_status(p_plan_id);
+	_log_request_context("task/status", response);
 
-		if (bool(response.get("ok", false))) {
-			Variant body_v = response.get("body", Variant());
-			if (body_v.get_type() == Variant::DICTIONARY) {
-				Dictionary body = body_v;
-				if (!_is_valid_task_status_payload(body, p_plan_id)) {
-					_set_tab_status(p_tab_id, TTR("Task status response does not match Interface contract."), true);
-					_append_message(p_tab_id, TTR("System"), TTR("Gateway returned an invalid task_status response shape."));
+	if (bool(response.get("ok", false))) {
+		Variant body_v = response.get("body", Variant());
+		if (body_v.get_type() == Variant::DICTIONARY) {
+			Dictionary body = body_v;
+			if (!_is_valid_task_status_payload(body, p_plan_id)) {
+				_set_tab_status(p_tab_id, TTR("Task status response does not match Interface contract."), true);
+				_append_message(p_tab_id, TTR("System"), TTR("Gateway returned an invalid task_status response shape."));
+				return false;
+			}
+
+			String task_status = String(body.get("status", String())).to_lower();
+			if (!task_status.is_empty()) {
+				_set_tab_status(p_tab_id, vformat("Gateway task: %s", task_status.replace("_", " ")), false);
+				if (task_status == "error") {
+					_append_message(p_tab_id, TTR("System"), TTR("Gateway reported task execution error."));
 					return false;
 				}
+			}
 
-				String task_status = String(body.get("status", String())).to_lower();
-				if (!task_status.is_empty()) {
-					_set_tab_status(p_tab_id, vformat("Gateway task: %s", task_status.replace("_", " ")), false);
-					if (task_status == "error") {
-						_append_message(p_tab_id, TTR("System"), TTR("Gateway reported task execution error."));
-						return false;
-					}
+			Variant proposed_batch_v = body.get("proposed_action_batch", Variant());
+			if (proposed_batch_v.get_type() == Variant::DICTIONARY) {
+				Dictionary proposed_batch = proposed_batch_v;
+				if (!proposed_batch.has("plan_id")) {
+					proposed_batch["plan_id"] = p_plan_id;
 				}
+				_show_approval_batch(p_tab_id, proposed_batch);
 
-				Variant proposed_batch_v = body.get("proposed_action_batch", Variant());
-				if (proposed_batch_v.get_type() == Variant::DICTIONARY) {
-					Dictionary proposed_batch = proposed_batch_v;
-					if (!proposed_batch.has("plan_id")) {
-						proposed_batch["plan_id"] = p_plan_id;
-					}
-					_show_approval_batch(p_tab_id, proposed_batch);
-
-					bool requires_approval = bool(proposed_batch.get("requires_approval", false));
-					if (requires_approval) {
-						String summary = String(proposed_batch.get("approval_summary", String()));
-						_append_message(p_tab_id, TTR("System"), summary.is_empty() ? TTR("Approval required before execution.") : summary);
-						return true;
-					}
-
-					Array commands;
-					Array actions = proposed_batch.get("actions", Array());
-					for (int i = 0; i < actions.size(); i++) {
-						Variant action_v = actions[i];
-						if (action_v.get_type() != Variant::DICTIONARY) {
-							continue;
-						}
-						Dictionary action = action_v;
-						if (action.has("command") && action["command"].get_type() == Variant::DICTIONARY) {
-							commands.push_back(action["command"]);
-						}
-					}
-					_clear_approval_batch(p_tab_id);
-					_execute_commands_for_tab(p_tab_id, commands);
+				bool requires_approval = bool(proposed_batch.get("requires_approval", false));
+				if (requires_approval) {
+					String summary = String(proposed_batch.get("approval_summary", String()));
+					_append_message(p_tab_id, TTR("System"), summary.is_empty() ? TTR("Approval required before execution.") : summary);
 					return true;
 				}
 
-				if (task_status == "done") {
-					return true;
+				Array commands;
+				Array actions = proposed_batch.get("actions", Array());
+				for (int i = 0; i < actions.size(); i++) {
+					Variant action_v = actions[i];
+					if (action_v.get_type() != Variant::DICTIONARY) {
+						continue;
+					}
+					Dictionary action = action_v;
+					if (action.has("command") && action["command"].get_type() == Variant::DICTIONARY) {
+						commands.push_back(action["command"]);
+					}
 				}
+				_clear_approval_batch(p_tab_id);
+				_execute_commands_for_tab(p_tab_id, commands);
+				return true;
 			}
-		} else {
-			int status_code = int(response.get("status_code", 0));
-			if (status_code == HTTPClient::RESPONSE_CONFLICT) {
-				_apply_conflict_state(p_tab_id, response);
-				return false;
+
+			if (task_status == "done") {
+				return true;
 			}
-			if (status_code != HTTPClient::RESPONSE_NOT_FOUND) {
-				String error = String(response.get("error", TTR("Task status request failed.")));
-				_set_tab_status(p_tab_id, error, true);
-				_append_message(p_tab_id, TTR("System"), vformat("Task status request failed: %s", error));
-				return false;
-			}
+
+			_set_tab_status(p_tab_id, TTR("Gateway task queued; awaiting worker update."), false);
+			return false;
 		}
 
-		if (OS::get_singleton()->get_ticks_msec() - start_ticks >= (uint64_t)TASK_STATUS_POLL_TIMEOUT_MS) {
-			break;
-		}
-		OS::get_singleton()->delay_usec(TASK_STATUS_POLL_INTERVAL_MS * 1000);
+		_set_tab_status(p_tab_id, TTR("Task status response does not match Interface contract."), true);
+		_append_message(p_tab_id, TTR("System"), TTR("Gateway returned an invalid task_status response shape."));
+		return false;
+	}
+
+	int status_code = int(response.get("status_code", 0));
+	if (status_code == HTTPClient::RESPONSE_CONFLICT) {
+		_apply_conflict_state(p_tab_id, response);
+		return false;
+	}
+	if (status_code != HTTPClient::RESPONSE_NOT_FOUND) {
+		String error = String(response.get("error", TTR("Task status request failed.")));
+		_set_tab_status(p_tab_id, error, true);
+		_append_message(p_tab_id, TTR("System"), vformat("Task status request failed: %s", error));
+		return false;
 	}
 
 	_set_tab_status(p_tab_id, TTR("Gateway task queued; awaiting worker update."), false);
@@ -1620,10 +1640,10 @@ void UltimateAssistantPanel::_submit_approval_for_tab(int p_tab_id, const String
 	}
 
 	String reviewer = "editor-user";
-	if (OS::get_singleton()->has_environment("USERNAME")) {
-		reviewer = OS::get_singleton()->get_environment("USERNAME");
-	} else if (OS::get_singleton()->has_environment("USER")) {
-		reviewer = OS::get_singleton()->get_environment("USER");
+	Dictionary runtime_config = backend_adapter->get_runtime_config();
+	String configured_reviewer = _sanitize_reviewer_id(String(runtime_config.get("actor_id", String())));
+	if (!configured_reviewer.is_empty()) {
+		reviewer = configured_reviewer;
 	}
 
 	Dictionary payload;

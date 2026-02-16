@@ -44,6 +44,8 @@ namespace {
 const char *const HEADER_REQUEST_ID = "x-request-id";
 const char *const HEADER_CORRELATION_ID = "x-correlation-id";
 const char *const HEADER_AUTHORIZATION = "Authorization";
+const int CONNECT_POLL_INTERVAL_USEC = 20000;
+const int RESPONSE_POLL_INTERVAL_USEC = 10000;
 
 inline bool _is_success_status(int p_status_code) {
 	return p_status_code >= 200 && p_status_code < 300;
@@ -238,7 +240,7 @@ Dictionary UltimateAIBackendContractAdapter::_request_once(HTTPClient::Method p_
 			response["error"] = vformat("Backend poll failed during connect (error %d).", poll_err);
 			return response;
 		}
-		OS::get_singleton()->delay_usec(1000);
+		OS::get_singleton()->delay_usec(CONNECT_POLL_INTERVAL_USEC);
 	}
 
 	if (client->get_status() != HTTPClient::STATUS_CONNECTED) {
@@ -300,7 +302,7 @@ Dictionary UltimateAIBackendContractAdapter::_request_once(HTTPClient::Method p_
 				response["error"] = vformat("Backend poll failed while requesting (error %d).", poll_err);
 				return response;
 			}
-			OS::get_singleton()->delay_usec(1000);
+			OS::get_singleton()->delay_usec(RESPONSE_POLL_INTERVAL_USEC);
 			continue;
 		}
 
@@ -315,7 +317,7 @@ Dictionary UltimateAIBackendContractAdapter::_request_once(HTTPClient::Method p_
 			if (!chunk.is_empty()) {
 				body_bytes.append_array(chunk);
 			}
-			OS::get_singleton()->delay_usec(1000);
+			OS::get_singleton()->delay_usec(RESPONSE_POLL_INTERVAL_USEC);
 			continue;
 		}
 
@@ -335,7 +337,7 @@ Dictionary UltimateAIBackendContractAdapter::_request_once(HTTPClient::Method p_
 			response["error"] = vformat("Backend poll failed with error %d.", poll_err);
 			return response;
 		}
-		OS::get_singleton()->delay_usec(1000);
+		OS::get_singleton()->delay_usec(RESPONSE_POLL_INTERVAL_USEC);
 	}
 
 	if (client->has_response()) {

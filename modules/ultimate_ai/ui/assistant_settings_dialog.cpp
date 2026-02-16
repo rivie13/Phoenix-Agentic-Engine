@@ -103,7 +103,7 @@ UltimateAISettingsDialog::UltimateAISettingsDialog() {
 	root->add_child(base_url_label);
 
 	base_url = memnew(LineEdit);
-	base_url->set_placeholder(TTR("http://localhost:5244"));
+	base_url->set_placeholder(TTR("https://localhost:5244"));
 	root->add_child(base_url);
 
 	Label *managed_label = memnew(Label);
@@ -289,7 +289,7 @@ Dictionary UltimateAISettingsDialog::get_runtime_config() const {
 		}
 	}
 	if (effective_base_url.is_empty()) {
-		effective_base_url = "http://localhost:5244";
+		effective_base_url = auth_mode == "local" ? "http://localhost:5244" : "https://localhost:5244";
 	}
 
 	config["auth_mode"] = auth_mode;

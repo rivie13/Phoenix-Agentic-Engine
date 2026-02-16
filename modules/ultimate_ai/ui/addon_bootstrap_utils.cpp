@@ -85,6 +85,8 @@ void AddonBootstrapMigrator::ensure_default_gitignore_entries_once() {
 }
 
 bool AddonBootstrapMigrator::should_skip_addon_bootstrap() {
+	// Cache this decision for the current process lifetime since env/cmdline are expected
+	// to be stable during an editor run.
 	static int8_t cached_value = -1;
 	if (cached_value >= 0) {
 		return cached_value == 1;
