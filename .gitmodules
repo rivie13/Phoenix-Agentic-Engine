@@ -14,3 +14,6 @@
 [submodule "modules/ultimate_ai/external/bfxr2-mcp-server"]
 	path = modules/ultimate_ai/external/bfxr2-mcp-server
 	url = https://github.com/rivie13/bfxr2-mcp-server.git
+[submodule "modules/ultimate_ai/external/gut"]
+	path = modules/ultimate_ai/external/gut
+	url = https://github.com/rivie13/GUT-Godot-Unit-Test.git
