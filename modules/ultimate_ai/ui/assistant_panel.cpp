@@ -36,6 +36,7 @@
 #include "assistant_settings_dialog.h"
 
 #include "core/backend_contract_adapter.h"
+#include "core/frontend_runtime_adapter.h"
 
 #include "core/config/project_settings.h"
 #include "core/io/resource_loader.h"
@@ -183,7 +184,7 @@ String _now_iso8601_utc() {
 String _id_with_prefix(const String &p_prefix) {
 	uint64_t unix_time = (uint64_t)Time::get_singleton()->get_unix_time_from_system();
 	uint64_t ticks = OS::get_singleton()->get_ticks_usec();
-	return vformat("%s-%llu-%llu", p_prefix, unix_time, ticks);
+	return p_prefix + "-" + itos((int64_t)unix_time) + "-" + itos((int64_t)ticks);
 }
 } //namespace
 
@@ -263,6 +264,7 @@ UltimateAssistantPanel::UltimateAssistantPanel() {
 
 	backend_adapter = memnew(UltimateAIBackendContractAdapter);
 	backend_adapter->apply_runtime_config(settings_dialog->get_runtime_config());
+	frontend_runtime_adapter = memnew(UltimateAIFrontendRuntimeAdapter);
 
 	context_dialog = memnew(AcceptDialog);
 	context_dialog->set_title(TTR("Add Context"));
@@ -354,6 +356,10 @@ void UltimateAssistantPanel::_notification(int p_what) {
 			if (backend_adapter) {
 				memdelete(backend_adapter);
 				backend_adapter = nullptr;
+			}
+			if (frontend_runtime_adapter) {
+				memdelete(frontend_runtime_adapter);
+				frontend_runtime_adapter = nullptr;
 			}
 		} break;
 		default:
@@ -1264,6 +1270,207 @@ Dictionary UltimateAssistantPanel::_build_task_context_payload(int p_tab_id) con
 	return context;
 }
 
+String UltimateAssistantPanel::_resolve_runtime_user_id() const {
+	if (!backend_adapter) {
+		return "editor-user";
+	}
+
+	Dictionary runtime_config = backend_adapter->get_runtime_config();
+	String actor_id = _sanitize_reviewer_id(String(runtime_config.get("actor_id", String())));
+	if (!actor_id.is_empty()) {
+		return actor_id;
+	}
+
+	return "editor-user";
+}
+
+bool UltimateAssistantPanel::_bootstrap_realtime_for_tab(int p_tab_id) {
+	if (!frontend_runtime_adapter || !backend_adapter) {
+		return false;
+	}
+
+	int tab_index = _find_tab_index_by_id(p_tab_id);
+	if (tab_index < 0 || tab_index >= tabs.size()) {
+		return false;
+	}
+	ChatTab &tab = tabs.write[tab_index];
+
+	if (tab.session_id.is_empty()) {
+		return false;
+	}
+
+	String user_id = _resolve_runtime_user_id();
+	Dictionary negotiation = frontend_runtime_adapter->negotiate_realtime(backend_adapter, tab.session_id, user_id);
+	_log_request_context("realtime/negotiate", negotiation);
+
+	if (!bool(negotiation.get("ok", false))) {
+		tab.realtime_bootstrapped = false;
+		tab.realtime_user_id = user_id;
+		tab.realtime_url = String();
+		String error = String(negotiation.get("error", String("Realtime negotiation unavailable."))).strip_edges();
+		if (!error.is_empty()) {
+			_append_message(p_tab_id, TTR("System"), vformat("Realtime unavailable; using polling fallback (%s).", error));
+		}
+		return false;
+	}
+
+	tab.realtime_bootstrapped = true;
+	tab.realtime_user_id = user_id;
+	tab.realtime_url = String(negotiation.get("realtime_url", String()));
+
+	Dictionary join_payload;
+	join_payload["session_id"] = tab.session_id;
+	join_payload["user_id"] = user_id;
+	join_payload["groups"] = negotiation.get("realtime_groups", Array());
+	Dictionary join_response = backend_adapter->realtime_join(join_payload);
+	_log_request_context("realtime/join", join_response);
+
+	if (!bool(join_response.get("ok", false))) {
+		String join_error = String(join_response.get("error", String("Realtime join failed."))).strip_edges();
+		if (!join_error.is_empty()) {
+			_append_message(p_tab_id, TTR("System"), vformat("Realtime join fallback to polling (%s).", join_error));
+		}
+	}
+
+	return true;
+}
+
+void UltimateAssistantPanel::_apply_realtime_events_for_tab(int p_tab_id, const Array &p_events, bool p_refresh_status) {
+	if (!frontend_runtime_adapter) {
+		return;
+	}
+
+	int tab_index = _find_tab_index_by_id(p_tab_id);
+	if (tab_index < 0 || tab_index >= tabs.size()) {
+		return;
+	}
+	ChatTab &tab = tabs.write[tab_index];
+
+	for (int i = 0; i < p_events.size(); i++) {
+		Variant event_v = p_events[i];
+		if (event_v.get_type() != Variant::DICTIONARY) {
+			continue;
+		}
+
+		Dictionary event = event_v;
+		Dictionary mapped = frontend_runtime_adapter->map_realtime_event(event, tab.session_id);
+		if (!bool(mapped.get("handled", false))) {
+			continue;
+		}
+
+		String message = String(mapped.get("message", String())).strip_edges();
+		if (!message.is_empty()) {
+			_append_message(p_tab_id, TTR("Realtime"), message);
+		}
+
+		String event_name = String(mapped.get("event", String())).strip_edges();
+		if (event_name == "lock.conflict") {
+			_append_lock_snapshot_for_tab(p_tab_id, TTR("Realtime lock conflict detected."));
+		}
+
+		if (bool(mapped.get("requires_resync", false))) {
+			Dictionary synthetic_conflict;
+			synthetic_conflict["error"] = message.is_empty() ? String("Realtime requested session resync.") : message;
+			_apply_conflict_state(p_tab_id, synthetic_conflict);
+			continue;
+		}
+
+		if (bool(mapped.get("requires_status_refresh", false))) {
+			String plan_id = String(mapped.get("plan_id", String())).strip_edges();
+			if (!plan_id.is_empty()) {
+				tab.last_plan_id = plan_id;
+			}
+			if (tab.resync_button) {
+				tab.resync_button->set_visible(true);
+			}
+			if (p_refresh_status) {
+				_set_tab_status(p_tab_id, TTR("Realtime update received; click Resync to refresh task status."), false);
+			}
+		}
+	}
+}
+
+void UltimateAssistantPanel::_append_lock_snapshot_for_tab(int p_tab_id, const String &p_reason) {
+	if (!backend_adapter) {
+		return;
+	}
+
+	int tab_index = _find_tab_index_by_id(p_tab_id);
+	if (tab_index < 0 || tab_index >= tabs.size()) {
+		return;
+	}
+	const ChatTab &tab = tabs[tab_index];
+
+	Dictionary response = backend_adapter->list_locks(tab.session_id);
+	_log_request_context("locks/list", response);
+
+	if (!bool(response.get("ok", false))) {
+		String detail = String(response.get("error", String("Unable to fetch active locks."))).strip_edges();
+		if (detail.is_empty()) {
+			detail = "Unable to fetch active locks.";
+		}
+		_append_message(p_tab_id, TTR("System"), vformat("%s %s", p_reason.is_empty() ? String() : p_reason + " ", detail));
+		return;
+	}
+
+	Variant body_v = response.get("body", Variant());
+	if (body_v.get_type() != Variant::DICTIONARY) {
+		return;
+	}
+
+	Dictionary body = body_v;
+	Variant locks_v = body.get("locks", Variant());
+	if (locks_v.get_type() != Variant::ARRAY) {
+		return;
+	}
+
+	Array locks = locks_v;
+	if (locks.is_empty()) {
+		_append_message(p_tab_id, TTR("System"), TTR("No active locks reported for this session."));
+		return;
+	}
+
+	int preview_count = MIN(3, locks.size());
+	String summary;
+	for (int i = 0; i < preview_count; i++) {
+		Variant lock_v = locks[i];
+		if (lock_v.get_type() != Variant::DICTIONARY) {
+			continue;
+		}
+
+		Dictionary lock = lock_v;
+		String lock_id = String(lock.get("lock_id", lock.get("lockId", String()))).strip_edges();
+		String resource_path = String(lock.get("resource_path", lock.get("resourcePath", String()))).strip_edges();
+		String holder_display = String(lock.get("holder_display_name", lock.get("holderDisplayName", String()))).strip_edges();
+		String holder_id = String(lock.get("holder_id", lock.get("holderId", String()))).strip_edges();
+
+		String line = resource_path.is_empty() ? lock_id : resource_path;
+		if (line.is_empty()) {
+			line = String("<unknown>");
+		}
+		if (!holder_display.is_empty()) {
+			line += vformat(" (holder: %s)", holder_display);
+		} else if (!holder_id.is_empty()) {
+			line += vformat(" (holder: %s)", holder_id);
+		}
+
+		if (!summary.is_empty()) {
+			summary += "; ";
+		}
+		summary += line;
+	}
+
+	String intro = p_reason.is_empty() ? String() : p_reason + " ";
+	_append_message(
+			p_tab_id,
+			TTR("System"),
+			vformat("%sActive locks (%d): %s", intro, locks.size(), summary.is_empty() ? String("<details unavailable>") : summary));
+
+	if (locks.size() > preview_count) {
+		_append_message(p_tab_id, TTR("System"), vformat("%d additional locks omitted.", locks.size() - preview_count));
+	}
+}
+
 bool UltimateAssistantPanel::_start_session_for_tab(int p_tab_id, bool p_force_resync) {
 	if (!backend_adapter) {
 		_set_tab_status(p_tab_id, TTR("Backend adapter unavailable."), true);
@@ -1310,6 +1517,7 @@ bool UltimateAssistantPanel::_start_session_for_tab(int p_tab_id, bool p_force_r
 
 	tab.idempotency_key = idempotency_key;
 	_clear_conflict_state(p_tab_id);
+	_bootstrap_realtime_for_tab(p_tab_id);
 	return true;
 }
 
@@ -1439,6 +1647,7 @@ void UltimateAssistantPanel::_apply_conflict_state(int p_tab_id, const Dictionar
 	String detail = String(p_response.get("error", TTR("Session conflict.")));
 	_set_tab_status(p_tab_id, vformat("Conflict (409): %s", detail), true);
 	_append_message(p_tab_id, TTR("System"), vformat("Conflict detected (%s). Use Resync to refresh session state.", detail));
+	_append_lock_snapshot_for_tab(p_tab_id, TTR("Conflict details:"));
 	_broadcast_shared_state();
 }
 
@@ -1539,6 +1748,18 @@ bool UltimateAssistantPanel::_poll_task_status_for_tab(int p_tab_id, const Strin
 		Variant body_v = response.get("body", Variant());
 		if (body_v.get_type() == Variant::DICTIONARY) {
 			Dictionary body = body_v;
+			Variant realtime_events_v = body.get("realtime_events", Variant());
+			if (realtime_events_v.get_type() == Variant::ARRAY) {
+				_apply_realtime_events_for_tab(p_tab_id, realtime_events_v, true);
+			}
+
+			int tab_index = _find_tab_index_by_id(p_tab_id);
+			if (tab_index >= 0 && tab_index < tabs.size()) {
+				if (tabs[tab_index].has_conflict) {
+					return false;
+				}
+			}
+
 			if (!_is_valid_task_status_payload(body, p_plan_id)) {
 				_set_tab_status(p_tab_id, TTR("Task status response does not match Interface contract."), true);
 				_append_message(p_tab_id, TTR("System"), TTR("Gateway returned an invalid task_status response shape."));

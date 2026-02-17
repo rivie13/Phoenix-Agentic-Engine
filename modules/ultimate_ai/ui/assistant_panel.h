@@ -58,6 +58,7 @@ class Texture2D;
 
 class UltimateAISettingsDialog;
 class UltimateAIBackendContractAdapter;
+class UltimateAIFrontendRuntimeAdapter;
 
 class UltimateAssistantPanel : public PanelContainer {
 	GDCLASS(UltimateAssistantPanel, PanelContainer);
@@ -90,8 +91,11 @@ class UltimateAssistantPanel : public PanelContainer {
 		Button *reject_button = nullptr;
 		bool is_active = false;
 		bool has_conflict = false;
+		bool realtime_bootstrapped = false;
 		String session_id;
 		String idempotency_key;
+		String realtime_user_id;
+		String realtime_url;
 		String last_plan_id;
 		PackedStringArray pending_action_ids;
 		Array pending_actions;
@@ -130,6 +134,7 @@ class UltimateAssistantPanel : public PanelContainer {
 	TabContainer *tab_container = nullptr;
 	UltimateAISettingsDialog *settings_dialog = nullptr;
 	UltimateAIBackendContractAdapter *backend_adapter = nullptr;
+	UltimateAIFrontendRuntimeAdapter *frontend_runtime_adapter = nullptr;
 	AcceptDialog *context_dialog = nullptr;
 	LineEdit *context_search_input = nullptr;
 	LineEdit *context_note_input = nullptr;
@@ -190,8 +195,12 @@ class UltimateAssistantPanel : public PanelContainer {
 	void _set_tab_status(int p_tab_id, const String &p_status, bool p_error = false);
 	Dictionary _build_project_map_payload(int p_tab_id) const;
 	Dictionary _build_task_context_payload(int p_tab_id) const;
+	String _resolve_runtime_user_id() const;
 	bool _start_session_for_tab(int p_tab_id, bool p_force_resync = false);
+	bool _bootstrap_realtime_for_tab(int p_tab_id);
 	void _request_task_for_tab(int p_tab_id, const String &p_user_input);
+	void _apply_realtime_events_for_tab(int p_tab_id, const Array &p_events, bool p_refresh_status = true);
+	void _append_lock_snapshot_for_tab(int p_tab_id, const String &p_reason = String());
 	void _apply_conflict_state(int p_tab_id, const Dictionary &p_response);
 	void _clear_conflict_state(int p_tab_id);
 	void _show_approval_batch(int p_tab_id, const Dictionary &p_batch);

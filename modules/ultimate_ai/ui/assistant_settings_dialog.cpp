@@ -34,6 +34,7 @@
 #include "assistant_settings_dialog.h"
 
 #include "core/object/class_db.h"
+#include "core/os/os.h"
 #include "scene/gui/box_container.h"
 #include "scene/gui/button.h"
 #include "scene/gui/check_box.h"
@@ -103,7 +104,7 @@ UltimateAISettingsDialog::UltimateAISettingsDialog() {
 	root->add_child(base_url_label);
 
 	base_url = memnew(LineEdit);
-	base_url->set_placeholder(TTR("https://localhost:5244"));
+	base_url->set_placeholder(TTR("https://<your-appservice-host>.azurewebsites.net"));
 	root->add_child(base_url);
 
 	Label *managed_label = memnew(Label);
@@ -111,7 +112,7 @@ UltimateAISettingsDialog::UltimateAISettingsDialog() {
 	root->add_child(managed_label);
 
 	managed_endpoint = memnew(LineEdit);
-	managed_endpoint->set_placeholder(TTR("https://gateway.phoenix.local"));
+	managed_endpoint->set_placeholder(TTR("https://<your-appservice-host>.azurewebsites.net"));
 	root->add_child(managed_endpoint);
 
 	Label *byok_label = memnew(Label);
@@ -289,7 +290,14 @@ Dictionary UltimateAISettingsDialog::get_runtime_config() const {
 		}
 	}
 	if (effective_base_url.is_empty()) {
-		effective_base_url = auth_mode == "local" ? "http://localhost:5244" : "https://localhost:5244";
+		if (OS::get_singleton()->has_environment("PHOENIX_PUBLIC_GATEWAY_URL")) {
+			effective_base_url = OS::get_singleton()->get_environment("PHOENIX_PUBLIC_GATEWAY_URL").strip_edges();
+		}
+	}
+	if (effective_base_url.is_empty()) {
+		if (OS::get_singleton()->has_environment("PHOENIX_GATEWAY_BASE_URL")) {
+			effective_base_url = OS::get_singleton()->get_environment("PHOENIX_GATEWAY_BASE_URL").strip_edges();
+		}
 	}
 
 	config["auth_mode"] = auth_mode;

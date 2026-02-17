@@ -74,6 +74,12 @@ st[A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9]
 .venv
 venv
 
+# Local environment files
+.env
+.env.*
+!.env.example
+!.env.local.example
+
 # Python generated
 __pycache__/
 *.pyc

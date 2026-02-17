@@ -71,12 +71,17 @@ void UltimateAIBackendContractAdapter::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("apply_runtime_config", "config"), &UltimateAIBackendContractAdapter::apply_runtime_config);
 	ClassDB::bind_method(D_METHOD("get_runtime_config"), &UltimateAIBackendContractAdapter::get_runtime_config);
 	ClassDB::bind_method(D_METHOD("start_session", "payload"), &UltimateAIBackendContractAdapter::start_session);
+	ClassDB::bind_method(D_METHOD("send_session_delta", "payload"), &UltimateAIBackendContractAdapter::send_session_delta);
 	ClassDB::bind_method(D_METHOD("request_task", "payload"), &UltimateAIBackendContractAdapter::request_task);
 	ClassDB::bind_method(D_METHOD("get_task_status", "plan_id"), &UltimateAIBackendContractAdapter::get_task_status);
 	ClassDB::bind_method(D_METHOD("submit_approval", "plan_id", "payload"), &UltimateAIBackendContractAdapter::submit_approval);
 	ClassDB::bind_method(D_METHOD("auth_handshake", "payload"), &UltimateAIBackendContractAdapter::auth_handshake);
 	ClassDB::bind_method(D_METHOD("list_tools"), &UltimateAIBackendContractAdapter::list_tools);
 	ClassDB::bind_method(D_METHOD("invoke_tool", "payload"), &UltimateAIBackendContractAdapter::invoke_tool);
+	ClassDB::bind_method(D_METHOD("realtime_negotiate", "payload"), &UltimateAIBackendContractAdapter::realtime_negotiate);
+	ClassDB::bind_method(D_METHOD("realtime_join", "payload"), &UltimateAIBackendContractAdapter::realtime_join);
+	ClassDB::bind_method(D_METHOD("list_locks", "session_id"), &UltimateAIBackendContractAdapter::list_locks, DEFVAL(String()));
+	ClassDB::bind_method(D_METHOD("release_lock", "lock_id"), &UltimateAIBackendContractAdapter::release_lock);
 	ClassDB::bind_method(D_METHOD("evaluate_command_trust", "command"), &UltimateAIBackendContractAdapter::evaluate_command_trust);
 	ClassDB::bind_method(D_METHOD("get_command_allowlist"), &UltimateAIBackendContractAdapter::get_command_allowlist);
 	ClassDB::bind_method(D_METHOD("set_command_allowlist", "allowlist"), &UltimateAIBackendContractAdapter::set_command_allowlist);
@@ -93,7 +98,7 @@ String UltimateAIBackendContractAdapter::_now_iso8601_utc() const {
 String UltimateAIBackendContractAdapter::_generate_request_id(const String &p_prefix) const {
 	uint64_t now = OS::get_singleton()->get_ticks_usec();
 	uint64_t unix_time = (uint64_t)Time::get_singleton()->get_unix_time_from_system();
-	return vformat("%s-%llu-%llu", p_prefix, unix_time, now);
+	return p_prefix + "-" + itos((int64_t)unix_time) + "-" + itos((int64_t)now);
 }
 
 String UltimateAIBackendContractAdapter::_resolve_auth_token() const {
@@ -455,6 +460,10 @@ Dictionary UltimateAIBackendContractAdapter::start_session(const Dictionary &p_p
 	return _request_json(HTTPClient::METHOD_POST, "/api/v1/session/start", p_payload);
 }
 
+Dictionary UltimateAIBackendContractAdapter::send_session_delta(const Dictionary &p_payload) const {
+	return _request_json(HTTPClient::METHOD_POST, "/api/v1/session/delta", p_payload);
+}
+
 Dictionary UltimateAIBackendContractAdapter::request_task(const Dictionary &p_payload) const {
 	return _request_json(HTTPClient::METHOD_POST, "/api/v1/task/request", p_payload);
 }
@@ -477,6 +486,39 @@ Dictionary UltimateAIBackendContractAdapter::list_tools() const {
 
 Dictionary UltimateAIBackendContractAdapter::invoke_tool(const Dictionary &p_payload) const {
 	return _request_json(HTTPClient::METHOD_POST, "/api/v1/tools/invoke", p_payload);
+}
+
+Dictionary UltimateAIBackendContractAdapter::realtime_negotiate(const Dictionary &p_payload) const {
+	return _request_json(HTTPClient::METHOD_POST, "/api/v1/realtime/negotiate", p_payload);
+}
+
+Dictionary UltimateAIBackendContractAdapter::realtime_join(const Dictionary &p_payload) const {
+	return _request_json(HTTPClient::METHOD_POST, "/api/v1/realtime/join", p_payload);
+}
+
+Dictionary UltimateAIBackendContractAdapter::list_locks(const String &p_session_id) const {
+	String path = "/api/v1/locks";
+	String session_id = p_session_id.strip_edges();
+	if (!session_id.is_empty()) {
+		path += "?session_id=" + session_id.uri_encode();
+	}
+	return _request_json(HTTPClient::METHOD_GET, path);
+}
+
+Dictionary UltimateAIBackendContractAdapter::release_lock(const String &p_lock_id) const {
+	String lock_id = p_lock_id.strip_edges();
+	if (lock_id.is_empty()) {
+		Dictionary response;
+		response["ok"] = false;
+		response["status_code"] = 0;
+		response["error"] = "lock_id is required.";
+		response["body"] = Variant();
+		response["transport_error"] = false;
+		response["request_id"] = String();
+		response["correlation_id"] = String();
+		return response;
+	}
+	return _request_json(HTTPClient::METHOD_POST, "/api/v1/locks/" + lock_id.uri_encode() + "/release");
 }
 
 bool UltimateAIBackendContractAdapter::_allowlist_contains(const String &p_action) const {
