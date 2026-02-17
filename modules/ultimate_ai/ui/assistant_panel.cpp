@@ -39,6 +39,7 @@
 #include "core/frontend_runtime_adapter.h"
 
 #include "core/config/project_settings.h"
+#include "core/io/json.h"
 #include "core/io/resource_loader.h"
 #include "core/object/class_db.h"
 #include "core/os/os.h"
@@ -46,6 +47,8 @@
 #include "core/string/print_string.h"
 #include "core/string/ustring.h"
 #include "editor/file_system/editor_file_system.h"
+#include "modules/websocket/websocket_peer.h"
+#include "scene/animation/tween.h"
 #include "scene/gui/box_container.h"
 #include "scene/gui/button.h"
 #include "scene/gui/check_box.h"
@@ -61,6 +64,7 @@
 #include "scene/gui/tab_bar.h"
 #include "scene/gui/tab_container.h"
 #include "scene/gui/text_edit.h"
+#include "servers/display/display_server.h"
 
 Vector<UltimateAssistantPanel *> UltimateAssistantPanel::s_instances;
 Vector<UltimateAssistantPanel::SharedChatTabState> UltimateAssistantPanel::s_shared_tabs;
@@ -78,6 +82,245 @@ const char *const PIXELPEN_LAYER_KIND = "pixelpen_layer";
 const char *const MODE_ASK = "ask";
 const char *const MODE_PLAN = "plan";
 const char *const MODE_AGENT = "agent";
+const int TASK_STATUS_LIVE_POLL_INTERVAL_MSEC = 120;
+const int TASK_STATUS_LIVE_POLL_INITIAL_DELAY_MSEC = 25;
+const int COMMAND_STREAM_TICK_MSEC = 20;
+const int COMMAND_STREAM_CHUNK_CHARS = 24;
+
+String _append_access_token_to_url(const String &p_url, const String &p_access_token) {
+	String url = p_url.strip_edges();
+	if (url.is_empty()) {
+		return url;
+	}
+
+	String access_token = p_access_token.strip_edges();
+	if (access_token.is_empty()) {
+		return url;
+	}
+
+	String separator = url.contains("?") ? "&" : "?";
+	return url + separator + "access_token=" + access_token.uri_encode();
+}
+
+void _collect_realtime_event_payloads(const Variant &p_payload, Array &r_events, int p_depth = 0) {
+	if (p_depth > 5 || p_payload.get_type() == Variant::NIL) {
+		return;
+	}
+
+	if (p_payload.get_type() == Variant::ARRAY) {
+		Array values = p_payload;
+		for (int i = 0; i < values.size(); i++) {
+			_collect_realtime_event_payloads(values[i], r_events, p_depth + 1);
+		}
+		return;
+	}
+
+	if (p_payload.get_type() == Variant::STRING) {
+		String text = String(p_payload).strip_edges();
+		if (!text.begins_with("{") && !text.begins_with("[")) {
+			return;
+		}
+
+		Variant parsed = JSON::parse_string(text);
+		if (parsed.get_type() == Variant::NIL && text != "null") {
+			return;
+		}
+		_collect_realtime_event_payloads(parsed, r_events, p_depth + 1);
+		return;
+	}
+
+	if (p_payload.get_type() != Variant::DICTIONARY) {
+		return;
+	}
+
+	Dictionary dictionary = p_payload;
+	String schema_version = String(dictionary.get("schema_version", String())).strip_edges();
+	String event_name = String(dictionary.get("event", String())).strip_edges();
+	if (!schema_version.is_empty() && !event_name.is_empty()) {
+		r_events.push_back(dictionary);
+		return;
+	}
+
+	if (dictionary.has("data")) {
+		_collect_realtime_event_payloads(dictionary["data"], r_events, p_depth + 1);
+	}
+	if (dictionary.has("message")) {
+		_collect_realtime_event_payloads(dictionary["message"], r_events, p_depth + 1);
+	}
+}
+
+String _escape_bbcode_text(const String &p_text) {
+	String escaped = p_text;
+	escaped = escaped.replace("[", "[lb]");
+	escaped = escaped.replace("]", "[rb]");
+	return escaped;
+}
+
+bool _is_numbered_list_item(const String &p_line, int &r_content_start) {
+	r_content_start = -1;
+	if (p_line.is_empty()) {
+		return false;
+	}
+
+	int index = 0;
+	while (index < p_line.length() && p_line[index] >= '0' && p_line[index] <= '9') {
+		index++;
+	}
+
+	if (index == 0) {
+		return false;
+	}
+	if (index + 1 >= p_line.length()) {
+		return false;
+	}
+	if (p_line[index] != '.' || p_line[index + 1] != ' ') {
+		return false;
+	}
+
+	r_content_start = index + 2;
+	return true;
+}
+
+String _markdown_inline_to_bbcode(const String &p_text) {
+	String output;
+	bool bold_open = false;
+	bool italic_open = false;
+
+	for (int i = 0; i < p_text.length(); i++) {
+		char32_t chr = p_text[i];
+
+		if (chr == '\\' && i + 1 < p_text.length()) {
+			output += _escape_bbcode_text(String::chr(p_text[i + 1]));
+			i++;
+			continue;
+		}
+
+		if (chr == '`') {
+			int close_tick = p_text.find_char('`', i + 1);
+			if (close_tick > i + 1) {
+				String code = p_text.substr(i + 1, close_tick - i - 1);
+				output += "[code]" + _escape_bbcode_text(code) + "[/code]";
+				i = close_tick;
+				continue;
+			}
+		}
+
+		if (chr == '[') {
+			int close_bracket = p_text.find_char(']', i + 1);
+			if (close_bracket > i + 1 && close_bracket + 1 < p_text.length() && p_text[close_bracket + 1] == '(') {
+				int close_paren = p_text.find_char(')', close_bracket + 2);
+				if (close_paren > close_bracket + 2) {
+					String label = p_text.substr(i + 1, close_bracket - i - 1);
+					String url = p_text.substr(close_bracket + 2, close_paren - close_bracket - 2).strip_edges();
+					if (url.begins_with("http://") || url.begins_with("https://")) {
+						output += "[url=" + _escape_bbcode_text(url) + "]" + _markdown_inline_to_bbcode(label) + "[/url]";
+						i = close_paren;
+						continue;
+					}
+				}
+			}
+		}
+
+		if (chr == '*' && i + 1 < p_text.length() && p_text[i + 1] == '*') {
+			output += bold_open ? "[/b]" : "[b]";
+			bold_open = !bold_open;
+			i++;
+			continue;
+		}
+
+		if (chr == '*') {
+			output += italic_open ? "[/i]" : "[i]";
+			italic_open = !italic_open;
+			continue;
+		}
+
+		output += _escape_bbcode_text(String::chr(chr));
+	}
+
+	if (bold_open) {
+		output += "[/b]";
+	}
+	if (italic_open) {
+		output += "[/i]";
+	}
+
+	return output;
+}
+
+String _markdown_to_bbcode(const String &p_text) {
+	String normalized = p_text.replace("\r\n", "\n").replace("\r", "\n");
+	PackedStringArray lines = normalized.split("\n", true);
+
+	String output;
+	bool in_code_block = false;
+	String code_block;
+
+	for (int i = 0; i < lines.size(); i++) {
+		String line = lines[i];
+		String trimmed = line.strip_edges();
+
+		if (trimmed.begins_with("```")) {
+			if (in_code_block) {
+				output += "[code]" + _escape_bbcode_text(code_block) + "[/code]\n";
+				code_block.clear();
+				in_code_block = false;
+			} else {
+				in_code_block = true;
+			}
+			continue;
+		}
+
+		if (in_code_block) {
+			code_block += line;
+			if (i < lines.size() - 1) {
+				code_block += "\n";
+			}
+			continue;
+		}
+
+		if (trimmed.is_empty()) {
+			output += "\n";
+			continue;
+		}
+
+		if (trimmed.begins_with("### ")) {
+			output += "[b]" + _markdown_inline_to_bbcode(trimmed.substr(4)) + "[/b]\n";
+			continue;
+		}
+		if (trimmed.begins_with("## ")) {
+			output += "[b]" + _markdown_inline_to_bbcode(trimmed.substr(3)) + "[/b]\n";
+			continue;
+		}
+		if (trimmed.begins_with("# ")) {
+			output += "[b]" + _markdown_inline_to_bbcode(trimmed.substr(2)) + "[/b]\n";
+			continue;
+		}
+
+		if (trimmed.begins_with("- ") || trimmed.begins_with("* ")) {
+			output += String::chr(0x2022) + " " + _markdown_inline_to_bbcode(trimmed.substr(2)) + "\n";
+			continue;
+		}
+
+		int list_content_start = -1;
+		if (_is_numbered_list_item(trimmed, list_content_start)) {
+			output += String::chr(0x2022) + " " + _markdown_inline_to_bbcode(trimmed.substr(list_content_start)) + "\n";
+			continue;
+		}
+
+		if (trimmed.begins_with("> ")) {
+			output += "[i]" + _markdown_inline_to_bbcode(trimmed.substr(2)) + "[/i]\n";
+			continue;
+		}
+
+		output += _markdown_inline_to_bbcode(line) + "\n";
+	}
+
+	if (in_code_block) {
+		output += "[code]" + _escape_bbcode_text(code_block) + "[/code]\n";
+	}
+
+	return output.strip_edges(false, true);
+}
 
 bool _has_nonempty_string_field(const Dictionary &p_dict, const char *p_key) {
 	if (!p_dict.has(p_key)) {
@@ -192,6 +435,7 @@ void UltimateAssistantPanel::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_new_tab_pressed"), &UltimateAssistantPanel::_on_new_tab_pressed);
 	ClassDB::bind_method(D_METHOD("_on_tab_close_requested", "tab_index"), &UltimateAssistantPanel::_on_tab_close_requested);
 	ClassDB::bind_method(D_METHOD("_on_send_pressed", "tab_id"), &UltimateAssistantPanel::_on_send_pressed);
+	ClassDB::bind_method(D_METHOD("_on_copy_pressed", "tab_id"), &UltimateAssistantPanel::_on_copy_pressed);
 	ClassDB::bind_method(D_METHOD("_on_input_submitted", "text", "tab_id"), &UltimateAssistantPanel::_on_input_submitted);
 	ClassDB::bind_method(D_METHOD("_on_interrupt_pressed", "tab_id"), &UltimateAssistantPanel::_on_interrupt_pressed);
 	ClassDB::bind_method(D_METHOD("_on_steer_pressed", "tab_id"), &UltimateAssistantPanel::_on_steer_pressed);
@@ -212,6 +456,7 @@ void UltimateAssistantPanel::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_approve_pressed", "tab_id"), &UltimateAssistantPanel::_on_approve_pressed);
 	ClassDB::bind_method(D_METHOD("_on_reject_pressed", "tab_id"), &UltimateAssistantPanel::_on_reject_pressed);
 	ClassDB::bind_method(D_METHOD("_on_resync_pressed", "tab_id"), &UltimateAssistantPanel::_on_resync_pressed);
+	ClassDB::bind_method(D_METHOD("_request_task_for_tab_deferred", "tab_id", "user_input"), &UltimateAssistantPanel::_request_task_for_tab_deferred);
 }
 
 UltimateAssistantPanel::UltimateAssistantPanel() {
@@ -330,6 +575,7 @@ UltimateAssistantPanel::UltimateAssistantPanel() {
 	tab_container->set_current_tab(0);
 
 	s_instances.push_back(this);
+	set_process(true);
 	if (s_shared_initialized) {
 		_apply_shared_state();
 	} else {
@@ -346,7 +592,60 @@ void UltimateAssistantPanel::_notification(int p_what) {
 			theme_ready = true;
 			_refresh_tab_close_icons();
 		} break;
+		case NOTIFICATION_PROCESS: {
+			uint64_t now_msec = OS::get_singleton()->get_ticks_msec();
+			for (int i = 0; i < tabs.size(); i++) {
+				ChatTab &tab = tabs.write[i];
+				_poll_realtime_stream_for_tab(tab.id);
+
+				if (tab.command_stream_active && now_msec >= tab.next_command_stream_tick_msec) {
+					int chunk_len = MIN(COMMAND_STREAM_CHUNK_CHARS, tab.command_stream_remaining.length());
+					if (chunk_len > 0) {
+						String chunk = tab.command_stream_remaining.substr(0, chunk_len);
+						tab.command_stream_remaining = tab.command_stream_remaining.substr(chunk_len, tab.command_stream_remaining.length() - chunk_len);
+						bool finish = tab.command_stream_remaining.is_empty();
+						_append_stream_delta_for_tab(tab.id, tab.command_stream_role, chunk, finish);
+						if (finish) {
+							tab.command_stream_active = false;
+							tab.command_stream_role.clear();
+							tab.next_command_stream_tick_msec = 0;
+							if (!tab.status_poll_active) {
+								_set_tab_loading_state(tab.id, false);
+								_set_tab_status(tab.id, TTR("Ready"), false);
+							}
+						} else {
+							tab.next_command_stream_tick_msec = now_msec + COMMAND_STREAM_TICK_MSEC;
+						}
+					} else {
+						tab.command_stream_active = false;
+						tab.command_stream_role.clear();
+						tab.next_command_stream_tick_msec = 0;
+					}
+				}
+
+				if (!tab.status_poll_active || tab.last_plan_id.is_empty() || tab.has_conflict || now_msec < tab.next_status_poll_msec) {
+					continue;
+				}
+
+				tab.next_status_poll_msec = now_msec + TASK_STATUS_LIVE_POLL_INTERVAL_MSEC;
+				bool terminal = _poll_task_status_for_tab(tab.id, tab.last_plan_id);
+				if (terminal) {
+					tab.status_poll_active = false;
+					tab.next_status_poll_msec = 0;
+					if (tab.assistant_stream_open && !tab.command_stream_active && !tab.suppress_next_chat_message) {
+						_append_stream_delta_for_tab(tab.id, String(), String(), true);
+					}
+					if (!tab.command_stream_active) {
+						_set_tab_loading_state(tab.id, false);
+					}
+					_set_tab_busy(tab.id, false);
+				}
+			}
+		} break;
 		case NOTIFICATION_PREDELETE: {
+			for (int i = 0; i < tabs.size(); i++) {
+				_disconnect_realtime_stream_for_tab(tabs[i].id);
+			}
 			for (int i = 0; i < s_instances.size(); i++) {
 				if (s_instances[i] == this) {
 					s_instances.remove_at(i);
@@ -516,9 +815,15 @@ void UltimateAssistantPanel::_add_chat_tab(int p_forced_id) {
 
 	RichTextLabel *chat_display = memnew(RichTextLabel);
 	chat_display->set_use_bbcode(true);
+	chat_display->set_selection_enabled(true);
+	chat_display->set_context_menu_enabled(true);
+	chat_display->set_shortcut_keys_enabled(true);
+	chat_display->set_scroll_follow(true);
+	chat_display->add_theme_constant_override("line_separation", 6);
+	chat_display->add_theme_constant_override("paragraph_separation", 8);
 	chat_display->set_h_size_flags(Control::SIZE_EXPAND_FILL);
 	chat_display->set_v_size_flags(Control::SIZE_EXPAND_FILL);
-	chat_display->set_text(TTR("[b]New chat ready.[/b]\n"));
+	chat_display->set_text(TTR("[i]New chat ready.[/i]\n"));
 	scroll_container->add_child(chat_display);
 
 	VBoxContainer *input_block = memnew(VBoxContainer);
@@ -581,6 +886,11 @@ void UltimateAssistantPanel::_add_chat_tab(int p_forced_id) {
 	send_button->set_text(TTR("Send"));
 	input_actions->add_child(send_button);
 
+	Button *copy_button = memnew(Button);
+	copy_button->set_text(TTR("Copy"));
+	copy_button->set_tooltip_text(TTR("Copy selected text or full chat transcript"));
+	input_actions->add_child(copy_button);
+
 	Button *steer_button = memnew(Button);
 	steer_button->set_text(TTR("Steer"));
 	steer_button->set_visible(false);
@@ -625,6 +935,7 @@ void UltimateAssistantPanel::_add_chat_tab(int p_forced_id) {
 		tab_counter = tab_id;
 	}
 	send_button->connect(SceneStringName(pressed), callable_mp(this, &UltimateAssistantPanel::_on_send_pressed).bind(tab_id));
+	copy_button->connect(SceneStringName(pressed), callable_mp(this, &UltimateAssistantPanel::_on_copy_pressed).bind(tab_id));
 	steer_button->connect(SceneStringName(pressed), callable_mp(this, &UltimateAssistantPanel::_on_steer_pressed).bind(tab_id));
 	resync_button->connect(SceneStringName(pressed), callable_mp(this, &UltimateAssistantPanel::_on_resync_pressed).bind(tab_id));
 	approve_button->connect(SceneStringName(pressed), callable_mp(this, &UltimateAssistantPanel::_on_approve_pressed).bind(tab_id));
@@ -656,6 +967,7 @@ void UltimateAssistantPanel::_add_chat_tab(int p_forced_id) {
 	tab.input_text = input_text;
 	tab.status_label = status_label;
 	tab.send_button = send_button;
+	tab.copy_button = copy_button;
 	tab.steer_button = steer_button;
 	tab.resync_button = resync_button;
 	tab.approval_section = approval_section;
@@ -704,6 +1016,9 @@ void UltimateAssistantPanel::_capture_shared_state() {
 }
 
 void UltimateAssistantPanel::_clear_tabs_ui() {
+	for (int i = 0; i < tabs.size(); i++) {
+		_disconnect_realtime_stream_for_tab(tabs[i].id);
+	}
 	tabs.clear();
 	hub_root = nullptr;
 	hub_agent_list = nullptr;
@@ -782,7 +1097,7 @@ void UltimateAssistantPanel::_add_chat_tab_from_state(const SharedChatTabState &
 		}
 	}
 	if (tab.chat_display) {
-		tab.chat_display->set_text(p_state.transcript.is_empty() ? TTR("[b]New chat ready.[/b]\n") : p_state.transcript);
+		tab.chat_display->set_text(p_state.transcript.is_empty() ? TTR("[i]New chat ready.[/i]\n") : p_state.transcript);
 		tab.transcript = tab.chat_display->get_text();
 	}
 	if (tab.send_button) {
@@ -1011,12 +1326,109 @@ void UltimateAssistantPanel::_append_message(int p_tab_id, const String &p_role,
 	if (!display) {
 		return;
 	}
+	if (tab.assistant_stream_open) {
+		_append_stream_delta_for_tab(p_tab_id, String(), String(), true);
+	}
 
-	String line = "[b]" + safe_role + ":[/b] " + safe_content + "\n";
+	String rendered_content = _markdown_to_bbcode(safe_content);
+	String safe_role_bbcode = _escape_bbcode_text(safe_role);
+
+	const bool is_user = safe_role == TTR("User");
+	const bool is_system = safe_role == TTR("System");
+
+	Color base_color = display->get_theme_color(SNAME("default_color"), SNAME("RichTextLabel"));
+	if (base_color.a <= 0.0) {
+		base_color = Color(1, 1, 1, 1);
+	}
+
+	Color role_color = base_color.lightened(0.35);
+	Color bubble_color = base_color.darkened(0.82);
+	if (is_user) {
+		role_color = base_color.lightened(0.5);
+		bubble_color = base_color.darkened(0.68);
+	} else if (is_system) {
+		role_color = base_color.lightened(0.2);
+		bubble_color = base_color.darkened(0.9);
+	}
+
+	String role_color_hex = "#" + role_color.to_html(false);
+	String bubble_color_hex = "#" + bubble_color.to_html(false);
+	String text_color_hex = "#" + base_color.to_html(false);
+
+	String line;
+	if (is_user) {
+		line += "[right][color=" + role_color_hex + "][b]" + safe_role_bbcode + "[/b][/color][/right]\n";
+		line += "[right][bgcolor=" + bubble_color_hex + "][color=" + text_color_hex + "]\n  " + rendered_content + "\n[/color][/bgcolor][/right]\n\n";
+	} else {
+		line += "[color=" + role_color_hex + "][b]" + safe_role_bbcode + "[/b][/color]\n";
+		line += "[bgcolor=" + bubble_color_hex + "][color=" + text_color_hex + "]\n  " + rendered_content + "\n[/color][/bgcolor]\n\n";
+	}
+
 	display->append_text(line);
 	tab.transcript += line;
 	display->scroll_to_line(display->get_line_count());
+
+	Color display_modulate = display->get_modulate();
+	display_modulate.a = 0.92;
+	display->set_modulate(display_modulate);
+	Ref<Tween> tween = display->create_tween();
+	if (tween.is_valid()) {
+		tween->set_trans(Tween::TRANS_SINE);
+		tween->set_ease(Tween::EASE_OUT);
+		tween->tween_property(display, NodePath("modulate:a"), 1.0, 0.14);
+	}
+
 	_broadcast_shared_state();
+}
+
+void UltimateAssistantPanel::_append_stream_delta_for_tab(int p_tab_id, const String &p_role, const String &p_delta, bool p_finish) {
+	int tab_index = _find_tab_index_by_id(p_tab_id);
+	if (tab_index < 0 || tab_index >= tabs.size()) {
+		return;
+	}
+
+	ChatTab &tab = tabs.write[tab_index];
+	RichTextLabel *display = tab.chat_display;
+	if (!display) {
+		return;
+	}
+
+	if (!tab.assistant_stream_open && !p_finish) {
+		String safe_role = p_role.strip_edges();
+		if (safe_role.is_empty()) {
+			safe_role = TTR("Assistant");
+		}
+
+		Color base_color = display->get_theme_color(SNAME("default_color"), SNAME("RichTextLabel"));
+		if (base_color.a <= 0.0) {
+			base_color = Color(1, 1, 1, 1);
+		}
+		Color role_color = base_color.lightened(0.35);
+		Color bubble_color = base_color.darkened(0.82);
+
+		String line;
+		line += "[color=#" + role_color.to_html(false) + "][b]" + _escape_bbcode_text(safe_role) + "[/b][/color]\n";
+		line += "[bgcolor=#" + bubble_color.to_html(false) + "][color=#" + base_color.to_html(false) + "]\n  ";
+		display->append_text(line);
+		tab.transcript += line;
+		tab.assistant_stream_open = true;
+	}
+
+	if (tab.assistant_stream_open && !p_delta.is_empty()) {
+		String safe_chunk = _escape_bbcode_text(p_delta);
+		display->append_text(safe_chunk);
+		tab.transcript += safe_chunk;
+	}
+
+	if (tab.assistant_stream_open && p_finish) {
+		String closing = "\n[/color][/bgcolor]\n\n";
+		display->append_text(closing);
+		tab.transcript += closing;
+		tab.assistant_stream_open = false;
+		_broadcast_shared_state();
+	}
+
+	display->scroll_to_line(display->get_line_count());
 }
 
 void UltimateAssistantPanel::_on_new_tab_pressed() {
@@ -1034,6 +1446,7 @@ void UltimateAssistantPanel::_on_tab_close_requested(int p_tab_index) {
 	Control *tab_control = tab_container->get_tab_control(p_tab_index);
 	int tab_index = _find_tab_index_by_root(tab_control);
 	if (tab_index >= 0 && tab_index < tabs.size()) {
+		_disconnect_realtime_stream_for_tab(tabs[tab_index].id);
 		_archive_tab(tabs[tab_index]);
 	}
 	if (tab_control) {
@@ -1124,7 +1537,33 @@ void UltimateAssistantPanel::_on_send_pressed(int p_tab_id) {
 		return;
 	}
 	_on_input_submitted(request_text, p_tab_id);
-	_request_task_for_tab(p_tab_id, request_text);
+	_set_tab_loading_state(p_tab_id, true, TTR("Assistant is thinking"));
+	call_deferred(SNAME("_request_task_for_tab_deferred"), p_tab_id, request_text);
+}
+
+void UltimateAssistantPanel::_request_task_for_tab_deferred(int p_tab_id, const String &p_user_input) {
+	_request_task_for_tab(p_tab_id, p_user_input);
+}
+
+void UltimateAssistantPanel::_on_copy_pressed(int p_tab_id) {
+	int tab_index = _find_tab_index_by_id(p_tab_id);
+	if (tab_index < 0 || tab_index >= tabs.size()) {
+		return;
+	}
+
+	RichTextLabel *display = tabs[tab_index].chat_display;
+	if (!display) {
+		return;
+	}
+
+	String selected_text = display->get_selected_text();
+	String copy_text = selected_text.strip_edges().is_empty() ? display->get_parsed_text() : selected_text;
+	if (copy_text.strip_edges().is_empty()) {
+		return;
+	}
+
+	DisplayServer::get_singleton()->clipboard_set(copy_text);
+	_set_tab_status(p_tab_id, TTR("Copied chat text."), false);
 }
 
 void UltimateAssistantPanel::_on_input_submitted(const String &p_text, int p_tab_id) {
@@ -1147,7 +1586,8 @@ void UltimateAssistantPanel::_on_interrupt_pressed(int p_tab_id) {
 		return;
 	}
 	_append_message(p_tab_id, TTR("User"), TTR("[interrupt]"));
-	_request_task_for_tab(p_tab_id, "[interrupt]");
+	_set_tab_loading_state(p_tab_id, true, TTR("Assistant is thinking"));
+	call_deferred(SNAME("_request_task_for_tab_deferred"), p_tab_id, String("[interrupt]"));
 }
 
 void UltimateAssistantPanel::_on_steer_pressed(int p_tab_id) {
@@ -1164,7 +1604,8 @@ void UltimateAssistantPanel::_on_steer_pressed(int p_tab_id) {
 		}
 	}
 	_append_message(p_tab_id, TTR("User"), "[steer] " + steer_prompt);
-	_request_task_for_tab(p_tab_id, "[steer] " + steer_prompt);
+	_set_tab_loading_state(p_tab_id, true, TTR("Assistant is thinking"));
+	call_deferred(SNAME("_request_task_for_tab_deferred"), p_tab_id, String("[steer] ") + steer_prompt);
 }
 
 void UltimateAssistantPanel::_set_tab_busy(int p_tab_id, bool p_busy, const String &p_status) {
@@ -1174,6 +1615,11 @@ void UltimateAssistantPanel::_set_tab_busy(int p_tab_id, bool p_busy, const Stri
 	}
 	ChatTab &tab = tabs.write[tab_index];
 	tab.is_active = p_busy;
+	if (!p_busy) {
+		tab.status_poll_active = false;
+		tab.next_status_poll_msec = 0;
+		tab.last_reported_task_status.clear();
+	}
 
 	if (tab.send_button) {
 		tab.send_button->set_text(p_busy ? TTR("Interrupt") : TTR("Send"));
@@ -1202,6 +1648,102 @@ void UltimateAssistantPanel::_set_tab_status(int p_tab_id, const String &p_statu
 	} else {
 		tab.status_label->set_text(p_status.is_empty() ? TTR("Ready") : p_status);
 	}
+}
+
+void UltimateAssistantPanel::_set_tab_loading_state(int p_tab_id, bool p_active, const String &p_base_text) {
+	int tab_index = _find_tab_index_by_id(p_tab_id);
+	if (tab_index < 0 || tab_index >= tabs.size()) {
+		return;
+	}
+
+	ChatTab &tab = tabs.write[tab_index];
+	tab.loading_indicator_active = p_active;
+	if (!p_active) {
+		if (tab.status_label && !tab.is_active) {
+			tab.status_label->set_text(TTR("Ready"));
+		}
+		tab.loading_indicator_phase = 0;
+		tab.next_loading_tick_msec = 0;
+		tab.loading_chat_notice_emitted = false;
+		tab.loading_indicator_text.clear();
+		return;
+	}
+
+	tab.loading_indicator_phase = 0;
+	tab.next_loading_tick_msec = 0;
+	tab.loading_indicator_text = p_base_text.strip_edges();
+	if (tab.loading_indicator_text.is_empty()) {
+		tab.loading_indicator_text = TTR("Assistant is thinking");
+	}
+	if (!tab.loading_chat_notice_emitted && !tab.assistant_stream_open && !tab.command_stream_active) {
+		_append_message(p_tab_id, TTR("System"), tab.loading_indicator_text + "...");
+		tab.loading_chat_notice_emitted = true;
+	}
+
+	if (tab.status_label) {
+		tab.status_label->set_text(TTR("Working..."));
+	}
+}
+
+void UltimateAssistantPanel::_append_task_status_message(int p_tab_id, const String &p_status, bool p_force) {
+	int tab_index = _find_tab_index_by_id(p_tab_id);
+	if (tab_index < 0 || tab_index >= tabs.size()) {
+		return;
+	}
+
+	String normalized = p_status.strip_edges().to_lower();
+	if (normalized.is_empty()) {
+		return;
+	}
+
+	ChatTab &tab = tabs.write[tab_index];
+	if (!p_force && tab.last_reported_task_status == normalized) {
+		return;
+	}
+	tab.last_reported_task_status = normalized;
+
+	_append_message(p_tab_id, TTR("System"), vformat("Gateway task: %s", normalized.replace("_", " ")));
+}
+
+void UltimateAssistantPanel::_start_command_stream_for_tab(int p_tab_id, const String &p_role, const String &p_content) {
+	int tab_index = _find_tab_index_by_id(p_tab_id);
+	if (tab_index < 0 || tab_index >= tabs.size()) {
+		return;
+	}
+
+	ChatTab &tab = tabs.write[tab_index];
+	String stream_role = p_role.strip_edges();
+	if (stream_role.is_empty()) {
+		stream_role = TTR("Assistant");
+	}
+
+	String remaining = p_content;
+	if (remaining.is_empty()) {
+		return;
+	}
+	_set_tab_loading_state(p_tab_id, false);
+
+	tab.command_stream_active = false;
+	tab.command_stream_role = stream_role;
+	tab.command_stream_remaining.clear();
+	tab.next_command_stream_tick_msec = 0;
+
+	int first_chunk_len = MIN(COMMAND_STREAM_CHUNK_CHARS, remaining.length());
+	String first_chunk = remaining.substr(0, first_chunk_len);
+	String tail = remaining.substr(first_chunk_len, remaining.length() - first_chunk_len);
+	bool finish = tail.is_empty();
+
+	_append_stream_delta_for_tab(p_tab_id, stream_role, first_chunk, finish);
+	if (finish) {
+		_set_tab_loading_state(p_tab_id, false);
+		_set_tab_status(p_tab_id, TTR("Ready"), false);
+		return;
+	}
+
+	tab.command_stream_active = true;
+	tab.command_stream_role = stream_role;
+	tab.command_stream_remaining = tail;
+	tab.next_command_stream_tick_msec = OS::get_singleton()->get_ticks_msec() + COMMAND_STREAM_TICK_MSEC;
 }
 
 Dictionary UltimateAssistantPanel::_build_project_map_payload(int p_tab_id) const {
@@ -1307,6 +1849,8 @@ bool UltimateAssistantPanel::_bootstrap_realtime_for_tab(int p_tab_id) {
 		tab.realtime_bootstrapped = false;
 		tab.realtime_user_id = user_id;
 		tab.realtime_url = String();
+		tab.realtime_access_token = String();
+		_disconnect_realtime_stream_for_tab(p_tab_id);
 		String error = String(negotiation.get("error", String("Realtime negotiation unavailable."))).strip_edges();
 		if (!error.is_empty()) {
 			_append_message(p_tab_id, TTR("System"), vformat("Realtime unavailable; using polling fallback (%s).", error));
@@ -1317,6 +1861,13 @@ bool UltimateAssistantPanel::_bootstrap_realtime_for_tab(int p_tab_id) {
 	tab.realtime_bootstrapped = true;
 	tab.realtime_user_id = user_id;
 	tab.realtime_url = String(negotiation.get("realtime_url", String()));
+	tab.realtime_access_token = String(negotiation.get("realtime_access_token", String()));
+
+	bool realtime_connected = _connect_realtime_stream_for_tab(p_tab_id);
+	if (!realtime_connected) {
+		tab.realtime_bootstrapped = false;
+		_append_message(p_tab_id, TTR("System"), TTR("Realtime stream unavailable; using polling fallback."));
+	}
 
 	Dictionary join_payload;
 	join_payload["session_id"] = tab.session_id;
@@ -1332,7 +1883,108 @@ bool UltimateAssistantPanel::_bootstrap_realtime_for_tab(int p_tab_id) {
 		}
 	}
 
+	return realtime_connected;
+}
+
+bool UltimateAssistantPanel::_connect_realtime_stream_for_tab(int p_tab_id) {
+	int tab_index = _find_tab_index_by_id(p_tab_id);
+	if (tab_index < 0 || tab_index >= tabs.size()) {
+		return false;
+	}
+
+	ChatTab &tab = tabs.write[tab_index];
+	_disconnect_realtime_stream_for_tab(p_tab_id);
+
+	String stream_url = _append_access_token_to_url(tab.realtime_url, tab.realtime_access_token);
+	if (stream_url.is_empty()) {
+		return false;
+	}
+
+	Ref<WebSocketPeer> realtime_peer = Ref<WebSocketPeer>(WebSocketPeer::create());
+	if (realtime_peer.is_null()) {
+		return false;
+	}
+
+	Error connect_error = realtime_peer->connect_to_url(stream_url);
+	if (connect_error != OK) {
+		return false;
+	}
+
+	tab.realtime_peer = realtime_peer;
+	tab.realtime_stream_failed = false;
 	return true;
+}
+
+void UltimateAssistantPanel::_disconnect_realtime_stream_for_tab(int p_tab_id) {
+	int tab_index = _find_tab_index_by_id(p_tab_id);
+	if (tab_index < 0 || tab_index >= tabs.size()) {
+		return;
+	}
+
+	ChatTab &tab = tabs.write[tab_index];
+	if (tab.realtime_peer.is_valid()) {
+		WebSocketPeer::State state = tab.realtime_peer->get_ready_state();
+		if (state == WebSocketPeer::STATE_CONNECTING || state == WebSocketPeer::STATE_OPEN || state == WebSocketPeer::STATE_CLOSING) {
+			tab.realtime_peer->close(1000, "panel_close");
+		}
+	}
+	tab.realtime_peer.unref();
+	tab.realtime_stream_failed = false;
+}
+
+void UltimateAssistantPanel::_poll_realtime_stream_for_tab(int p_tab_id) {
+	int tab_index = _find_tab_index_by_id(p_tab_id);
+	if (tab_index < 0 || tab_index >= tabs.size()) {
+		return;
+	}
+
+	ChatTab &tab = tabs.write[tab_index];
+	if (!tab.realtime_peer.is_valid()) {
+		return;
+	}
+
+	tab.realtime_peer->poll();
+	WebSocketPeer::State state = tab.realtime_peer->get_ready_state();
+	if (state == WebSocketPeer::STATE_CLOSED) {
+		if (!tab.realtime_stream_failed) {
+			tab.realtime_stream_failed = true;
+			int close_code = tab.realtime_peer->get_close_code();
+			String close_reason = tab.realtime_peer->get_close_reason().strip_edges();
+			String detail = close_reason.is_empty()
+					? vformat("Realtime stream closed (code %d).", close_code)
+					: vformat("Realtime stream closed (code %d: %s).", close_code, close_reason);
+			_append_message(p_tab_id, TTR("System"), detail + " " + TTR("Falling back to status polling."));
+		}
+		tab.realtime_peer.unref();
+		return;
+	}
+
+	if (state != WebSocketPeer::STATE_OPEN) {
+		return;
+	}
+
+	Array realtime_events;
+	int available_packets = tab.realtime_peer->get_available_packet_count();
+	for (int i = 0; i < available_packets; i++) {
+		const uint8_t *packet_data = nullptr;
+		int packet_size = 0;
+		Error packet_error = tab.realtime_peer->get_packet(&packet_data, packet_size);
+		if (packet_error != OK || packet_data == nullptr || packet_size <= 0) {
+			continue;
+		}
+
+		String payload_text = String::utf8((const char *)packet_data, packet_size);
+		Variant payload = JSON::parse_string(payload_text);
+		if (payload.get_type() == Variant::NIL && payload_text.strip_edges() != "null") {
+			continue;
+		}
+
+		_collect_realtime_event_payloads(payload, realtime_events);
+	}
+
+	if (!realtime_events.is_empty()) {
+		_apply_realtime_events_for_tab(p_tab_id, realtime_events, false);
+	}
 }
 
 void UltimateAssistantPanel::_apply_realtime_events_for_tab(int p_tab_id, const Array &p_events, bool p_refresh_status) {
@@ -1358,6 +2010,31 @@ void UltimateAssistantPanel::_apply_realtime_events_for_tab(int p_tab_id, const 
 			continue;
 		}
 
+		int seq = int(mapped.get("seq", -1));
+		if (seq >= 0) {
+			if (seq <= tab.last_realtime_seq) {
+				continue;
+			}
+			tab.last_realtime_seq = seq;
+		}
+
+		String chat_delta = String(mapped.get("chat_delta", String()));
+		if (!chat_delta.is_empty()) {
+			tab.suppress_next_chat_message = true;
+			tab.command_stream_active = false;
+			tab.command_stream_remaining.clear();
+			tab.command_stream_role.clear();
+			tab.next_command_stream_tick_msec = 0;
+			_set_tab_loading_state(p_tab_id, false);
+			String chat_role = String(mapped.get("chat_role", String("Assistant")));
+			_append_stream_delta_for_tab(p_tab_id, chat_role, chat_delta, false);
+		}
+
+		if (bool(mapped.get("chat_done", false))) {
+			_append_stream_delta_for_tab(p_tab_id, String(), String(), true);
+			_set_tab_loading_state(p_tab_id, false);
+		}
+
 		String message = String(mapped.get("message", String())).strip_edges();
 		if (!message.is_empty()) {
 			_append_message(p_tab_id, TTR("Realtime"), message);
@@ -1379,12 +2056,14 @@ void UltimateAssistantPanel::_apply_realtime_events_for_tab(int p_tab_id, const 
 			String plan_id = String(mapped.get("plan_id", String())).strip_edges();
 			if (!plan_id.is_empty()) {
 				tab.last_plan_id = plan_id;
+				tab.status_poll_active = true;
+				tab.next_status_poll_msec = OS::get_singleton()->get_ticks_msec() + TASK_STATUS_LIVE_POLL_INITIAL_DELAY_MSEC;
 			}
 			if (tab.resync_button) {
 				tab.resync_button->set_visible(true);
 			}
 			if (p_refresh_status) {
-				_set_tab_status(p_tab_id, TTR("Realtime update received; click Resync to refresh task status."), false);
+				_set_tab_status(p_tab_id, TTR("Realtime update received; refreshing task status..."), false);
 			}
 		}
 	}
@@ -1484,6 +2163,9 @@ bool UltimateAssistantPanel::_start_session_for_tab(int p_tab_id, bool p_force_r
 	ChatTab &tab = tabs.write[tab_index];
 
 	if (!p_force_resync && !tab.session_id.is_empty() && !tab.idempotency_key.is_empty()) {
+		if (!tab.realtime_peer.is_valid()) {
+			_bootstrap_realtime_for_tab(p_tab_id);
+		}
 		return true;
 	}
 
@@ -1537,6 +2219,15 @@ void UltimateAssistantPanel::_request_task_for_tab(int p_tab_id, const String &p
 		return;
 	}
 	ChatTab &tab = tabs.write[tab_index];
+	tab.suppress_next_chat_message = false;
+	tab.command_stream_active = false;
+	tab.command_stream_role.clear();
+	tab.command_stream_remaining.clear();
+	tab.next_command_stream_tick_msec = 0;
+	tab.last_reported_task_status.clear();
+	if (tab.assistant_stream_open) {
+		_append_stream_delta_for_tab(p_tab_id, String(), String(), true);
+	}
 
 	_set_tab_busy(p_tab_id, true, TTR("Starting session..."));
 	if (!_start_session_for_tab(p_tab_id, false)) {
@@ -1568,6 +2259,7 @@ void UltimateAssistantPanel::_request_task_for_tab(int p_tab_id, const String &p
 			_set_tab_status(p_tab_id, error, true);
 			_append_message(p_tab_id, TTR("System"), vformat("Task request failed: %s", error));
 		}
+		_set_tab_loading_state(p_tab_id, false);
 		_set_tab_busy(p_tab_id, false);
 		return;
 	}
@@ -1578,6 +2270,7 @@ void UltimateAssistantPanel::_request_task_for_tab(int p_tab_id, const String &p
 	if (body_v.get_type() != Variant::DICTIONARY) {
 		_set_tab_status(p_tab_id, TTR("Invalid backend response."), true);
 		_append_message(p_tab_id, TTR("System"), TTR("Backend response did not contain a valid JSON object."));
+		_set_tab_loading_state(p_tab_id, false);
 		_set_tab_busy(p_tab_id, false);
 		return;
 	}
@@ -1587,9 +2280,12 @@ void UltimateAssistantPanel::_request_task_for_tab(int p_tab_id, const String &p
 	if ((body.has("accepted") || response_event == "task_queued_ack") && !_is_valid_task_request_accepted_payload(body)) {
 		_set_tab_status(p_tab_id, TTR("Task request response does not match Interface contract."), true);
 		_append_message(p_tab_id, TTR("System"), TTR("Gateway returned an invalid task_request response shape (expected task_queued_ack)."));
+		_set_tab_loading_state(p_tab_id, false);
 		_set_tab_busy(p_tab_id, false);
 		return;
 	}
+
+	bool keep_waiting_for_result = false;
 
 	if (body.has("actions")) {
 		_show_approval_batch(p_tab_id, body);
@@ -1617,17 +2313,21 @@ void UltimateAssistantPanel::_request_task_for_tab(int p_tab_id, const String &p
 		_execute_commands_for_tab(p_tab_id, body["commands"]);
 	} else if (bool(body.get("accepted", false)) && body.has("plan_id")) {
 		String plan_id = String(body.get("plan_id", String()));
-		String task_status = String(body.get("status", String("queued"))).to_lower();
 		tab.last_plan_id = plan_id;
-		_append_message(p_tab_id, TTR("System"), vformat("Gateway accepted task %s (status: %s).", plan_id, task_status));
-		_set_tab_status(p_tab_id, vformat("Gateway task: %s", task_status.replace("_", " ")), false);
-		if (!_poll_task_status_for_tab(p_tab_id, plan_id)) {
-			if (!tab.has_conflict) {
-				_append_message(p_tab_id, TTR("System"), TTR("Task remains queued. Click Resync to refresh gateway task status."));
-			}
-		}
+		tab.last_realtime_seq = -1;
+		tab.suppress_next_chat_message = false;
+		tab.status_poll_active = true;
+		tab.next_status_poll_msec = OS::get_singleton()->get_ticks_msec() + TASK_STATUS_LIVE_POLL_INITIAL_DELAY_MSEC;
+		_set_tab_status(p_tab_id, TTR("Working..."), false);
+		_set_tab_loading_state(p_tab_id, true, TTR("Assistant is thinking"));
+		keep_waiting_for_result = true;
 	}
 
+	if (keep_waiting_for_result) {
+		return;
+	}
+
+	_set_tab_loading_state(p_tab_id, false);
 	_set_tab_status(p_tab_id, TTR("Ready"), false);
 	_set_tab_busy(p_tab_id, false);
 }
@@ -1639,6 +2339,9 @@ void UltimateAssistantPanel::_apply_conflict_state(int p_tab_id, const Dictionar
 	}
 	ChatTab &tab = tabs.write[tab_index];
 	tab.has_conflict = true;
+	tab.status_poll_active = false;
+	tab.next_status_poll_msec = 0;
+	_set_tab_loading_state(p_tab_id, false);
 
 	if (tab.resync_button) {
 		tab.resync_button->set_visible(true);
@@ -1658,6 +2361,8 @@ void UltimateAssistantPanel::_clear_conflict_state(int p_tab_id) {
 	}
 	ChatTab &tab = tabs.write[tab_index];
 	tab.has_conflict = false;
+	tab.status_poll_active = false;
+	tab.next_status_poll_msec = 0;
 	if (tab.resync_button) {
 		tab.resync_button->set_visible(false);
 	}
@@ -1756,22 +2461,29 @@ bool UltimateAssistantPanel::_poll_task_status_for_tab(int p_tab_id, const Strin
 			int tab_index = _find_tab_index_by_id(p_tab_id);
 			if (tab_index >= 0 && tab_index < tabs.size()) {
 				if (tabs[tab_index].has_conflict) {
-					return false;
+					return true;
 				}
 			}
 
 			if (!_is_valid_task_status_payload(body, p_plan_id)) {
 				_set_tab_status(p_tab_id, TTR("Task status response does not match Interface contract."), true);
 				_append_message(p_tab_id, TTR("System"), TTR("Gateway returned an invalid task_status response shape."));
-				return false;
+				return true;
 			}
 
 			String task_status = String(body.get("status", String())).to_lower();
 			if (!task_status.is_empty()) {
-				_set_tab_status(p_tab_id, vformat("Gateway task: %s", task_status.replace("_", " ")), false);
+				_set_tab_status(p_tab_id, TTR("Working..."), false);
 				if (task_status == "error") {
 					_append_message(p_tab_id, TTR("System"), TTR("Gateway reported task execution error."));
-					return false;
+					return true;
+				}
+			}
+
+			if (body.has("commands") && body["commands"].get_type() == Variant::ARRAY) {
+				_execute_commands_for_tab(p_tab_id, body["commands"]);
+				if (task_status == "done") {
+					return true;
 				}
 			}
 
@@ -1811,28 +2523,28 @@ bool UltimateAssistantPanel::_poll_task_status_for_tab(int p_tab_id, const Strin
 				return true;
 			}
 
-			_set_tab_status(p_tab_id, TTR("Gateway task queued; awaiting worker update."), false);
+			_set_tab_status(p_tab_id, TTR("Working..."), false);
 			return false;
 		}
 
 		_set_tab_status(p_tab_id, TTR("Task status response does not match Interface contract."), true);
 		_append_message(p_tab_id, TTR("System"), TTR("Gateway returned an invalid task_status response shape."));
-		return false;
+		return true;
 	}
 
 	int status_code = int(response.get("status_code", 0));
 	if (status_code == HTTPClient::RESPONSE_CONFLICT) {
 		_apply_conflict_state(p_tab_id, response);
-		return false;
+		return true;
 	}
 	if (status_code != HTTPClient::RESPONSE_NOT_FOUND) {
 		String error = String(response.get("error", TTR("Task status request failed.")));
 		_set_tab_status(p_tab_id, error, true);
 		_append_message(p_tab_id, TTR("System"), vformat("Task status request failed: %s", error));
-		return false;
+		return true;
 	}
 
-	_set_tab_status(p_tab_id, TTR("Gateway task queued; awaiting worker update."), false);
+	_set_tab_status(p_tab_id, TTR("Working..."), false);
 	return false;
 }
 
@@ -1922,6 +2634,8 @@ void UltimateAssistantPanel::_execute_single_command(int p_tab_id, const Diction
 		return;
 	}
 
+	int tab_index = _find_tab_index_by_id(p_tab_id);
+
 	Dictionary trust = backend_adapter->evaluate_command_trust(p_command);
 	bool allowed = bool(trust.get("allowed", false));
 	bool trusted = bool(trust.get("trusted", false));
@@ -1935,8 +2649,20 @@ void UltimateAssistantPanel::_execute_single_command(int p_tab_id, const Diction
 	if (action == "chat_message") {
 		String content = String(p_command.get("content", ""));
 		String agent = String(p_command.get("agent", "Assistant"));
-		_append_message(p_tab_id, agent.is_empty() ? TTR("Assistant") : agent, content);
-		_append_message(p_tab_id, TTR("System"), TTR("Executed command: chat_message"));
+		if (tab_index >= 0 && tab_index < tabs.size() && tabs[tab_index].suppress_next_chat_message) {
+			tabs.write[tab_index].suppress_next_chat_message = false;
+			return;
+		}
+		String role = agent.is_empty() ? TTR("Assistant") : agent;
+		String normalized_role = role.strip_edges().to_lower();
+		if (normalized_role == "assistant" && !content.strip_edges().is_empty()) {
+			_start_command_stream_for_tab(p_tab_id, role, content);
+		} else {
+			_append_message(p_tab_id, role, content);
+		}
+		if (tab_index >= 0 && tab_index < tabs.size()) {
+			tabs.write[tab_index].suppress_next_chat_message = false;
+		}
 		return;
 	}
 

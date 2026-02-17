@@ -33,6 +33,9 @@
 
 #include "assistant_settings_dialog.h"
 
+#include "core/config/project_settings.h"
+#include "core/io/dir_access.h"
+#include "core/io/file_access.h"
 #include "core/object/class_db.h"
 #include "core/os/os.h"
 #include "scene/gui/box_container.h"
@@ -44,6 +47,136 @@
 #include "scene/gui/option_button.h"
 #include "scene/gui/separator.h"
 #include "scene/gui/spin_box.h"
+
+namespace {
+String _get_env_file_value(const String &p_file_path, const String &p_key) {
+	if (p_file_path.is_empty() || p_key.is_empty() || !FileAccess::exists(p_file_path)) {
+		return String();
+	}
+
+	Ref<FileAccess> env_file = FileAccess::open(p_file_path, FileAccess::READ);
+	if (env_file.is_null()) {
+		return String();
+	}
+
+	while (!env_file->eof_reached()) {
+		String line = env_file->get_line().strip_edges();
+		if (!line.is_empty() && line.unicode_at(0) == 0xFEFF) {
+			line = line.substr(1, line.length() - 1);
+		}
+		if (line.is_empty() || line.begins_with("#")) {
+			continue;
+		}
+
+		int separator = line.find("=");
+		if (separator <= 0) {
+			continue;
+		}
+
+		String key = line.substr(0, separator).strip_edges();
+		if (key != p_key) {
+			continue;
+		}
+
+		String value = line.substr(separator + 1, line.length()).strip_edges();
+		if (value.length() >= 2) {
+			if ((value.begins_with("\"") && value.ends_with("\"")) || (value.begins_with("'") && value.ends_with("'"))) {
+				value = value.substr(1, value.length() - 2);
+			}
+		}
+		return value.strip_edges();
+	}
+
+	return String();
+}
+
+PackedStringArray _collect_env_file_candidates() {
+	PackedStringArray candidates;
+
+	ProjectSettings *project_settings = ProjectSettings::get_singleton();
+	if (project_settings) {
+		String project_env = project_settings->globalize_path("res://.env.local").simplify_path();
+		if (!project_env.is_empty()) {
+			candidates.push_back(project_env);
+		}
+	}
+
+	Ref<DirAccess> current_dir_access = DirAccess::create(DirAccess::ACCESS_FILESYSTEM);
+	if (current_dir_access.is_valid()) {
+		String current_dir = current_dir_access->get_current_dir().simplify_path();
+		if (!current_dir.is_empty()) {
+			candidates.push_back(current_dir.path_join(".env.local").simplify_path());
+		}
+	}
+
+	OS *os = OS::get_singleton();
+	if (os) {
+		String candidate_dir = os->get_executable_path().get_base_dir().simplify_path();
+		for (int i = 0; i < 6; i++) {
+			if (candidate_dir.is_empty()) {
+				break;
+			}
+
+			candidates.push_back(candidate_dir.path_join(".env.local").simplify_path());
+
+			String parent = candidate_dir.path_join("..").simplify_path();
+			if (parent == candidate_dir) {
+				break;
+			}
+			candidate_dir = parent;
+		}
+	}
+
+	PackedStringArray deduped;
+	for (int i = 0; i < candidates.size(); i++) {
+		String candidate = candidates[i].strip_edges();
+		if (candidate.is_empty()) {
+			continue;
+		}
+		if (deduped.has(candidate)) {
+			continue;
+		}
+		deduped.push_back(candidate);
+	}
+
+	return deduped;
+}
+
+String _resolve_gateway_base_url() {
+	OS *os = OS::get_singleton();
+	if (os) {
+		if (os->has_environment("PHOENIX_PUBLIC_GATEWAY_URL")) {
+			String value = os->get_environment("PHOENIX_PUBLIC_GATEWAY_URL").strip_edges();
+			if (!value.is_empty()) {
+				return value;
+			}
+		}
+		if (os->has_environment("PHOENIX_GATEWAY_BASE_URL")) {
+			String value = os->get_environment("PHOENIX_GATEWAY_BASE_URL").strip_edges();
+			if (!value.is_empty()) {
+				return value;
+			}
+		}
+	}
+
+	PackedStringArray candidates = _collect_env_file_candidates();
+	for (int i = 0; i < candidates.size(); i++) {
+		String value = _get_env_file_value(candidates[i], "PHOENIX_PUBLIC_GATEWAY_URL");
+		if (!value.is_empty()) {
+			return value;
+		}
+	}
+
+	for (int i = 0; i < candidates.size(); i++) {
+		String value = _get_env_file_value(candidates[i], "PHOENIX_GATEWAY_BASE_URL");
+		if (!value.is_empty()) {
+			return value;
+		}
+	}
+
+	return String();
+}
+} //namespace
 
 void UltimateAISettingsDialog::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_add_pressed"), &UltimateAISettingsDialog::_on_add_pressed);
@@ -105,6 +238,10 @@ UltimateAISettingsDialog::UltimateAISettingsDialog() {
 
 	base_url = memnew(LineEdit);
 	base_url->set_placeholder(TTR("https://<your-appservice-host>.azurewebsites.net"));
+	String initial_gateway_url = _resolve_gateway_base_url();
+	if (!initial_gateway_url.is_empty()) {
+		base_url->set_text(initial_gateway_url);
+	}
 	root->add_child(base_url);
 
 	Label *managed_label = memnew(Label);
@@ -113,6 +250,9 @@ UltimateAISettingsDialog::UltimateAISettingsDialog() {
 
 	managed_endpoint = memnew(LineEdit);
 	managed_endpoint->set_placeholder(TTR("https://<your-appservice-host>.azurewebsites.net"));
+	if (!initial_gateway_url.is_empty()) {
+		managed_endpoint->set_text(initial_gateway_url);
+	}
 	root->add_child(managed_endpoint);
 
 	Label *byok_label = memnew(Label);
@@ -290,14 +430,7 @@ Dictionary UltimateAISettingsDialog::get_runtime_config() const {
 		}
 	}
 	if (effective_base_url.is_empty()) {
-		if (OS::get_singleton()->has_environment("PHOENIX_PUBLIC_GATEWAY_URL")) {
-			effective_base_url = OS::get_singleton()->get_environment("PHOENIX_PUBLIC_GATEWAY_URL").strip_edges();
-		}
-	}
-	if (effective_base_url.is_empty()) {
-		if (OS::get_singleton()->has_environment("PHOENIX_GATEWAY_BASE_URL")) {
-			effective_base_url = OS::get_singleton()->get_environment("PHOENIX_GATEWAY_BASE_URL").strip_edges();
-		}
+		effective_base_url = _resolve_gateway_base_url();
 	}
 
 	config["auth_mode"] = auth_mode;
