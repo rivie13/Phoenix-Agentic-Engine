@@ -5,6 +5,17 @@ description: Build, test, lint, and validate the Phoenix Agentic Engine (Godot f
 
 # Build & Test — Phoenix Agentic Engine (Godot Fork)
 
+## Mandatory first step: terminal scope check
+
+Before build/test commands, verify terminal scope:
+
+1. `Set-Location "C:\Users\rivie\vsCodeProjects\Phoenix-Agentic-Engine"`
+2. `Get-Location`
+3. `git rev-parse --show-toplevel`
+4. `git branch --show-current`
+
+If scope is wrong, open a fresh Engine-scoped terminal and retry.
+
 ## Repo Identity
 
 This is a **Godot Engine fork** (C++/SCons). The AI module lives in `modules/ultimate_ai/`.

@@ -5,6 +5,17 @@ description: Load Engine repo instruction files into context. Use when working o
 
 # Load Engine Instructions
 
+## Mandatory first step: terminal scope check
+
+Before running any Engine command, verify terminal scope:
+
+1. `Set-Location "C:\Users\rivie\vsCodeProjects\Phoenix-Agentic-Engine"`
+2. `Get-Location`
+3. `git rev-parse --show-toplevel`
+4. `git branch --show-current`
+
+If scope is wrong, open a fresh Engine-scoped terminal and re-run checks.
+
 ## When to use
 
 When working on code in the **Phoenix-Agentic-Engine** repo (Godot fork) and you need repo-specific context. The agent should read the relevant instruction files to understand conventions, architecture, and project structure.

@@ -1,5 +1,16 @@
 # Build and test — Phoenix Agentic Engine (Godot fork)
 
+## Repo-scoped terminal/tool discipline (required)
+
+- In this multi-repo workspace, only run Engine commands from the Engine repo root:
+	- `C:\Users\rivie\vsCodeProjects\Phoenix-Agentic-Engine`
+- Before running build/test/tools, verify scope in the active terminal:
+	- `Get-Location`
+	- `git rev-parse --show-toplevel`
+	- `git branch --show-current`
+- If repo root or branch is wrong, open a fresh terminal for this repo and re-run the checks.
+- Do not run Engine scripts from Backend or Interface terminal contexts.
+
 ## Canonical Windows build
 
 Always invoke SCons with the pinned Python path:
