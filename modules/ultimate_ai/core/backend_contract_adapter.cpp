@@ -83,6 +83,7 @@ void _apply_default_command_allowlist(PackedStringArray &r_allowlist) {
 	r_allowlist.push_back("modify_text");
 	r_allowlist.push_back("create_node");
 	r_allowlist.push_back("chat_message");
+	r_allowlist.push_back("open_docs_file");
 	r_allowlist.push_back("open_docs_url");
 }
 } //namespace
@@ -628,7 +629,7 @@ Dictionary UltimateAIBackendContractAdapter::evaluate_command_trust(const Dictio
 
 	trust["allowed"] = true;
 
-	if (!runtime_config.require_signed_commands || action == "chat_message" || action == "open_docs_url") {
+	if (!runtime_config.require_signed_commands || action == "chat_message" || action == "open_docs_url" || action == "open_docs_file") {
 		trust["trusted"] = true;
 		trust["reason"] = "trusted";
 		return trust;

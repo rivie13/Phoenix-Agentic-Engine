@@ -52,6 +52,7 @@
 #include "core/string/print_string.h"
 #include "core/string/ustring.h"
 #include "core/variant/variant_utility.h"
+#include "editor/editor_node.h"
 #include "editor/file_system/editor_file_system.h"
 #include "modules/websocket/websocket_peer.h"
 #include "scene/animation/tween.h"
@@ -3733,6 +3734,57 @@ void UltimateAssistantPanel::_execute_single_command(int p_tab_id, const Diction
 		}
 
 		_append_message(p_tab_id, TTR("System"), vformat("Opened docs URL: %s", url));
+		return;
+	}
+
+	if (action == "open_docs_file") {
+		String raw_path = String(p_command.get("content", String())).strip_edges();
+		if (raw_path.is_empty()) {
+			_append_message(p_tab_id, TTR("System"), "Rejected open_docs_file command: content path is required.");
+			return;
+		}
+
+		String local_path = raw_path;
+		if (local_path.is_absolute_path()) {
+			local_path = ProjectSettings::get_singleton()->localize_path(local_path);
+		}
+
+		if (!_is_supported_command_path(local_path)) {
+			_append_message(
+					p_tab_id,
+					TTR("System"),
+					vformat("Rejected open_docs_file '%s'. Only res:// or user:// paths without '..' are allowed.", raw_path));
+			return;
+		}
+
+		if (!FileAccess::exists(local_path)) {
+			_append_message(p_tab_id, TTR("System"), vformat("Docs file does not exist: %s", local_path));
+			return;
+		}
+
+		EditorNode *editor_node = EditorNode::get_singleton();
+		if (!editor_node) {
+			_append_message(p_tab_id, TTR("System"), "Failed to open docs file: editor node unavailable.");
+			return;
+		}
+
+		Error open_error = editor_node->load_scene_or_resource(local_path, false, true);
+		if (open_error != OK) {
+			String absolute_path = ProjectSettings::get_singleton()->globalize_path(local_path);
+			Error shell_error = OS::get_singleton()->shell_open(absolute_path);
+			if (shell_error != OK) {
+				_append_message(
+						p_tab_id,
+						TTR("System"),
+						vformat("Failed to open docs file '%s': %s", local_path, VariantUtilityFunctions::error_string(open_error)));
+				return;
+			}
+
+			_append_message(p_tab_id, TTR("System"), vformat("Opened local docs file in external viewer: %s", local_path));
+			return;
+		}
+
+		_append_message(p_tab_id, TTR("System"), vformat("Opened local docs file in editor: %s", local_path));
 		return;
 	}
 
