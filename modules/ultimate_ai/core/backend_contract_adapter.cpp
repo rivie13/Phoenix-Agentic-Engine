@@ -65,6 +65,26 @@ inline String _trim_header_value(const String &p_line) {
 	}
 	return p_line.substr(sep + 1, p_line.length()).strip_edges();
 }
+
+inline String _normalize_service_mode(const String &p_mode) {
+	String mode = p_mode.strip_edges().to_lower();
+	if (mode == "byok" || mode == "managed_byok" || mode == "managed" || mode == "offline") {
+		return mode;
+	}
+	if (mode == "local") {
+		return "offline";
+	}
+	return "managed";
+}
+
+void _apply_default_command_allowlist(PackedStringArray &r_allowlist) {
+	r_allowlist.clear();
+	r_allowlist.push_back("create_file");
+	r_allowlist.push_back("modify_text");
+	r_allowlist.push_back("create_node");
+	r_allowlist.push_back("chat_message");
+	r_allowlist.push_back("open_docs_url");
+}
 } //namespace
 
 void UltimateAIBackendContractAdapter::_bind_methods() {
@@ -88,7 +108,7 @@ void UltimateAIBackendContractAdapter::_bind_methods() {
 }
 
 UltimateAIBackendContractAdapter::UltimateAIBackendContractAdapter() {
-	command_allowlist.push_back("chat_message");
+	_apply_default_command_allowlist(command_allowlist);
 }
 
 String UltimateAIBackendContractAdapter::_now_iso8601_utc() const {
@@ -268,6 +288,7 @@ Dictionary UltimateAIBackendContractAdapter::_request_once(HTTPClient::Method p_
 	headers.push_back(String("Content-Type: application/json"));
 	headers.push_back(vformat("%s: %s", HEADER_REQUEST_ID, request_id));
 	headers.push_back(vformat("%s: %s", HEADER_CORRELATION_ID, correlation_id));
+	headers.push_back(vformat("x-phoenix-service-mode: %s", runtime_config.auth_mode));
 	headers.push_back(vformat("x-phoenix-auth-mode: %s", runtime_config.auth_mode));
 	if (!runtime_config.tier.is_empty()) {
 		headers.push_back(vformat("x-phoenix-tier: %s", runtime_config.tier));
@@ -402,11 +423,14 @@ Dictionary UltimateAIBackendContractAdapter::_request_json(HTTPClient::Method p_
 }
 
 void UltimateAIBackendContractAdapter::apply_runtime_config(const Dictionary &p_config) {
+	if (p_config.has("service_mode")) {
+		runtime_config.auth_mode = _normalize_service_mode(String(p_config["service_mode"]));
+	} else if (p_config.has("auth_mode")) {
+		runtime_config.auth_mode = _normalize_service_mode(String(p_config["auth_mode"]));
+	}
+
 	if (p_config.has("base_url")) {
 		runtime_config.base_url = String(p_config["base_url"]).strip_edges();
-	}
-	if (p_config.has("auth_mode")) {
-		runtime_config.auth_mode = String(p_config["auth_mode"]).strip_edges().to_lower();
 	}
 	if (p_config.has("token")) {
 		runtime_config.token = String(p_config["token"]).strip_edges();
@@ -429,6 +453,43 @@ void UltimateAIBackendContractAdapter::apply_runtime_config(const Dictionary &p_
 	if (p_config.has("require_signed_commands")) {
 		runtime_config.require_signed_commands = bool(p_config["require_signed_commands"]);
 	}
+	if (p_config.has("allow_background_agents")) {
+		runtime_config.allow_background_agents = bool(p_config["allow_background_agents"]);
+	}
+	if (p_config.has("auto_approve_reads")) {
+		runtime_config.auto_approve_reads = bool(p_config["auto_approve_reads"]);
+	}
+	if (p_config.has("require_approvals")) {
+		runtime_config.require_approvals = bool(p_config["require_approvals"]);
+	}
+	if (p_config.has("mcp_enabled")) {
+		runtime_config.mcp_enabled = bool(p_config["mcp_enabled"]);
+	}
+	if (p_config.has("tool_godot_mcp_docs_enabled")) {
+		runtime_config.tool_godot_mcp_docs_enabled = bool(p_config["tool_godot_mcp_docs_enabled"]);
+	}
+	if (p_config.has("tool_godot_mcp_enabled")) {
+		runtime_config.tool_godot_mcp_enabled = bool(p_config["tool_godot_mcp_enabled"]);
+	}
+	if (p_config.has("tool_godot_copilot_enabled")) {
+		runtime_config.tool_godot_copilot_enabled = bool(p_config["tool_godot_copilot_enabled"]);
+	}
+	if (p_config.has("tool_autonomous_primitives_enabled")) {
+		runtime_config.tool_autonomous_primitives_enabled = bool(p_config["tool_autonomous_primitives_enabled"]);
+	}
+	if (p_config.has("mcp_transport")) {
+		String transport_value = String(p_config["mcp_transport"]).strip_edges().to_lower();
+		runtime_config.mcp_transport = transport_value == "http" ? "http" : "stdio";
+	}
+	if (p_config.has("mcp_auto_discover")) {
+		runtime_config.mcp_auto_discover = bool(p_config["mcp_auto_discover"]);
+	}
+	if (p_config.has("mcp_require_approvals")) {
+		runtime_config.mcp_require_approvals = bool(p_config["mcp_require_approvals"]);
+	}
+	if (p_config.has("mcp_config_path")) {
+		runtime_config.mcp_config_path = String(p_config["mcp_config_path"]).strip_edges();
+	}
 	if (p_config.has("command_allowlist")) {
 		Variant allowlist = p_config["command_allowlist"];
 		if (allowlist.get_type() == Variant::PACKED_STRING_ARRAY) {
@@ -437,13 +498,14 @@ void UltimateAIBackendContractAdapter::apply_runtime_config(const Dictionary &p_
 	}
 
 	if (command_allowlist.is_empty()) {
-		command_allowlist.push_back("chat_message");
+		_apply_default_command_allowlist(command_allowlist);
 	}
 }
 
 Dictionary UltimateAIBackendContractAdapter::get_runtime_config() const {
 	Dictionary config;
 	config["base_url"] = runtime_config.base_url;
+	config["service_mode"] = runtime_config.auth_mode;
 	config["auth_mode"] = runtime_config.auth_mode;
 	config["token"] = runtime_config.token;
 	config["token_hook"] = runtime_config.token_hook;
@@ -452,6 +514,18 @@ Dictionary UltimateAIBackendContractAdapter::get_runtime_config() const {
 	config["timeout_ms"] = runtime_config.timeout_ms;
 	config["retry_count"] = runtime_config.retry_count;
 	config["require_signed_commands"] = runtime_config.require_signed_commands;
+	config["allow_background_agents"] = runtime_config.allow_background_agents;
+	config["auto_approve_reads"] = runtime_config.auto_approve_reads;
+	config["require_approvals"] = runtime_config.require_approvals;
+	config["mcp_enabled"] = runtime_config.mcp_enabled;
+	config["tool_godot_mcp_docs_enabled"] = runtime_config.tool_godot_mcp_docs_enabled;
+	config["tool_godot_mcp_enabled"] = runtime_config.tool_godot_mcp_enabled;
+	config["tool_godot_copilot_enabled"] = runtime_config.tool_godot_copilot_enabled;
+	config["tool_autonomous_primitives_enabled"] = runtime_config.tool_autonomous_primitives_enabled;
+	config["mcp_transport"] = runtime_config.mcp_transport;
+	config["mcp_auto_discover"] = runtime_config.mcp_auto_discover;
+	config["mcp_require_approvals"] = runtime_config.mcp_require_approvals;
+	config["mcp_config_path"] = runtime_config.mcp_config_path;
 	config["command_allowlist"] = command_allowlist;
 	return config;
 }
@@ -554,7 +628,7 @@ Dictionary UltimateAIBackendContractAdapter::evaluate_command_trust(const Dictio
 
 	trust["allowed"] = true;
 
-	if (!runtime_config.require_signed_commands || action == "chat_message") {
+	if (!runtime_config.require_signed_commands || action == "chat_message" || action == "open_docs_url") {
 		trust["trusted"] = true;
 		trust["reason"] = "trusted";
 		return trust;
@@ -594,6 +668,6 @@ PackedStringArray UltimateAIBackendContractAdapter::get_command_allowlist() cons
 void UltimateAIBackendContractAdapter::set_command_allowlist(const PackedStringArray &p_allowlist) {
 	command_allowlist = p_allowlist;
 	if (command_allowlist.is_empty()) {
-		command_allowlist.push_back("chat_message");
+		_apply_default_command_allowlist(command_allowlist);
 	}
 }

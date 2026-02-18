@@ -49,6 +49,18 @@ class UltimateAIBackendContractAdapter : public Object {
 		int timeout_ms = 15000;
 		int retry_count = 1;
 		bool require_signed_commands = true;
+		bool allow_background_agents = true;
+		bool auto_approve_reads = true;
+		bool require_approvals = true;
+		bool mcp_enabled = true;
+		bool tool_godot_mcp_docs_enabled = true;
+		bool tool_godot_mcp_enabled = true;
+		bool tool_godot_copilot_enabled = true;
+		bool tool_autonomous_primitives_enabled = true;
+		String mcp_transport = "stdio";
+		bool mcp_auto_discover = true;
+		bool mcp_require_approvals = true;
+		String mcp_config_path = "";
 	};
 
 	RuntimeConfig runtime_config;

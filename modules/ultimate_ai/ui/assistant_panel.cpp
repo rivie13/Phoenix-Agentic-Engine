@@ -38,7 +38,11 @@
 #include "core/backend_contract_adapter.h"
 #include "core/frontend_runtime_adapter.h"
 
+#include "core/config/engine.h"
 #include "core/config/project_settings.h"
+#include "core/crypto/crypto_core.h"
+#include "core/io/dir_access.h"
+#include "core/io/file_access.h"
 #include "core/io/json.h"
 #include "core/io/resource_loader.h"
 #include "core/object/class_db.h"
@@ -47,6 +51,7 @@
 #include "core/os/time.h"
 #include "core/string/print_string.h"
 #include "core/string/ustring.h"
+#include "core/variant/variant_utility.h"
 #include "editor/file_system/editor_file_system.h"
 #include "modules/websocket/websocket_peer.h"
 #include "scene/animation/tween.h"
@@ -65,6 +70,8 @@
 #include "scene/gui/tab_bar.h"
 #include "scene/gui/tab_container.h"
 #include "scene/gui/text_edit.h"
+#include "scene/main/node.h"
+#include "scene/main/scene_tree.h"
 #include "servers/display/display_server.h"
 
 Vector<UltimateAssistantPanel *> UltimateAssistantPanel::s_instances;
@@ -83,6 +90,21 @@ const char *const PIXELPEN_LAYER_KIND = "pixelpen_layer";
 const char *const MODE_ASK = "ask";
 const char *const MODE_PLAN = "plan";
 const char *const MODE_AGENT = "agent";
+
+struct ToolOptionDescriptor {
+	const char *id;
+	const char *label;
+	const char *runtime_flag_key;
+};
+
+const ToolOptionDescriptor TOOL_OPTION_DESCRIPTORS[] = {
+	{ "godot_mcp_docs", "godot-mcp-docs", "tool_godot_mcp_docs_enabled" },
+	{ "godot_mcp", "godot-mcp", "tool_godot_mcp_enabled" },
+	{ "godot_copilot", "godot-copilot", "tool_godot_copilot_enabled" },
+	{ "autonomous_agent_primitives", "autonomous-agent primitives", "tool_autonomous_primitives_enabled" },
+};
+const int TOOL_OPTION_COUNT = 4;
+
 const int TASK_STATUS_LIVE_POLL_INTERVAL_MSEC = 120;
 const int TASK_STATUS_LIVE_POLL_INITIAL_DELAY_MSEC = 25;
 const int COMMAND_STREAM_TICK_MSEC = 20;
@@ -96,6 +118,100 @@ const char *const LOADING_SPINNER_FRAMES[] = {
 };
 const int LOADING_SPINNER_FRAME_COUNT = 4;
 
+bool _is_supported_command_path(const String &p_path) {
+	String path = p_path.strip_edges();
+	if (path.is_empty()) {
+		return false;
+	}
+	if (!path.begins_with("res://") && !path.begins_with("user://")) {
+		return false;
+	}
+	if (path.find("..") >= 0) {
+		return false;
+	}
+	return true;
+}
+
+bool _decode_base64_bytes(const String &p_base64, Vector<uint8_t> &r_bytes) {
+	r_bytes.clear();
+	if (p_base64.is_empty()) {
+		return false;
+	}
+
+	CharString cstr = p_base64.ascii();
+	const int str_len = p_base64.length();
+	Vector<uint8_t> bytes;
+	bytes.resize(str_len / 4 * 3 + 1);
+
+	size_t decoded_len = 0;
+	uint8_t *write = bytes.ptrw();
+	Error err = CryptoCore::b64_decode(write, bytes.size(), &decoded_len, (const uint8_t *)cstr.get_data(), str_len);
+	if (err != OK) {
+		return false;
+	}
+
+	bytes.resize(decoded_len);
+	r_bytes = bytes;
+	return true;
+}
+
+Node *_find_node_by_name_recursive(Node *p_root, const String &p_name) {
+	if (!p_root) {
+		return nullptr;
+	}
+
+	if (p_root->get_name() == p_name) {
+		return p_root;
+	}
+
+	const int child_count = p_root->get_child_count();
+	for (int i = 0; i < child_count; i++) {
+		Node *child = p_root->get_child(i);
+		Node *match = _find_node_by_name_recursive(child, p_name);
+		if (match) {
+			return match;
+		}
+	}
+
+	return nullptr;
+}
+
+Node *_resolve_command_parent_node(Node *p_edited_scene_root, const String &p_parent) {
+	if (!p_edited_scene_root) {
+		return nullptr;
+	}
+
+	String parent = p_parent.strip_edges();
+	if (parent.is_empty() || parent == ".") {
+		return p_edited_scene_root;
+	}
+
+	if (parent == p_edited_scene_root->get_name()) {
+		return p_edited_scene_root;
+	}
+
+	String normalized_parent = parent;
+	if (normalized_parent.begins_with("/")) {
+		normalized_parent = normalized_parent.substr(1, normalized_parent.length() - 1).strip_edges();
+	}
+
+	String root_prefix = String(p_edited_scene_root->get_name()) + "/";
+	if (normalized_parent.begins_with(root_prefix)) {
+		normalized_parent = normalized_parent.substr(root_prefix.length(), normalized_parent.length() - root_prefix.length()).strip_edges();
+	}
+
+	if (normalized_parent.is_empty() || normalized_parent == p_edited_scene_root->get_name()) {
+		return p_edited_scene_root;
+	}
+
+	Node *by_path = p_edited_scene_root->get_node_or_null(NodePath(normalized_parent));
+	if (by_path) {
+		return by_path;
+	}
+
+	return _find_node_by_name_recursive(p_edited_scene_root, normalized_parent);
+}
+
 bool _is_truthy_flag(const String &p_value) {
 	String value = p_value.strip_edges().to_lower();
 	return value == "1" || value == "true" || value == "yes" || value == "on";
@@ -104,6 +220,15 @@ bool _is_truthy_flag(const String &p_value) {
 bool _is_falsy_flag(const String &p_value) {
 	String value = p_value.strip_edges().to_lower();
 	return value == "0" || value == "false" || value == "no" || value == "off";
+}
+
+String _tool_label_for_id(const String &p_tool_id) {
+	for (int i = 0; i < TOOL_OPTION_COUNT; i++) {
+		if (p_tool_id == TOOL_OPTION_DESCRIPTORS[i].id) {
+			return TOOL_OPTION_DESCRIPTORS[i].label;
+		}
+	}
+	return p_tool_id;
 }
 
 bool _is_thinking_stream_enabled() {
@@ -503,6 +628,7 @@ void UltimateAssistantPanel::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_settings_pressed"), &UltimateAssistantPanel::_on_settings_pressed);
 	ClassDB::bind_method(D_METHOD("_on_settings_confirmed"), &UltimateAssistantPanel::_on_settings_confirmed);
 	ClassDB::bind_method(D_METHOD("_on_tab_setting_changed", "selected_index", "tab_id"), &UltimateAssistantPanel::_on_tab_setting_changed);
+	ClassDB::bind_method(D_METHOD("_on_tool_selection_changed", "index", "selected", "tab_id"), &UltimateAssistantPanel::_on_tool_selection_changed);
 	ClassDB::bind_method(D_METHOD("_on_context_add_pressed", "tab_id"), &UltimateAssistantPanel::_on_context_add_pressed);
 	ClassDB::bind_method(D_METHOD("_on_context_remove_pressed", "tab_id"), &UltimateAssistantPanel::_on_context_remove_pressed);
 	ClassDB::bind_method(D_METHOD("_on_context_select_add_pressed"), &UltimateAssistantPanel::_on_context_select_add_pressed);
@@ -777,6 +903,88 @@ void UltimateAssistantPanel::_refresh_model_selectors() {
 	_refresh_hub();
 }
 
+PackedStringArray UltimateAssistantPanel::_collect_enabled_tool_ids() const {
+	PackedStringArray enabled_tools;
+	Dictionary runtime_config = backend_adapter ? backend_adapter->get_runtime_config() : Dictionary();
+
+	for (int i = 0; i < TOOL_OPTION_COUNT; i++) {
+		const ToolOptionDescriptor &descriptor = TOOL_OPTION_DESCRIPTORS[i];
+		bool enabled = true;
+		if (runtime_config.has(descriptor.runtime_flag_key)) {
+			enabled = bool(runtime_config[descriptor.runtime_flag_key]);
+		}
+		if (enabled) {
+			enabled_tools.push_back(descriptor.id);
+		}
+	}
+
+	return enabled_tools;
+}
+
+PackedStringArray UltimateAssistantPanel::_collect_selected_tool_ids(const ChatTab &p_tab) const {
+	PackedStringArray selected_tools;
+	if (!p_tab.tool_selector) {
+		return selected_tools;
+	}
+
+	PackedInt32Array selected_indices = p_tab.tool_selector->get_selected_items();
+	for (int i = 0; i < selected_indices.size(); i++) {
+		int idx = selected_indices[i];
+		if (idx < 0 || idx >= p_tab.tool_selector->get_item_count()) {
+			continue;
+		}
+
+		String tool_id;
+		Variant item_meta = p_tab.tool_selector->get_item_metadata(idx);
+		if (item_meta.get_type() == Variant::STRING) {
+			tool_id = String(item_meta).strip_edges();
+		}
+		if (tool_id.is_empty()) {
+			tool_id = p_tab.tool_selector->get_item_text(idx).strip_edges();
+		}
+		if (!tool_id.is_empty() && !selected_tools.has(tool_id)) {
+			selected_tools.push_back(tool_id);
+		}
+	}
+
+	return selected_tools;
+}
+
+void UltimateAssistantPanel::_refresh_tool_selector_for_tab(ChatTab &r_tab, const PackedStringArray &p_preferred_selected) {
+	if (!r_tab.tool_selector) {
+		return;
+	}
+
+	PackedStringArray selected_tools = p_preferred_selected;
+	if (selected_tools.is_empty()) {
+		selected_tools = _collect_selected_tool_ids(r_tab);
+	}
+
+	r_tab.tool_selector->clear();
+	PackedStringArray enabled_tool_ids = _collect_enabled_tool_ids();
+	for (int i = 0; i < enabled_tool_ids.size(); i++) {
+		const String tool_id = enabled_tool_ids[i];
+		int idx = r_tab.tool_selector->add_item(_tool_label_for_id(tool_id));
+		r_tab.tool_selector->set_item_metadata(idx, tool_id);
+		if (selected_tools.has(tool_id)) {
+			r_tab.tool_selector->select(idx, true);
+		}
+	}
+
+	bool manual_mode = r_tab.tool_mode_selector && r_tab.tool_mode_selector->get_selected() == 1;
+	if (manual_mode && r_tab.tool_selector->get_item_count() > 0 && r_tab.tool_selector->get_selected_items().is_empty()) {
+		r_tab.tool_selector->select(0, true);
+	}
+	r_tab.tool_selector->set_visible(manual_mode);
+}
+
+void UltimateAssistantPanel::_refresh_all_tool_selectors() {
+	for (int i = 0; i < tabs.size(); i++) {
+		ChatTab &tab = tabs.write[i];
+		_refresh_tool_selector_for_tab(tab);
+	}
+}
+
 void UltimateAssistantPanel::_build_hub_tab() {
 	hub_root = memnew(VBoxContainer);
 	hub_root->set_h_size_flags(Control::SIZE_EXPAND_FILL);
@@ -854,7 +1062,7 @@ void UltimateAssistantPanel::_add_chat_tab(int p_forced_id) {
 	mode_selector->add_item(TTR("Ask"));
 	mode_selector->add_item(TTR("Plan"));
 	mode_selector->add_item(TTR("Agent"));
-	mode_selector->set_tooltip_text(TTR("Mode (stub)"));
+	mode_selector->set_tooltip_text(TTR("Request mode: Ask for guidance, Plan for a structured plan, Agent for execution-ready output."));
 
 	OptionButton *model_selector = memnew(OptionButton);
 	for (int i = 0; i < available_models.size(); i++) {
@@ -868,7 +1076,12 @@ void UltimateAssistantPanel::_add_chat_tab(int p_forced_id) {
 	OptionButton *agent_mode_selector = memnew(OptionButton);
 	agent_mode_selector->add_item(TTR("Local Agent"));
 	agent_mode_selector->add_item(TTR("Background Agent"));
-	agent_mode_selector->set_tooltip_text(TTR("Execution target (stub)"));
+	agent_mode_selector->set_tooltip_text(TTR("Execution target preference for this chat tab."));
+
+	OptionButton *tool_mode_selector = memnew(OptionButton);
+	tool_mode_selector->add_item(TTR("Tools: Auto"));
+	tool_mode_selector->add_item(TTR("Tools: Manual"));
+	tool_mode_selector->set_tooltip_text(TTR("Auto lets Phoenix choose tools. Manual uses only selected tools."));
 
 	LineEdit *session_name_input = memnew(LineEdit);
 	session_name_input->set_placeholder(TTR("Session name"));
@@ -911,7 +1124,15 @@ void UltimateAssistantPanel::_add_chat_tab(int p_forced_id) {
 	controls_row->add_child(mode_selector);
 	controls_row->add_child(model_selector);
 	controls_row->add_child(agent_mode_selector);
+	controls_row->add_child(tool_mode_selector);
 	controls_row->add_child(session_name_input);
+
+	ItemList *tool_selector = memnew(ItemList);
+	tool_selector->set_select_mode(ItemList::SELECT_MULTI);
+	tool_selector->set_v_size_flags(Control::SIZE_FILL);
+	tool_selector->set_custom_minimum_size(Size2(0, 70));
+	tool_selector->set_visible(false);
+	input_block->add_child(tool_selector);
 
 	VBoxContainer *context_section = memnew(VBoxContainer);
 	context_section->set_h_size_flags(Control::SIZE_EXPAND_FILL);
@@ -1017,6 +1238,8 @@ void UltimateAssistantPanel::_add_chat_tab(int p_forced_id) {
 	mode_selector->connect(SceneStringName(item_selected), callable_mp(this, &UltimateAssistantPanel::_on_tab_setting_changed).bind(tab_id));
 	model_selector->connect(SceneStringName(item_selected), callable_mp(this, &UltimateAssistantPanel::_on_tab_setting_changed).bind(tab_id));
 	agent_mode_selector->connect(SceneStringName(item_selected), callable_mp(this, &UltimateAssistantPanel::_on_tab_setting_changed).bind(tab_id));
+	tool_mode_selector->connect(SceneStringName(item_selected), callable_mp(this, &UltimateAssistantPanel::_on_tab_setting_changed).bind(tab_id));
+	tool_selector->connect("multi_selected", callable_mp(this, &UltimateAssistantPanel::_on_tool_selection_changed).bind(tab_id));
 	context_add_button->connect(SceneStringName(pressed), callable_mp(this, &UltimateAssistantPanel::_on_context_add_pressed).bind(tab_id));
 	context_remove_button->connect(SceneStringName(pressed), callable_mp(this, &UltimateAssistantPanel::_on_context_remove_pressed).bind(tab_id));
 	context_toggle->connect(SceneStringName(toggled), callable_mp(this, &UltimateAssistantPanel::_on_context_toggle_toggled).bind(tab_id));
@@ -1031,6 +1254,8 @@ void UltimateAssistantPanel::_add_chat_tab(int p_forced_id) {
 	tab.mode_selector = mode_selector;
 	tab.model_selector = model_selector;
 	tab.agent_mode_selector = agent_mode_selector;
+	tab.tool_mode_selector = tool_mode_selector;
+	tab.tool_selector = tool_selector;
 	tab.session_name_input = session_name_input;
 	tab.context_list = context_list;
 	tab.context_section = context_section;
@@ -1052,6 +1277,7 @@ void UltimateAssistantPanel::_add_chat_tab(int p_forced_id) {
 	tab.transcript = chat_display->get_text();
 
 	tabs.push_back(tab);
+	_refresh_tool_selector_for_tab(tabs.write[tabs.size() - 1]);
 	tab_container->set_current_tab(tab_container->get_tab_count() - 1);
 	_refresh_tab_close_icons();
 	_refresh_hub();
@@ -1065,7 +1291,9 @@ UltimateAssistantPanel::SharedChatTabState UltimateAssistantPanel::_build_shared
 	state.mode_selected = p_tab.mode_selector ? p_tab.mode_selector->get_selected() : 0;
 	state.model_selected = p_tab.model_selector ? p_tab.model_selector->get_selected() : 0;
 	state.agent_mode_selected = p_tab.agent_mode_selector ? p_tab.agent_mode_selector->get_selected() : 0;
+	state.tool_mode_selected = p_tab.tool_mode_selector ? p_tab.tool_mode_selector->get_selected() : 0;
 	state.session_name_text = p_tab.session_name_input ? p_tab.session_name_input->get_text() : p_tab.display_name;
+	state.selected_tool_ids = _collect_selected_tool_ids(p_tab);
 	state.context_collapsed = p_tab.context_collapsed;
 	state.is_active = p_tab.is_active;
 	if (p_tab.context_list) {
@@ -1153,6 +1381,16 @@ void UltimateAssistantPanel::_add_chat_tab_from_state(const SharedChatTabState &
 		}
 		tab.agent_mode_selector->select(idx);
 	}
+	if (tab.tool_mode_selector && tab.tool_mode_selector->get_item_count() > 0) {
+		int idx = p_state.tool_mode_selected;
+		if (idx < 0) {
+			idx = 0;
+		} else if (idx >= tab.tool_mode_selector->get_item_count()) {
+			idx = tab.tool_mode_selector->get_item_count() - 1;
+		}
+		tab.tool_mode_selector->select(idx);
+	}
+	_refresh_tool_selector_for_tab(tab, p_state.selected_tool_ids);
 	if (tab.session_name_input) {
 		tab.session_name_input->set_text(p_state.session_name_text);
 	}
@@ -1965,6 +2203,11 @@ void UltimateAssistantPanel::_start_command_stream_for_tab(int p_tab_id, const S
 Dictionary UltimateAssistantPanel::_build_project_map_payload(int p_tab_id) const {
 	Dictionary project_map;
 	ProjectSettings *project_settings = ProjectSettings::get_singleton();
+	Dictionary version_info = Engine::get_singleton()->get_version_info();
+	String engine_version = String(version_info.get("string", String("phoenix-editor"))).strip_edges();
+	if (engine_version.is_empty()) {
+		engine_version = "phoenix-editor";
+	}
 
 	String project_name = "phoenix-project";
 	String main_scene = "res://";
@@ -1984,11 +2227,12 @@ Dictionary UltimateAssistantPanel::_build_project_map_payload(int p_tab_id) cons
 
 	Dictionary extras;
 	extras["tab_id"] = p_tab_id;
+	extras["engine_version"] = engine_version;
 
 	String hash_input = vformat("%s|%s|%s", project_name, main_scene, _now_iso8601_utc());
 
 	project_map["name"] = project_name;
-	project_map["godot_version"] = "phoenix-editor";
+	project_map["godot_version"] = engine_version;
 	project_map["main_scene"] = main_scene;
 	project_map["scenes"] = Dictionary();
 	project_map["scripts"] = Array();
@@ -2003,6 +2247,14 @@ Dictionary UltimateAssistantPanel::_build_task_context_payload(int p_tab_id) con
 	Dictionary context;
 	context["current_file"] = "";
 	context["scene_tree"] = Dictionary();
+	Dictionary version_info = Engine::get_singleton()->get_version_info();
+	String engine_version = String(version_info.get("string", String("unknown"))).strip_edges();
+	if (engine_version.is_empty()) {
+		engine_version = "unknown";
+	}
+	context["engine_version"] = engine_version;
+	context["engine_version_major"] = int(version_info.get("major", 0));
+	context["engine_version_minor"] = int(version_info.get("minor", 0));
 
 	Array open_files;
 	int tab_index = _find_tab_index_by_id(p_tab_id);
@@ -2023,6 +2275,41 @@ Dictionary UltimateAssistantPanel::_build_task_context_payload(int p_tab_id) con
 	Dictionary project_settings;
 	project_settings["editor"] = "phoenix";
 	project_settings["tab_id"] = p_tab_id;
+	project_settings["engine_version"] = engine_version;
+
+	Dictionary runtime_config = backend_adapter ? backend_adapter->get_runtime_config() : Dictionary();
+	Dictionary enabled_tools;
+	enabled_tools["godot_mcp_docs"] = runtime_config.has("tool_godot_mcp_docs_enabled") ? bool(runtime_config["tool_godot_mcp_docs_enabled"]) : true;
+	enabled_tools["godot_mcp"] = runtime_config.has("tool_godot_mcp_enabled") ? bool(runtime_config["tool_godot_mcp_enabled"]) : true;
+	enabled_tools["godot_copilot"] = runtime_config.has("tool_godot_copilot_enabled") ? bool(runtime_config["tool_godot_copilot_enabled"]) : true;
+	enabled_tools["autonomous_agent_primitives"] = runtime_config.has("tool_autonomous_primitives_enabled") ? bool(runtime_config["tool_autonomous_primitives_enabled"]) : true;
+
+	Dictionary tool_preferences;
+	tool_preferences["mode"] = "auto";
+	tool_preferences["enabled_tools"] = enabled_tools;
+
+	Array selected_tools;
+	if (tab_index >= 0 && tab_index < tabs.size()) {
+		const ChatTab &tab = tabs[tab_index];
+		if (tab.tool_mode_selector && tab.tool_mode_selector->get_selected() == 1) {
+			tool_preferences["mode"] = "manual";
+		}
+
+		PackedStringArray selected_tool_ids = _collect_selected_tool_ids(tab);
+		for (int i = 0; i < selected_tool_ids.size(); i++) {
+			selected_tools.push_back(selected_tool_ids[i]);
+		}
+	}
+	tool_preferences["selected_tools"] = selected_tools;
+
+	Array available_tools;
+	PackedStringArray enabled_tool_ids = _collect_enabled_tool_ids();
+	for (int i = 0; i < enabled_tool_ids.size(); i++) {
+		available_tools.push_back(enabled_tool_ids[i]);
+	}
+	tool_preferences["available_tools"] = available_tools;
+
+	project_settings["tool_preferences"] = tool_preferences;
 	context["project_settings"] = project_settings;
 
 	return context;
@@ -2670,26 +2957,45 @@ void UltimateAssistantPanel::_handle_async_task_request_completion(AsyncTaskRequ
 	bool keep_waiting_for_result = false;
 
 	if (body.has("actions")) {
-		_show_approval_batch(p_job->tab_id, body);
-		bool requires_approval = bool(body.get("requires_approval", false));
-		String summary = String(body.get("approval_summary", String()));
-		if (requires_approval) {
+		Array actions = body.get("actions", Array());
+		bool batch_requires_approval = bool(body.get("requires_approval", false));
+
+		Array immediate_commands;
+		Array approval_actions;
+		for (int i = 0; i < actions.size(); i++) {
+			Variant action_v = actions[i];
+			if (action_v.get_type() != Variant::DICTIONARY) {
+				continue;
+			}
+
+			Dictionary action = action_v;
+			bool action_requires_approval = action.has("requires_approval")
+					? bool(action.get("requires_approval", false))
+					: batch_requires_approval;
+			if (action_requires_approval) {
+				approval_actions.push_back(action);
+				continue;
+			}
+
+			if (action.has("command") && action["command"].get_type() == Variant::DICTIONARY) {
+				immediate_commands.push_back(action["command"]);
+			}
+		}
+
+		if (!immediate_commands.is_empty()) {
+			_execute_commands_for_tab(p_job->tab_id, immediate_commands);
+		}
+
+		if (!approval_actions.is_empty()) {
+			Dictionary approval_batch = body;
+			approval_batch["actions"] = approval_actions;
+			approval_batch["requires_approval"] = true;
+			_show_approval_batch(p_job->tab_id, approval_batch);
+
+			String summary = String(approval_batch.get("approval_summary", String()));
 			_append_message(p_job->tab_id, TTR("System"), summary.is_empty() ? TTR("Approval required before execution.") : summary);
 		} else {
-			Array commands;
-			Array actions = body.get("actions", Array());
-			for (int i = 0; i < actions.size(); i++) {
-				Variant action_v = actions[i];
-				if (action_v.get_type() != Variant::DICTIONARY) {
-					continue;
-				}
-				Dictionary action = action_v;
-				if (action.has("command") && action["command"].get_type() == Variant::DICTIONARY) {
-					commands.push_back(action["command"]);
-				}
-			}
 			_clear_approval_batch(p_job->tab_id);
-			_execute_commands_for_tab(p_job->tab_id, commands);
 		}
 	} else if (body.has("commands") && body["commands"].get_type() == Variant::ARRAY) {
 		_execute_commands_for_tab(p_job->tab_id, body["commands"]);
@@ -3135,30 +3441,53 @@ bool UltimateAssistantPanel::_handle_task_status_response_for_tab(int p_tab_id, 
 				if (!proposed_batch.has("plan_id")) {
 					proposed_batch["plan_id"] = p_plan_id;
 				}
-				_show_approval_batch(p_tab_id, proposed_batch);
 
-				bool requires_approval = bool(proposed_batch.get("requires_approval", false));
-				if (requires_approval) {
-					String summary = String(proposed_batch.get("approval_summary", String()));
-					_append_message(p_tab_id, TTR("System"), summary.is_empty() ? TTR("Approval required before execution.") : summary);
-					return true;
-				}
-
-				Array commands;
 				Array actions = proposed_batch.get("actions", Array());
+				bool batch_requires_approval = bool(proposed_batch.get("requires_approval", false));
+
+				Array immediate_commands;
+				Array approval_actions;
 				for (int i = 0; i < actions.size(); i++) {
 					Variant action_v = actions[i];
 					if (action_v.get_type() != Variant::DICTIONARY) {
 						continue;
 					}
+
 					Dictionary action = action_v;
+					bool action_requires_approval = action.has("requires_approval")
+							? bool(action.get("requires_approval", false))
+							: batch_requires_approval;
+					if (action_requires_approval) {
+						approval_actions.push_back(action);
+						continue;
+					}
+
 					if (action.has("command") && action["command"].get_type() == Variant::DICTIONARY) {
-						commands.push_back(action["command"]);
+						immediate_commands.push_back(action["command"]);
 					}
 				}
+
+				if (!immediate_commands.is_empty()) {
+					_execute_commands_for_tab(p_tab_id, immediate_commands);
+				}
+
+				if (!approval_actions.is_empty()) {
+					Dictionary approval_batch = proposed_batch;
+					approval_batch["actions"] = approval_actions;
+					approval_batch["requires_approval"] = true;
+					_show_approval_batch(p_tab_id, approval_batch);
+
+					String summary = String(approval_batch.get("approval_summary", String()));
+					_append_message(p_tab_id, TTR("System"), summary.is_empty() ? TTR("Approval required before execution.") : summary);
+					return true;
+				}
+
 				_clear_approval_batch(p_tab_id);
-				_execute_commands_for_tab(p_tab_id, commands);
-				return true;
+				if (task_status == "done") {
+					return true;
+				}
+				_set_tab_status(p_tab_id, TTR("Working..."), false);
+				return false;
 			}
 
 			if (task_status == "done") {
@@ -3384,6 +3713,208 @@ void UltimateAssistantPanel::_execute_single_command(int p_tab_id, const Diction
 		return;
 	}
 
+	if (action == "open_docs_url") {
+		String url = String(p_command.get("content", String())).strip_edges();
+		if (url.is_empty()) {
+			_append_message(p_tab_id, TTR("System"), "Rejected open_docs_url command: content URL is required.");
+			return;
+		}
+
+		String normalized_url = url.to_lower();
+		if (!normalized_url.begins_with("https://") && !normalized_url.begins_with("http://")) {
+			_append_message(p_tab_id, TTR("System"), vformat("Rejected open_docs_url '%s'. Only http/https URLs are allowed.", url));
+			return;
+		}
+
+		Error open_error = OS::get_singleton()->shell_open(url);
+		if (open_error != OK) {
+			_append_message(p_tab_id, TTR("System"), vformat("Failed to open docs URL '%s': %s", url, VariantUtilityFunctions::error_string(open_error)));
+			return;
+		}
+
+		_append_message(p_tab_id, TTR("System"), vformat("Opened docs URL: %s", url));
+		return;
+	}
+
+	if (action == "create_file") {
+		String path = String(p_command.get("path", String())).strip_edges();
+		if (!_is_supported_command_path(path)) {
+			_append_message(p_tab_id, TTR("System"), vformat("Rejected create_file path '%s'. Only res:// or user:// paths without '..' are allowed.", path));
+			return;
+		}
+
+		String raw_base64 = String(p_command.get("data_base64", String())).strip_edges();
+		String content = String(p_command.get("content", String()));
+		if (raw_base64.is_empty() && content.is_empty()) {
+			_append_message(p_tab_id, TTR("System"), "Rejected create_file command: either content or data_base64 is required.");
+			return;
+		}
+
+		String base_dir = path.get_base_dir();
+		if (!base_dir.is_empty()) {
+			String absolute_dir = ProjectSettings::get_singleton()->globalize_path(base_dir);
+			Error mkdir_err = DirAccess::make_dir_recursive_absolute(absolute_dir);
+			if (mkdir_err != OK) {
+				_append_message(p_tab_id, TTR("System"), vformat("Failed to create directory for '%s': %s", path, VariantUtilityFunctions::error_string(mkdir_err)));
+				return;
+			}
+		}
+
+		Vector<uint8_t> file_bytes;
+		if (!raw_base64.is_empty() && !_decode_base64_bytes(raw_base64, file_bytes)) {
+			_append_message(p_tab_id, TTR("System"), vformat("Rejected create_file for '%s': invalid data_base64 payload.", path));
+			return;
+		}
+
+		Ref<FileAccess> file = FileAccess::open(path, FileAccess::WRITE);
+		if (file.is_null()) {
+			Error open_error = FileAccess::get_open_error();
+			_append_message(p_tab_id, TTR("System"), vformat("Failed to open '%s' for writing: %s", path, VariantUtilityFunctions::error_string(open_error)));
+			return;
+		}
+
+		if (!raw_base64.is_empty()) {
+			if (!file_bytes.is_empty()) {
+				file->store_buffer(file_bytes.ptr(), file_bytes.size());
+			}
+		} else {
+			file->store_string(content);
+		}
+		file.unref();
+
+		EditorFileSystem *filesystem = EditorFileSystem::get_singleton();
+		if (filesystem) {
+			filesystem->scan_changes();
+		}
+
+		_append_message(p_tab_id, TTR("System"), vformat("Created file: %s", path));
+		return;
+	}
+
+	if (action == "modify_text") {
+		String file_path = String(p_command.get("file", String())).strip_edges();
+		if (!_is_supported_command_path(file_path)) {
+			_append_message(p_tab_id, TTR("System"), vformat("Rejected modify_text file '%s'. Only res:// or user:// paths without '..' are allowed.", file_path));
+			return;
+		}
+
+		String search_text = String(p_command.get("search", String()));
+		if (search_text.is_empty()) {
+			_append_message(p_tab_id, TTR("System"), "Rejected modify_text command: search text is required.");
+			return;
+		}
+
+		String replace_text = String(p_command.get("replace", p_command.get("content", String())));
+		if (replace_text.is_empty()) {
+			_append_message(p_tab_id, TTR("System"), "Rejected modify_text command: replace or content is required.");
+			return;
+		}
+
+		Ref<FileAccess> read_file = FileAccess::open(file_path, FileAccess::READ);
+		if (read_file.is_null()) {
+			Error open_error = FileAccess::get_open_error();
+			_append_message(p_tab_id, TTR("System"), vformat("Failed to open '%s' for reading: %s", file_path, VariantUtilityFunctions::error_string(open_error)));
+			return;
+		}
+
+		String source_text = read_file->get_as_text();
+		read_file.unref();
+
+		int found_at = source_text.find(search_text);
+		if (found_at < 0) {
+			_append_message(p_tab_id, TTR("System"), vformat("modify_text could not find target text in '%s'.", file_path));
+			return;
+		}
+
+		bool insert_after = bool(p_command.get("insert_after", false));
+		const int search_end = found_at + search_text.length();
+		String updated_text;
+		if (insert_after) {
+			updated_text = source_text.substr(0, search_end) + replace_text + source_text.substr(search_end, source_text.length() - search_end);
+		} else {
+			updated_text = source_text.substr(0, found_at) + replace_text + source_text.substr(search_end, source_text.length() - search_end);
+		}
+
+		Ref<FileAccess> write_file = FileAccess::open(file_path, FileAccess::WRITE);
+		if (write_file.is_null()) {
+			Error open_error = FileAccess::get_open_error();
+			_append_message(p_tab_id, TTR("System"), vformat("Failed to open '%s' for writing: %s", file_path, VariantUtilityFunctions::error_string(open_error)));
+			return;
+		}
+		write_file->store_string(updated_text);
+		write_file.unref();
+
+		EditorFileSystem *filesystem = EditorFileSystem::get_singleton();
+		if (filesystem) {
+			filesystem->scan_changes();
+		}
+
+		_append_message(p_tab_id, TTR("System"), vformat("Applied modify_text to: %s", file_path));
+		return;
+	}
+
+	if (action == "create_node") {
+		String parent_path = String(p_command.get("parent", String())).strip_edges();
+		String node_type = String(p_command.get("type", String())).strip_edges();
+		String node_name = String(p_command.get("name", String())).strip_edges();
+
+		if (node_type.is_empty() || node_name.is_empty()) {
+			_append_message(p_tab_id, TTR("System"), "Rejected create_node command: type and name are required.");
+			return;
+		}
+
+		SceneTree *tree = get_tree();
+		Node *edited_scene_root = tree ? tree->get_edited_scene_root() : nullptr;
+		if (!edited_scene_root) {
+			_append_message(p_tab_id, TTR("System"), "create_node requires an active edited scene root.");
+			return;
+		}
+
+		Node *parent_node = _resolve_command_parent_node(edited_scene_root, parent_path);
+		if (!parent_node) {
+			_append_message(p_tab_id, TTR("System"), vformat("create_node could not resolve parent '%s'.", parent_path));
+			return;
+		}
+
+		Object *instance = ClassDB::instantiate(StringName(node_type));
+		if (!instance) {
+			_append_message(p_tab_id, TTR("System"), vformat("create_node failed: unknown type '%s'.", node_type));
+			return;
+		}
+
+		Node *new_node = Object::cast_to<Node>(instance);
+		if (!new_node) {
+			memdelete(instance);
+			_append_message(p_tab_id, TTR("System"), vformat("create_node failed: type '%s' is not a Node.", node_type));
+			return;
+		}
+
+		new_node->set_name(node_name);
+		parent_node->add_child(new_node);
+
+		Node *owner = parent_node == edited_scene_root ? edited_scene_root : parent_node->get_owner();
+		if (!owner) {
+			owner = edited_scene_root;
+		}
+		new_node->set_owner(owner);
+
+		Variant properties_v = p_command.get("properties", Variant());
+		if (properties_v.get_type() == Variant::DICTIONARY) {
+			Dictionary properties = properties_v;
+			Array keys = properties.keys();
+			for (int i = 0; i < keys.size(); i++) {
+				String key = String(keys[i]).strip_edges();
+				if (key.is_empty()) {
+					continue;
+				}
+				new_node->set(StringName(key), properties[keys[i]]);
+			}
+		}
+
+		_append_message(p_tab_id, TTR("System"), vformat("Created node '%s' (%s) under '%s'.", node_name, node_type, parent_node->get_name()));
+		return;
+	}
+
 	_append_message(p_tab_id, TTR("System"), vformat("Allowed command '%s' is not mapped in MVP executor.", action));
 }
 
@@ -3465,6 +3996,7 @@ void UltimateAssistantPanel::_on_settings_confirmed() {
 	if (backend_adapter) {
 		backend_adapter->apply_runtime_config(settings_dialog->get_runtime_config());
 	}
+	_refresh_all_tool_selectors();
 
 	bool thinking_enabled = settings_dialog->is_thinking_stream_enabled();
 	ProjectSettings *project_settings = ProjectSettings::get_singleton();
@@ -3486,6 +4018,18 @@ void UltimateAssistantPanel::_on_settings_confirmed() {
 
 void UltimateAssistantPanel::_on_tab_setting_changed(int p_selected_index, int p_tab_id) {
 	(void)p_selected_index;
+	int tab_index = _find_tab_index_by_id(p_tab_id);
+	if (tab_index >= 0 && tab_index < tabs.size()) {
+		_refresh_tool_selector_for_tab(tabs.write[tab_index]);
+	}
+	_refresh_hub();
+	_broadcast_shared_state();
+}
+
+void UltimateAssistantPanel::_on_tool_selection_changed(int p_index, bool p_selected, int p_tab_id) {
+	(void)p_index;
+	(void)p_selected;
+	(void)p_tab_id;
 	_refresh_hub();
 	_broadcast_shared_state();
 }

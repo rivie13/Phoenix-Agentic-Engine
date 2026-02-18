@@ -72,6 +72,8 @@ class UltimateAssistantPanel : public PanelContainer {
 		OptionButton *mode_selector = nullptr;
 		OptionButton *model_selector = nullptr;
 		OptionButton *agent_mode_selector = nullptr;
+		OptionButton *tool_mode_selector = nullptr;
+		ItemList *tool_selector = nullptr;
 		LineEdit *session_name_input = nullptr;
 		ItemList *context_list = nullptr;
 		VBoxContainer *context_section = nullptr;
@@ -200,7 +202,9 @@ class UltimateAssistantPanel : public PanelContainer {
 		int mode_selected = 0;
 		int model_selected = 0;
 		int agent_mode_selected = 0;
+		int tool_mode_selected = 0;
 		String session_name_text;
+		PackedStringArray selected_tool_ids;
 		PackedStringArray context_items;
 		Array context_metadata;
 		bool context_collapsed = false;
@@ -262,6 +266,7 @@ class UltimateAssistantPanel : public PanelContainer {
 	void _on_settings_pressed();
 	void _on_settings_confirmed();
 	void _on_tab_setting_changed(int p_selected_index, int p_tab_id);
+	void _on_tool_selection_changed(int p_index, bool p_selected, int p_tab_id);
 	void _on_context_add_pressed(int p_tab_id);
 	void _on_context_remove_pressed(int p_tab_id);
 	void _on_context_select_add_pressed();
@@ -327,6 +332,10 @@ class UltimateAssistantPanel : public PanelContainer {
 	void _add_chat_tab(int p_forced_id = -1);
 	void _add_chat_tab_from_state(const SharedChatTabState &p_state);
 	void _refresh_model_selectors();
+	PackedStringArray _collect_enabled_tool_ids() const;
+	PackedStringArray _collect_selected_tool_ids(const ChatTab &p_tab) const;
+	void _refresh_tool_selector_for_tab(ChatTab &r_tab, const PackedStringArray &p_preferred_selected = PackedStringArray());
+	void _refresh_all_tool_selectors();
 	void _ensure_default_models();
 	int _find_tab_index_by_id(int p_tab_id) const;
 	int _find_tab_index_by_root(Control *p_root) const;
