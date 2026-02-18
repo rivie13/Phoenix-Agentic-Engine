@@ -86,6 +86,44 @@ const int TASK_STATUS_LIVE_POLL_INTERVAL_MSEC = 120;
 const int TASK_STATUS_LIVE_POLL_INITIAL_DELAY_MSEC = 25;
 const int COMMAND_STREAM_TICK_MSEC = 20;
 const int COMMAND_STREAM_CHUNK_CHARS = 24;
+const int LOADING_INDICATOR_TICK_MSEC = 120;
+const char *const LOADING_SPINNER_FRAMES[] = {
+	"|",
+	"/",
+	"-",
+	"\\",
+};
+const int LOADING_SPINNER_FRAME_COUNT = 4;
+
+bool _is_truthy_flag(const String &p_value) {
+	String value = p_value.strip_edges().to_lower();
+	return value == "1" || value == "true" || value == "yes" || value == "on";
+}
+
+bool _is_falsy_flag(const String &p_value) {
+	String value = p_value.strip_edges().to_lower();
+	return value == "0" || value == "false" || value == "no" || value == "off";
+}
+
+bool _is_thinking_stream_enabled() {
+	OS *os = OS::get_singleton();
+	if (os) {
+		String env_value = os->get_environment("PHOENIX_ENABLE_THINKING_STREAM");
+		if (_is_truthy_flag(env_value)) {
+			return true;
+		}
+		if (_is_falsy_flag(env_value)) {
+			return false;
+		}
+	}
+
+	ProjectSettings *project_settings = ProjectSettings::get_singleton();
+	if (!project_settings || !project_settings->has_setting("phoenix/assistant/show_thinking_stream")) {
+		return false;
+	}
+
+	return bool(project_settings->get("phoenix/assistant/show_thinking_stream"));
+}
 
 String _append_access_token_to_url(const String &p_url, const String &p_access_token) {
 	String url = p_url.strip_edges();
@@ -441,7 +479,7 @@ void UltimateAssistantPanel::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_steer_pressed", "tab_id"), &UltimateAssistantPanel::_on_steer_pressed);
 	ClassDB::bind_method(D_METHOD("_on_settings_pressed"), &UltimateAssistantPanel::_on_settings_pressed);
 	ClassDB::bind_method(D_METHOD("_on_settings_confirmed"), &UltimateAssistantPanel::_on_settings_confirmed);
-	ClassDB::bind_method(D_METHOD("_on_tab_setting_changed", "tab_id"), &UltimateAssistantPanel::_on_tab_setting_changed);
+	ClassDB::bind_method(D_METHOD("_on_tab_setting_changed", "selected_index", "tab_id"), &UltimateAssistantPanel::_on_tab_setting_changed);
 	ClassDB::bind_method(D_METHOD("_on_context_add_pressed", "tab_id"), &UltimateAssistantPanel::_on_context_add_pressed);
 	ClassDB::bind_method(D_METHOD("_on_context_remove_pressed", "tab_id"), &UltimateAssistantPanel::_on_context_remove_pressed);
 	ClassDB::bind_method(D_METHOD("_on_context_select_add_pressed"), &UltimateAssistantPanel::_on_context_select_add_pressed);
@@ -597,6 +635,11 @@ void UltimateAssistantPanel::_notification(int p_what) {
 			for (int i = 0; i < tabs.size(); i++) {
 				ChatTab &tab = tabs.write[i];
 				_poll_realtime_stream_for_tab(tab.id);
+
+				if (tab.loading_indicator_active && !tab.assistant_stream_open && !tab.command_stream_active && now_msec >= tab.next_loading_tick_msec) {
+					_update_loading_chat_indicator_for_tab(tab.id);
+					tab.next_loading_tick_msec = now_msec + LOADING_INDICATOR_TICK_MSEC;
+				}
 
 				if (tab.command_stream_active && now_msec >= tab.next_command_stream_tick_msec) {
 					int chunk_len = MIN(COMMAND_STREAM_CHUNK_CHARS, tab.command_stream_remaining.length());
@@ -1326,6 +1369,7 @@ void UltimateAssistantPanel::_append_message(int p_tab_id, const String &p_role,
 	if (!display) {
 		return;
 	}
+	_clear_loading_chat_indicator_for_tab(p_tab_id);
 	if (tab.assistant_stream_open) {
 		_append_stream_delta_for_tab(p_tab_id, String(), String(), true);
 	}
@@ -1392,6 +1436,10 @@ void UltimateAssistantPanel::_append_stream_delta_for_tab(int p_tab_id, const St
 	if (!display) {
 		return;
 	}
+	_clear_loading_chat_indicator_for_tab(p_tab_id);
+	if (!p_delta.is_empty() || p_finish) {
+		_append_thinking_delta_for_tab(p_tab_id, String(), true);
+	}
 
 	if (!tab.assistant_stream_open && !p_finish) {
 		String safe_role = p_role.strip_edges();
@@ -1409,15 +1457,18 @@ void UltimateAssistantPanel::_append_stream_delta_for_tab(int p_tab_id, const St
 		String line;
 		line += "[color=#" + role_color.to_html(false) + "][b]" + _escape_bbcode_text(safe_role) + "[/b][/color]\n";
 		line += "[bgcolor=#" + bubble_color.to_html(false) + "][color=#" + base_color.to_html(false) + "]\n  ";
+		tab.assistant_stream_prefix_len = tab.transcript.length();
 		display->append_text(line);
 		tab.transcript += line;
 		tab.assistant_stream_open = true;
+		tab.assistant_stream_text.clear();
 	}
 
 	if (tab.assistant_stream_open && !p_delta.is_empty()) {
 		String safe_chunk = _escape_bbcode_text(p_delta);
 		display->append_text(safe_chunk);
 		tab.transcript += safe_chunk;
+		tab.assistant_stream_text += p_delta;
 	}
 
 	if (tab.assistant_stream_open && p_finish) {
@@ -1425,6 +1476,53 @@ void UltimateAssistantPanel::_append_stream_delta_for_tab(int p_tab_id, const St
 		display->append_text(closing);
 		tab.transcript += closing;
 		tab.assistant_stream_open = false;
+		_broadcast_shared_state();
+	}
+
+	display->scroll_to_line(display->get_line_count());
+}
+
+void UltimateAssistantPanel::_append_thinking_delta_for_tab(int p_tab_id, const String &p_delta, bool p_finish) {
+	int tab_index = _find_tab_index_by_id(p_tab_id);
+	if (tab_index < 0 || tab_index >= tabs.size()) {
+		return;
+	}
+
+	ChatTab &tab = tabs.write[tab_index];
+	RichTextLabel *display = tab.chat_display;
+	if (!display) {
+		return;
+	}
+
+	if (!tab.thinking_stream_open && !p_finish && !p_delta.is_empty()) {
+		Color base_color = display->get_theme_color(SNAME("default_color"), SNAME("RichTextLabel"));
+		if (base_color.a <= 0.0) {
+			base_color = Color(1, 1, 1, 1);
+		}
+		Color thinking_color = base_color.lightened(0.2);
+
+		String header_text = "[color=#" + thinking_color.to_html(false) + "][i]" + _escape_bbcode_text(TTR("Thinking")) + ": [/i][/color]";
+		tab.thinking_stream_prefix_len = tab.transcript.length();
+		display->append_text(header_text);
+		tab.transcript += header_text;
+		tab.thinking_stream_open = true;
+		tab.thinking_stream_text.clear();
+	}
+
+	if (tab.thinking_stream_open && !p_delta.is_empty()) {
+		String safe_chunk = _escape_bbcode_text(p_delta);
+		display->append_text(safe_chunk);
+		tab.transcript += safe_chunk;
+		tab.thinking_stream_text += p_delta;
+	}
+
+	if (tab.thinking_stream_open && p_finish) {
+		String closing = "\n\n";
+		display->append_text(closing);
+		tab.transcript += closing;
+		tab.thinking_stream_open = false;
+		tab.thinking_stream_text.clear();
+		tab.thinking_stream_prefix_len = 0;
 		_broadcast_shared_state();
 	}
 
@@ -1659,6 +1757,7 @@ void UltimateAssistantPanel::_set_tab_loading_state(int p_tab_id, bool p_active,
 	ChatTab &tab = tabs.write[tab_index];
 	tab.loading_indicator_active = p_active;
 	if (!p_active) {
+		_clear_loading_chat_indicator_for_tab(p_tab_id);
 		if (tab.status_label && !tab.is_active) {
 			tab.status_label->set_text(TTR("Ready"));
 		}
@@ -1670,19 +1769,84 @@ void UltimateAssistantPanel::_set_tab_loading_state(int p_tab_id, bool p_active,
 	}
 
 	tab.loading_indicator_phase = 0;
-	tab.next_loading_tick_msec = 0;
+	tab.next_loading_tick_msec = OS::get_singleton()->get_ticks_msec();
 	tab.loading_indicator_text = p_base_text.strip_edges();
 	if (tab.loading_indicator_text.is_empty()) {
 		tab.loading_indicator_text = TTR("Assistant is thinking");
 	}
-	if (!tab.loading_chat_notice_emitted && !tab.assistant_stream_open && !tab.command_stream_active) {
-		_append_message(p_tab_id, TTR("System"), tab.loading_indicator_text + "...");
-		tab.loading_chat_notice_emitted = true;
-	}
+	tab.loading_chat_notice_emitted = false;
+	_update_loading_chat_indicator_for_tab(p_tab_id);
 
 	if (tab.status_label) {
 		tab.status_label->set_text(TTR("Working..."));
 	}
+}
+
+void UltimateAssistantPanel::_update_loading_chat_indicator_for_tab(int p_tab_id) {
+	int tab_index = _find_tab_index_by_id(p_tab_id);
+	if (tab_index < 0 || tab_index >= tabs.size()) {
+		return;
+	}
+
+	ChatTab &tab = tabs.write[tab_index];
+	if (!tab.loading_indicator_active || tab.assistant_stream_open || tab.command_stream_active) {
+		_clear_loading_chat_indicator_for_tab(p_tab_id);
+		return;
+	}
+
+	RichTextLabel *display = tab.chat_display;
+	if (!display) {
+		return;
+	}
+
+	if (!tab.loading_chat_indicator_active) {
+		tab.loading_chat_indicator_prefix_len = tab.transcript.length();
+		tab.loading_chat_indicator_active = true;
+	}
+
+	int spinner_index = tab.loading_indicator_phase % LOADING_SPINNER_FRAME_COUNT;
+	String spinner = LOADING_SPINNER_FRAMES[spinner_index];
+	tab.loading_indicator_phase = (tab.loading_indicator_phase + 1) % LOADING_SPINNER_FRAME_COUNT;
+
+	String loading_text = tab.loading_indicator_text.strip_edges();
+	if (loading_text.is_empty()) {
+		loading_text = TTR("Assistant is thinking");
+	}
+
+	String line = "[i]" + _escape_bbcode_text(spinner + " " + loading_text + "...") + "[/i]\n\n";
+	String base_transcript = tab.transcript.substr(0, tab.loading_chat_indicator_prefix_len);
+	tab.transcript = base_transcript + line;
+	display->set_text(tab.transcript);
+	display->scroll_to_line(display->get_line_count());
+
+	if (tab.status_label) {
+		tab.status_label->set_text(spinner + " " + TTR("Working..."));
+	}
+}
+
+void UltimateAssistantPanel::_clear_loading_chat_indicator_for_tab(int p_tab_id) {
+	int tab_index = _find_tab_index_by_id(p_tab_id);
+	if (tab_index < 0 || tab_index >= tabs.size()) {
+		return;
+	}
+
+	ChatTab &tab = tabs.write[tab_index];
+	if (!tab.loading_chat_indicator_active) {
+		return;
+	}
+
+	if (tab.loading_chat_indicator_prefix_len < 0 || tab.loading_chat_indicator_prefix_len > tab.transcript.length()) {
+		tab.loading_chat_indicator_prefix_len = tab.transcript.length();
+	}
+
+	tab.transcript = tab.transcript.substr(0, tab.loading_chat_indicator_prefix_len);
+	if (tab.chat_display) {
+		tab.chat_display->set_text(tab.transcript);
+		tab.chat_display->scroll_to_line(tab.chat_display->get_line_count());
+	}
+
+	tab.loading_chat_indicator_active = false;
+	tab.loading_chat_indicator_prefix_len = 0;
 }
 
 void UltimateAssistantPanel::_append_task_status_message(int p_tab_id, const String &p_status, bool p_force) {
@@ -2019,6 +2183,22 @@ void UltimateAssistantPanel::_apply_realtime_events_for_tab(int p_tab_id, const 
 		}
 
 		String chat_delta = String(mapped.get("chat_delta", String()));
+		String thinking_delta = String(mapped.get("thinking_delta", String()));
+		const bool thinking_stream_enabled = _is_thinking_stream_enabled();
+		if (thinking_stream_enabled && !thinking_delta.is_empty()) {
+			tab.suppress_next_chat_message = true;
+			tab.command_stream_active = false;
+			tab.command_stream_remaining.clear();
+			tab.command_stream_role.clear();
+			tab.next_command_stream_tick_msec = 0;
+			_set_tab_loading_state(p_tab_id, false);
+			_append_thinking_delta_for_tab(p_tab_id, thinking_delta, false);
+		}
+
+		if (thinking_stream_enabled && bool(mapped.get("thinking_done", false))) {
+			_append_thinking_delta_for_tab(p_tab_id, String(), true);
+		}
+
 		if (!chat_delta.is_empty()) {
 			tab.suppress_next_chat_message = true;
 			tab.command_stream_active = false;
@@ -2225,6 +2405,11 @@ void UltimateAssistantPanel::_request_task_for_tab(int p_tab_id, const String &p
 	tab.command_stream_remaining.clear();
 	tab.next_command_stream_tick_msec = 0;
 	tab.last_reported_task_status.clear();
+	tab.assistant_stream_text.clear();
+	tab.assistant_stream_prefix_len = 0;
+	if (tab.thinking_stream_open) {
+		_append_thinking_delta_for_tab(p_tab_id, String(), true);
+	}
 	if (tab.assistant_stream_open) {
 		_append_stream_delta_for_tab(p_tab_id, String(), String(), true);
 	}
@@ -2649,18 +2834,73 @@ void UltimateAssistantPanel::_execute_single_command(int p_tab_id, const Diction
 	if (action == "chat_message") {
 		String content = String(p_command.get("content", ""));
 		String agent = String(p_command.get("agent", "Assistant"));
-		if (tab_index >= 0 && tab_index < tabs.size() && tabs[tab_index].suppress_next_chat_message) {
-			tabs.write[tab_index].suppress_next_chat_message = false;
-			return;
-		}
 		String role = agent.is_empty() ? TTR("Assistant") : agent;
 		String normalized_role = role.strip_edges().to_lower();
+
+		if (tab_index >= 0 && tab_index < tabs.size() && normalized_role == "assistant" && !content.strip_edges().is_empty()) {
+			ChatTab &tab = tabs.write[tab_index];
+			if (!tab.assistant_stream_text.is_empty() && tab.assistant_stream_prefix_len >= 0 && tab.assistant_stream_prefix_len <= tab.transcript.length()) {
+				String streamed_text = tab.assistant_stream_text;
+				if (content == streamed_text) {
+					tab.suppress_next_chat_message = false;
+					tab.assistant_stream_text.clear();
+					tab.assistant_stream_prefix_len = 0;
+					return;
+				}
+
+				tab.transcript = tab.transcript.substr(0, tab.assistant_stream_prefix_len);
+				if (tab.chat_display) {
+					tab.chat_display->set_text(tab.transcript);
+					tab.chat_display->scroll_to_line(tab.chat_display->get_line_count());
+				}
+				tab.assistant_stream_open = false;
+				tab.assistant_stream_text.clear();
+				tab.assistant_stream_prefix_len = 0;
+				tab.suppress_next_chat_message = false;
+				_append_message(p_tab_id, role, content);
+				return;
+			}
+		}
+		if (tab_index >= 0 && tab_index < tabs.size() && tabs[tab_index].suppress_next_chat_message) {
+			ChatTab &tab = tabs.write[tab_index];
+			tab.suppress_next_chat_message = false;
+
+			if (normalized_role == "assistant" && !content.strip_edges().is_empty() && tab.assistant_stream_open) {
+				String streamed_text = tab.assistant_stream_text;
+				if (content.begins_with(streamed_text)) {
+					String remainder = content.substr(streamed_text.length(), content.length() - streamed_text.length());
+					_append_stream_delta_for_tab(p_tab_id, role, remainder, true);
+					tab.assistant_stream_text.clear();
+					tab.assistant_stream_prefix_len = 0;
+					return;
+				}
+
+				if (tab.assistant_stream_prefix_len >= 0 && tab.assistant_stream_prefix_len <= tab.transcript.length()) {
+					tab.transcript = tab.transcript.substr(0, tab.assistant_stream_prefix_len);
+					if (tab.chat_display) {
+						tab.chat_display->set_text(tab.transcript);
+						tab.chat_display->scroll_to_line(tab.chat_display->get_line_count());
+					}
+				}
+
+				tab.assistant_stream_open = false;
+				tab.assistant_stream_text.clear();
+				tab.assistant_stream_prefix_len = 0;
+				_append_message(p_tab_id, role, content);
+				return;
+			}
+
+			return;
+		}
+
 		if (normalized_role == "assistant" && !content.strip_edges().is_empty()) {
 			_start_command_stream_for_tab(p_tab_id, role, content);
 		} else {
 			_append_message(p_tab_id, role, content);
 		}
 		if (tab_index >= 0 && tab_index < tabs.size()) {
+			tabs.write[tab_index].assistant_stream_text.clear();
+			tabs.write[tab_index].assistant_stream_prefix_len = 0;
 			tabs.write[tab_index].suppress_next_chat_message = false;
 		}
 		return;
@@ -2716,6 +2956,12 @@ void UltimateAssistantPanel::_on_resync_pressed(int p_tab_id) {
 
 void UltimateAssistantPanel::_on_settings_pressed() {
 	settings_dialog->set_models(available_models);
+	ProjectSettings *project_settings = ProjectSettings::get_singleton();
+	bool thinking_enabled = false;
+	if (project_settings && project_settings->has_setting("phoenix/assistant/show_thinking_stream")) {
+		thinking_enabled = bool(project_settings->get("phoenix/assistant/show_thinking_stream"));
+	}
+	settings_dialog->set_thinking_stream_enabled(thinking_enabled);
 	if (backend_adapter) {
 		settings_dialog->set_runtime_config(backend_adapter->get_runtime_config());
 	}
@@ -2731,10 +2977,27 @@ void UltimateAssistantPanel::_on_settings_confirmed() {
 	if (backend_adapter) {
 		backend_adapter->apply_runtime_config(settings_dialog->get_runtime_config());
 	}
+
+	bool thinking_enabled = settings_dialog->is_thinking_stream_enabled();
+	ProjectSettings *project_settings = ProjectSettings::get_singleton();
+	if (project_settings) {
+		project_settings->set("phoenix/assistant/show_thinking_stream", thinking_enabled);
+		project_settings->save();
+	}
+
+	if (!thinking_enabled) {
+		for (int i = 0; i < tabs.size(); i++) {
+			if (tabs[i].thinking_stream_open) {
+				_append_thinking_delta_for_tab(tabs[i].id, String(), true);
+			}
+		}
+	}
+
 	_broadcast_shared_state();
 }
 
-void UltimateAssistantPanel::_on_tab_setting_changed(int p_tab_id) {
+void UltimateAssistantPanel::_on_tab_setting_changed(int p_selected_index, int p_tab_id) {
+	(void)p_selected_index;
 	_refresh_hub();
 	_broadcast_shared_state();
 }

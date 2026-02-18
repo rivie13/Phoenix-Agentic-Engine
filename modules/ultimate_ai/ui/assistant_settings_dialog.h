@@ -65,6 +65,7 @@ class UltimateAISettingsDialog : public AcceptDialog {
 	CheckBox *auto_approve_reads = nullptr;
 	CheckBox *require_approvals = nullptr;
 	CheckBox *require_signed_commands = nullptr;
+	CheckBox *show_thinking_stream = nullptr;
 
 	void _on_add_pressed();
 	void _on_remove_pressed();
@@ -77,6 +78,8 @@ public:
 	PackedStringArray get_selected_models() const;
 	void set_runtime_config(const Dictionary &p_config);
 	Dictionary get_runtime_config() const;
+	void set_thinking_stream_enabled(bool p_enabled);
+	bool is_thinking_stream_enabled() const;
 
 	UltimateAISettingsDialog();
 };

@@ -109,7 +109,14 @@ class UltimateAssistantPanel : public PanelContainer {
 		uint64_t next_loading_tick_msec = 0;
 		int loading_indicator_phase = 0;
 		bool loading_chat_notice_emitted = false;
+		bool loading_chat_indicator_active = false;
+		int loading_chat_indicator_prefix_len = 0;
 		bool assistant_stream_open = false;
+		String assistant_stream_text;
+		int assistant_stream_prefix_len = 0;
+		bool thinking_stream_open = false;
+		String thinking_stream_text;
+		int thinking_stream_prefix_len = 0;
 		bool command_stream_active = false;
 		String command_stream_role;
 		String command_stream_remaining;
@@ -197,7 +204,7 @@ class UltimateAssistantPanel : public PanelContainer {
 	void _on_steer_pressed(int p_tab_id);
 	void _on_settings_pressed();
 	void _on_settings_confirmed();
-	void _on_tab_setting_changed(int p_tab_id);
+	void _on_tab_setting_changed(int p_selected_index, int p_tab_id);
 	void _on_context_add_pressed(int p_tab_id);
 	void _on_context_remove_pressed(int p_tab_id);
 	void _on_context_select_add_pressed();
@@ -215,6 +222,8 @@ class UltimateAssistantPanel : public PanelContainer {
 	void _set_tab_busy(int p_tab_id, bool p_busy, const String &p_status = String());
 	void _set_tab_status(int p_tab_id, const String &p_status, bool p_error = false);
 	void _set_tab_loading_state(int p_tab_id, bool p_active, const String &p_base_text = String());
+	void _update_loading_chat_indicator_for_tab(int p_tab_id);
+	void _clear_loading_chat_indicator_for_tab(int p_tab_id);
 	void _append_task_status_message(int p_tab_id, const String &p_status, bool p_force = false);
 	void _start_command_stream_for_tab(int p_tab_id, const String &p_role, const String &p_content);
 	Dictionary _build_project_map_payload(int p_tab_id) const;
@@ -229,6 +238,7 @@ class UltimateAssistantPanel : public PanelContainer {
 	void _request_task_for_tab(int p_tab_id, const String &p_user_input);
 	void _apply_realtime_events_for_tab(int p_tab_id, const Array &p_events, bool p_refresh_status = true);
 	void _append_stream_delta_for_tab(int p_tab_id, const String &p_role, const String &p_delta, bool p_finish);
+	void _append_thinking_delta_for_tab(int p_tab_id, const String &p_delta, bool p_finish);
 	void _append_lock_snapshot_for_tab(int p_tab_id, const String &p_reason = String());
 	void _apply_conflict_state(int p_tab_id, const Dictionary &p_response);
 	void _clear_conflict_state(int p_tab_id);

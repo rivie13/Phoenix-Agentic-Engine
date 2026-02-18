@@ -348,6 +348,16 @@ UltimateAISettingsDialog::UltimateAISettingsDialog() {
 	require_signed_commands->set_text(TTR("Require signatures for executable commands"));
 	require_signed_commands->set_pressed(true);
 	root->add_child(require_signed_commands);
+
+	show_thinking_stream = memnew(CheckBox);
+	show_thinking_stream->set_text(TTR("Show thinking stream (when available)"));
+	show_thinking_stream->set_pressed(false);
+	root->add_child(show_thinking_stream);
+
+	ProjectSettings *project_settings = ProjectSettings::get_singleton();
+	if (project_settings && project_settings->has_setting("phoenix/assistant/show_thinking_stream")) {
+		show_thinking_stream->set_pressed(bool(project_settings->get("phoenix/assistant/show_thinking_stream")));
+	}
 }
 
 void UltimateAISettingsDialog::set_models(const PackedStringArray &p_models) {
@@ -448,6 +458,17 @@ Dictionary UltimateAISettingsDialog::get_runtime_config() const {
 	config["command_allowlist"] = allowlist;
 
 	return config;
+}
+
+void UltimateAISettingsDialog::set_thinking_stream_enabled(bool p_enabled) {
+	if (!show_thinking_stream) {
+		return;
+	}
+	show_thinking_stream->set_pressed(p_enabled);
+}
+
+bool UltimateAISettingsDialog::is_thinking_stream_enabled() const {
+	return show_thinking_stream ? show_thinking_stream->is_pressed() : false;
 }
 
 void UltimateAISettingsDialog::_on_add_pressed() {

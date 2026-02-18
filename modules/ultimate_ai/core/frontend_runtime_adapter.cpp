@@ -106,6 +106,8 @@ Dictionary UltimateAIFrontendRuntimeAdapter::map_realtime_event(const Dictionary
 	mapped["seq"] = -1;
 	mapped["chat_delta"] = String();
 	mapped["chat_done"] = false;
+	mapped["thinking_delta"] = String();
+	mapped["thinking_done"] = false;
 	mapped["chat_role"] = String("Assistant");
 
 	String schema_version = String(p_event.get("schema_version", String())).strip_edges();
@@ -166,6 +168,24 @@ Dictionary UltimateAIFrontendRuntimeAdapter::map_realtime_event(const Dictionary
 
 	if (event_name == "chat.done" || event_name == "chat_done") {
 		mapped["chat_done"] = true;
+		mapped["message"] = String();
+		return mapped;
+	}
+
+	if (event_name == "chat.thinking" || event_name == "chat_thinking") {
+		String thinking_chunk = String(p_event.get("text", String()));
+		if (thinking_chunk.strip_edges().is_empty()) {
+			mapped["handled"] = false;
+			return mapped;
+		}
+		mapped["thinking_delta"] = thinking_chunk;
+		mapped["requires_status_refresh"] = false;
+		mapped["message"] = String();
+		return mapped;
+	}
+
+	if (event_name == "chat.thinking.done" || event_name == "chat_thinking_done") {
+		mapped["thinking_done"] = true;
 		mapped["message"] = String();
 		return mapped;
 	}
