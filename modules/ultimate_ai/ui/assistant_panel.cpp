@@ -54,6 +54,7 @@
 #include "core/variant/variant_utility.h"
 #include "editor/editor_node.h"
 #include "editor/file_system/editor_file_system.h"
+#include "editor/script/script_editor_plugin.h"
 #include "modules/websocket/websocket_peer.h"
 #include "scene/animation/tween.h"
 #include "scene/gui/box_container.h"
@@ -118,6 +119,97 @@ const char *const LOADING_SPINNER_FRAMES[] = {
 	"\\",
 };
 const int LOADING_SPINNER_FRAME_COUNT = 4;
+
+bool _is_ascii_alpha(char32_t p_char) {
+	return (p_char >= 'A' && p_char <= 'Z') || (p_char >= 'a' && p_char <= 'z');
+}
+
+bool _is_ascii_digit(char32_t p_char) {
+	return p_char >= '0' && p_char <= '9';
+}
+
+bool _is_ascii_identifier_char(char32_t p_char) {
+	return _is_ascii_alpha(p_char) || _is_ascii_digit(p_char) || p_char == '_';
+}
+
+String _sanitize_docs_identifier(const String &p_value) {
+	String value = p_value.strip_edges();
+	if (value.is_empty()) {
+		return String();
+	}
+
+	String sanitized;
+	for (int i = 0; i < value.length(); i++) {
+		char32_t character = value[i];
+		if (_is_ascii_identifier_char(character)) {
+			sanitized += String::chr(character);
+		}
+	}
+
+	if (sanitized.length() < 3 || (!_is_ascii_alpha(sanitized[0]) && sanitized[0] != '_')) {
+		return String();
+	}
+
+	return sanitized;
+}
+
+void _append_unique_docs_candidate(const String &p_candidate, Vector<String> &r_candidates) {
+	if (p_candidate.is_empty()) {
+		return;
+	}
+
+	for (int i = 0; i < r_candidates.size(); i++) {
+		if (r_candidates[i].nocasecmp_to(p_candidate) == 0) {
+			return;
+		}
+	}
+
+	r_candidates.push_back(p_candidate);
+}
+
+void _extract_docs_candidates_from_text(const String &p_text, Vector<String> &r_candidates) {
+	String token;
+	auto flush_token = [&]() {
+		String sanitized = _sanitize_docs_identifier(token);
+		if (!sanitized.is_empty()) {
+			_append_unique_docs_candidate(sanitized, r_candidates);
+		}
+		token.clear();
+	};
+
+	for (int i = 0; i < p_text.length(); i++) {
+		char32_t character = p_text[i];
+		if (_is_ascii_identifier_char(character)) {
+			token += String::chr(character);
+		} else {
+			flush_token();
+		}
+	}
+
+	flush_token();
+}
+
+bool _is_allowed_help_topic(const String &p_topic) {
+	String topic = p_topic.strip_edges();
+	if (topic.is_empty()) {
+		return false;
+	}
+
+	bool valid_prefix = topic.begins_with("class:") || topic.begins_with("class_name:") || topic.begins_with("class_method:") || topic.begins_with("class_signal:") || topic.begins_with("class_property:") || topic.begins_with("class_theme_item:");
+	if (!valid_prefix) {
+		return false;
+	}
+
+	for (int i = 0; i < topic.length(); i++) {
+		char32_t character = topic[i];
+		if (_is_ascii_identifier_char(character) || character == ':') {
+			continue;
+		}
+		return false;
+	}
+
+	return true;
+}
 
 bool _is_supported_command_path(const String &p_path) {
 	String path = p_path.strip_edges();
@@ -3711,6 +3803,67 @@ void UltimateAssistantPanel::_execute_single_command(int p_tab_id, const Diction
 			tabs.write[tab_index].assistant_stream_from_realtime = false;
 			tabs.write[tab_index].suppress_next_chat_message = false;
 		}
+		return;
+	}
+
+	if (action == "open_docs_query") {
+		ScriptEditor *script_editor = ScriptEditor::get_singleton();
+		if (!script_editor) {
+			_append_message(p_tab_id, TTR("System"), "Failed to open docs query: script editor unavailable.");
+			return;
+		}
+
+		String query = String(p_command.get("content", String())).strip_edges();
+		Vector<String> class_candidates;
+
+		String explicit_class_name = _sanitize_docs_identifier(String(p_command.get("class_name", String())));
+		_append_unique_docs_candidate(explicit_class_name, class_candidates);
+
+		Variant candidates_variant = p_command.get("candidates", Variant());
+		if (candidates_variant.get_type() == Variant::ARRAY) {
+			Array candidates = candidates_variant;
+			for (int i = 0; i < candidates.size(); i++) {
+				String candidate = _sanitize_docs_identifier(String(candidates[i]));
+				_append_unique_docs_candidate(candidate, class_candidates);
+			}
+		}
+
+		_extract_docs_candidates_from_text(query, class_candidates);
+
+		String resolved_class_name;
+		for (int i = 0; i < class_candidates.size(); i++) {
+			const String &candidate = class_candidates[i];
+			if (ClassDB::class_exists(candidate)) {
+				resolved_class_name = candidate;
+				break;
+			}
+		}
+
+		if (resolved_class_name.is_empty() && !class_candidates.is_empty()) {
+			resolved_class_name = class_candidates[0];
+		}
+
+		if (!resolved_class_name.is_empty()) {
+			script_editor->goto_help("class:" + resolved_class_name);
+			_append_message(p_tab_id, TTR("System"), vformat("Opened in-editor docs for class: %s", resolved_class_name));
+			return;
+		}
+
+		String topic = String(p_command.get("topic", String())).strip_edges();
+		if (topic.is_empty() && _is_allowed_help_topic(query)) {
+			topic = query;
+		}
+
+		if (_is_allowed_help_topic(topic)) {
+			script_editor->goto_help(topic);
+			_append_message(p_tab_id, TTR("System"), vformat("Opened in-editor docs topic: %s", topic));
+			return;
+		}
+
+		_append_message(
+				p_tab_id,
+				TTR("System"),
+				"Could not resolve a Godot class/topic from docs query. Ask with a specific class name such as Node, Node3D, CharacterBody2D, or AnimationTree.");
 		return;
 	}
 

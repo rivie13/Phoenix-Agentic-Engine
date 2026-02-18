@@ -91,6 +91,22 @@ bool _service_mode_uses_byok_credentials(const String &p_mode) {
 	return p_mode == "byok" || p_mode == "managed_byok";
 }
 
+bool _allow_env_token_resolution() {
+#ifdef DEBUG_ENABLED
+	return true;
+#else
+	return false;
+#endif
+}
+
+bool _allow_static_gateway_token_overrides() {
+#ifdef DEBUG_ENABLED
+	return true;
+#else
+	return false;
+#endif
+}
+
 String _default_tier_for_mode(const String &p_mode) {
 	if (p_mode == "offline") {
 		return "offline";
@@ -166,19 +182,9 @@ PackedStringArray _collect_env_file_candidates() {
 
 	OS *os = OS::get_singleton();
 	if (os) {
-		String candidate_dir = os->get_executable_path().get_base_dir().simplify_path();
-		for (int i = 0; i < 6; i++) {
-			if (candidate_dir.is_empty()) {
-				break;
-			}
-
-			candidates.push_back(candidate_dir.path_join(".env.local").simplify_path());
-
-			String parent = candidate_dir.path_join("..").simplify_path();
-			if (parent == candidate_dir) {
-				break;
-			}
-			candidate_dir = parent;
+		String executable_dir = os->get_executable_path().get_base_dir().simplify_path();
+		if (!executable_dir.is_empty()) {
+			candidates.push_back(executable_dir.path_join(".env.local").simplify_path());
 		}
 	}
 
@@ -224,6 +230,45 @@ String _resolve_gateway_base_url() {
 
 	for (int i = 0; i < candidates.size(); i++) {
 		String value = _get_env_file_value(candidates[i], "PHOENIX_GATEWAY_BASE_URL");
+		if (!value.is_empty()) {
+			return value;
+		}
+	}
+
+	return String();
+}
+
+String _resolve_gateway_api_token() {
+	if (!_allow_env_token_resolution()) {
+		return String();
+	}
+
+	OS *os = OS::get_singleton();
+	if (os) {
+		if (os->has_environment("PHOENIX_API_TOKEN")) {
+			String value = os->get_environment("PHOENIX_API_TOKEN").strip_edges();
+			if (!value.is_empty()) {
+				return value;
+			}
+		}
+		if (os->has_environment("PHOENIX_GATEWAY_API_TOKEN")) {
+			String value = os->get_environment("PHOENIX_GATEWAY_API_TOKEN").strip_edges();
+			if (!value.is_empty()) {
+				return value;
+			}
+		}
+	}
+
+	PackedStringArray candidates = _collect_env_file_candidates();
+	for (int i = 0; i < candidates.size(); i++) {
+		String value = _get_env_file_value(candidates[i], "PHOENIX_API_TOKEN");
+		if (!value.is_empty()) {
+			return value;
+		}
+	}
+
+	for (int i = 0; i < candidates.size(); i++) {
+		String value = _get_env_file_value(candidates[i], "PHOENIX_GATEWAY_API_TOKEN");
 		if (!value.is_empty()) {
 			return value;
 		}
@@ -521,8 +566,15 @@ void UltimateAISettingsDialog::set_runtime_config(const Dictionary &p_config) {
 	}
 
 	persisted_base_url = String(p_config.get("base_url", String())).strip_edges();
-	persisted_token = String(p_config.get("token", String())).strip_edges();
-	persisted_token_hook = String(p_config.get("token_hook", String())).strip_edges();
+	// Security: do not store redaction sentinels — they are placeholders only.
+	String incoming_token = String(p_config.get("token", String())).strip_edges();
+	if (incoming_token != "<configured>") {
+		persisted_token = incoming_token;
+	}
+	String incoming_hook = String(p_config.get("token_hook", String())).strip_edges();
+	if (incoming_hook != "<configured>") {
+		persisted_token_hook = incoming_hook;
+	}
 	persisted_actor_id = String(p_config.get("actor_id", String())).strip_edges();
 	persisted_tier = String(p_config.get("tier", String())).strip_edges();
 
@@ -600,10 +652,17 @@ Dictionary UltimateAISettingsDialog::get_runtime_config() const {
 	if (token_value.is_empty()) {
 		token_value = persisted_token;
 	}
+	if (_allow_env_token_resolution() && token_value.is_empty() && service_mode_value != "offline") {
+		token_value = _resolve_gateway_api_token();
+	}
 
 	String token_hook_value = persisted_token_hook;
-	if (_service_mode_uses_byok_credentials(service_mode_value) && token_value.is_empty() && token_hook_value.is_empty()) {
+	if (_allow_env_token_resolution() && service_mode_value != "offline" && token_value.is_empty() && token_hook_value.is_empty()) {
 		token_hook_value = "env:PHOENIX_API_TOKEN";
+	}
+	if (!_allow_static_gateway_token_overrides()) {
+		token_value = String();
+		token_hook_value = String();
 	}
 	if (service_mode_value == "offline") {
 		token_value = String();
@@ -648,6 +707,9 @@ Dictionary UltimateAISettingsDialog::get_runtime_config() const {
 	allowlist.push_back("modify_text");
 	allowlist.push_back("create_node");
 	allowlist.push_back("chat_message");
+	allowlist.push_back("open_docs_query");
+	allowlist.push_back("open_docs_file");
+	allowlist.push_back("open_docs_url");
 	config["command_allowlist"] = allowlist;
 
 	return config;

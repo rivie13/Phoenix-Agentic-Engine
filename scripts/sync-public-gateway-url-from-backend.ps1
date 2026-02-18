@@ -52,3 +52,4 @@ if (-not [string]::IsNullOrWhiteSpace($baseUrl)) {
 }
 
 Write-Host "Synced engine PHOENIX_PUBLIC_GATEWAY_URL from backend .env.local" -ForegroundColor Green
+Write-Host "Note: this script intentionally never syncs PHOENIX_API_TOKEN." -ForegroundColor DarkGray

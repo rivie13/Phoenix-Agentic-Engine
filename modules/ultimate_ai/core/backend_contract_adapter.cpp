@@ -77,12 +77,29 @@ inline String _normalize_service_mode(const String &p_mode) {
 	return "managed";
 }
 
+inline bool _allow_env_token_hooks() {
+#ifdef DEBUG_ENABLED
+	return true;
+#else
+	return false;
+#endif
+}
+
+inline bool _allow_static_runtime_tokens() {
+#ifdef DEBUG_ENABLED
+	return true;
+#else
+	return false;
+#endif
+}
+
 void _apply_default_command_allowlist(PackedStringArray &r_allowlist) {
 	r_allowlist.clear();
 	r_allowlist.push_back("create_file");
 	r_allowlist.push_back("modify_text");
 	r_allowlist.push_back("create_node");
 	r_allowlist.push_back("chat_message");
+	r_allowlist.push_back("open_docs_query");
 	r_allowlist.push_back("open_docs_file");
 	r_allowlist.push_back("open_docs_url");
 }
@@ -123,6 +140,10 @@ String UltimateAIBackendContractAdapter::_generate_request_id(const String &p_pr
 }
 
 String UltimateAIBackendContractAdapter::_resolve_auth_token() const {
+	if (!_allow_static_runtime_tokens()) {
+		return String();
+	}
+
 	String token = runtime_config.token.strip_edges();
 	if (!token.is_empty()) {
 		return token;
@@ -134,6 +155,10 @@ String UltimateAIBackendContractAdapter::_resolve_auth_token() const {
 	}
 
 	if (hook.begins_with("env:")) {
+		if (!_allow_env_token_hooks()) {
+			return String();
+		}
+
 		String env_var = hook.substr(4, hook.length()).strip_edges();
 		if (env_var.is_empty()) {
 			return String();
@@ -434,10 +459,17 @@ void UltimateAIBackendContractAdapter::apply_runtime_config(const Dictionary &p_
 		runtime_config.base_url = String(p_config["base_url"]).strip_edges();
 	}
 	if (p_config.has("token")) {
-		runtime_config.token = String(p_config["token"]).strip_edges();
+		String incoming_token = String(p_config["token"]).strip_edges();
+		// Security: never overwrite with redaction sentinel or empty on round-trip.
+		if (!incoming_token.is_empty() && incoming_token != "<configured>") {
+			runtime_config.token = incoming_token;
+		}
 	}
 	if (p_config.has("token_hook")) {
-		runtime_config.token_hook = String(p_config["token_hook"]).strip_edges();
+		String incoming_hook = String(p_config["token_hook"]).strip_edges();
+		if (!incoming_hook.is_empty() && incoming_hook != "<configured>") {
+			runtime_config.token_hook = incoming_hook;
+		}
 	}
 	if (p_config.has("actor_id")) {
 		runtime_config.actor_id = String(p_config["actor_id"]).strip_edges();
@@ -508,8 +540,11 @@ Dictionary UltimateAIBackendContractAdapter::get_runtime_config() const {
 	config["base_url"] = runtime_config.base_url;
 	config["service_mode"] = runtime_config.auth_mode;
 	config["auth_mode"] = runtime_config.auth_mode;
-	config["token"] = runtime_config.token;
-	config["token_hook"] = runtime_config.token_hook;
+	// Security: never expose raw token or hook to GDScript consumers.
+	// Only expose whether a token is configured so UI can show status.
+	config["token"] = runtime_config.token.is_empty() ? String() : String("<configured>");
+	config["token_hook"] = runtime_config.token_hook.is_empty() ? String() : String("<configured>");
+	config["has_token"] = !_resolve_auth_token().is_empty();
 	config["actor_id"] = runtime_config.actor_id;
 	config["tier"] = runtime_config.tier;
 	config["timeout_ms"] = runtime_config.timeout_ms;
@@ -629,7 +664,7 @@ Dictionary UltimateAIBackendContractAdapter::evaluate_command_trust(const Dictio
 
 	trust["allowed"] = true;
 
-	if (!runtime_config.require_signed_commands || action == "chat_message" || action == "open_docs_url" || action == "open_docs_file") {
+	if (!runtime_config.require_signed_commands || action == "chat_message" || action == "open_docs_query" || action == "open_docs_url" || action == "open_docs_file") {
 		trust["trusted"] = true;
 		trust["reason"] = "trusted";
 		return trust;
