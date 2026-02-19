@@ -24,7 +24,9 @@ def _run_command(args: list[str], *, check: bool = True) -> subprocess.Completed
 
     if check and result.returncode != 0:
         stderr = (result.stderr or "").strip()
-        raise CommandError(f"Command failed ({' '.join(args)}): {stderr}")
+        stdout = (result.stdout or "").strip()
+        message = stderr or stdout or "Unknown command failure"
+        raise CommandError(f"Command failed ({' '.join(args)}): {message}")
 
     return result
 
@@ -92,58 +94,63 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    root = _engine_root()
-    submodule_dir = root / SUBMODULE_REL_PATH
-    dockerfile = root / DOCKERFILE_REL_PATH
-    marker_path = root / MARKER_REL_PATH
+    try:
+        root = _engine_root()
+        submodule_dir = root / SUBMODULE_REL_PATH
+        dockerfile = root / DOCKERFILE_REL_PATH
+        marker_path = root / MARKER_REL_PATH
 
-    if not submodule_dir.exists():
-        print(f"Submodule path not found: {submodule_dir}", file=sys.stderr)
-        return 1
-    if not dockerfile.exists():
-        print(f"Dockerfile not found: {dockerfile}", file=sys.stderr)
-        return 1
+        if not submodule_dir.exists():
+            print(f"Submodule path not found: {submodule_dir}", file=sys.stderr)
+            return 1
+        if not dockerfile.exists():
+            print(f"Dockerfile not found: {dockerfile}", file=sys.stderr)
+            return 1
 
-    current_sha = _submodule_sha(submodule_dir)
-    stored_sha = _read_marker(marker_path)
-    sha_changed = stored_sha != current_sha
+        current_sha = _submodule_sha(submodule_dir)
+        stored_sha = _read_marker(marker_path)
+        sha_changed = stored_sha != current_sha
 
-    print(f"Submodule SHA: {current_sha}")
-    if stored_sha:
-        print(f"Marker SHA:    {stored_sha}")
-    else:
-        print("Marker SHA:    <missing>")
-
-    if args.dry_run:
-        print("Dry-run enabled: skipping Docker availability/daemon/image checks.")
-        image_exists = False
-    else:
-        _docker_available()
-        _docker_daemon_running()
-        image_exists = _image_exists(IMAGE_TAG)
-
-    reasons: list[str] = []
-    if args.force_rebuild:
-        reasons.append("forced")
-    if not image_exists:
-        reasons.append("image missing")
-    if sha_changed:
-        reasons.append("submodule SHA changed")
-
-    should_rebuild = len(reasons) > 0
-
-    if should_rebuild:
-        print(f"Rebuild required ({', '.join(reasons)}).")
-        if args.dry_run:
-            print(f"Dry-run: would execute: docker build -f {dockerfile} -t {IMAGE_TAG} {submodule_dir}")
+        print(f"Submodule SHA: {current_sha}")
+        if stored_sha:
+            print(f"Marker SHA:    {stored_sha}")
         else:
-            _build_image(dockerfile, submodule_dir, IMAGE_TAG)
-        _write_marker(marker_path, current_sha)
-        print(f"Updated marker: {marker_path}")
-    else:
-        print("Image is up-to-date; no rebuild required.")
+            print("Marker SHA:    <missing>")
 
-    return 0
+        if args.dry_run:
+            print("Dry-run enabled: skipping Docker availability/daemon/image checks.")
+            image_exists = bool(stored_sha) and not sha_changed
+        else:
+            _docker_available()
+            _docker_daemon_running()
+            image_exists = _image_exists(IMAGE_TAG)
+
+        reasons: list[str] = []
+        if args.force_rebuild:
+            reasons.append("forced")
+        if not image_exists:
+            reasons.append("image missing")
+        if sha_changed:
+            reasons.append("submodule SHA changed")
+
+        should_rebuild = len(reasons) > 0
+
+        if should_rebuild:
+            print(f"Rebuild required ({', '.join(reasons)}).")
+            if args.dry_run:
+                print(f"Dry-run: would execute: docker build -f {dockerfile} -t {IMAGE_TAG} {submodule_dir}")
+                print("Dry-run: marker file was not modified.")
+            else:
+                _build_image(dockerfile, submodule_dir, IMAGE_TAG)
+                _write_marker(marker_path, current_sha)
+                print(f"Updated marker: {marker_path}")
+        else:
+            print("Image is up-to-date; no rebuild required.")
+
+        return 0
+    except CommandError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
 
 
 if __name__ == "__main__":

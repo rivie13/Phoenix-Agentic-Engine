@@ -3877,7 +3877,10 @@ void UltimateAssistantPanel::_execute_single_command(int p_tab_id, const Diction
 		if (topic.is_empty()) {
 			String raw_class_name = String(p_command.get("class_name", String())).strip_edges();
 			if (raw_class_name.begins_with("@")) {
-				topic = "class_name:" + raw_class_name;
+				String normalized_class_name = raw_class_name.substr(1, raw_class_name.length() - 1).strip_edges();
+				if (!normalized_class_name.is_empty()) {
+					topic = "class_name:" + normalized_class_name;
+				}
 			}
 		}
 		if (topic.is_empty() && !has_explicit_class_candidates && _is_allowed_help_topic(query)) {

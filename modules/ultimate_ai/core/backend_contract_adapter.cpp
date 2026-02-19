@@ -129,7 +129,9 @@ String _get_env_file_value(const String &p_file_path, const String &p_key) {
 			continue;
 		}
 
-		String value = line.substr(separator + 1, line.length()).strip_edges();
+		int value_start = separator + 1;
+		int value_len = line.length() - value_start;
+		String value = line.substr(value_start, value_len).strip_edges();
 		if (value.length() >= 2) {
 			if ((value.begins_with("\"") && value.ends_with("\"")) || (value.begins_with("'") && value.ends_with("'"))) {
 				value = value.substr(1, value.length() - 2);
@@ -280,7 +282,7 @@ String UltimateAIBackendContractAdapter::_generate_request_id(const String &p_pr
 
 String UltimateAIBackendContractAdapter::_resolve_auth_token() const {
 	String token = runtime_config.token.strip_edges();
-	if (!token.is_empty()) {
+	if (!token.is_empty() && _allow_static_runtime_tokens()) {
 		return token;
 	}
 
@@ -304,6 +306,10 @@ String UltimateAIBackendContractAdapter::_resolve_auth_token() const {
 	}
 
 	if (_normalize_service_mode(runtime_config.auth_mode) == "offline") {
+		return String();
+	}
+
+	if (!_allow_env_token_hooks()) {
 		return String();
 	}
 
@@ -465,7 +471,7 @@ Dictionary UltimateAIBackendContractAdapter::_request_once(HTTPClient::Method p_
 	String auth_token = _resolve_auth_token();
 	if (_service_mode_requires_auth_header(auth_mode) && auth_token.is_empty()) {
 		response["transport_error"] = true;
-		response["error"] = "Missing gateway auth token for managed/byok mode. Set PHOENIX_API_TOKEN (or PHOENIX_GATEWAY_API_TOKEN) in the engine environment or in .env.local at the project root.";
+		response["error"] = "Missing gateway auth token for managed/byok mode. Set PHOENIX_API_TOKEN (or PHOENIX_GATEWAY_API_TOKEN) in the engine environment or in a discoverable .env.local near the project/editor/executable working directories.";
 		return response;
 	}
 	if (!auth_token.is_empty()) {
