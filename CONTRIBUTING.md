@@ -84,6 +84,14 @@ stable state, i.e. if your first commit has a bug that you fixed in the second
 commit, try to merge them together before making your pull request. This
 includes fixing build issues or typos, adding documentation, etc.
 
+For Phoenix-specific workflow hygiene in this fork:
+
+- Use terminal Git commands for commit/push so local hooks run (`git add`, `git commit`, `git push`).
+- Do not bypass hooks with `--no-verify` in normal development.
+- Run pre-commit before push (`C:\Python313\python.exe -m pre_commit run --all-files` or `--files ...`).
+- If hooks rewrite files during commit, re-stage and commit again.
+- Run relevant tests/build checks for changed areas before opening/updating a PR.
+
 See our [PR workflow](https://contributing.godotengine.org/en/latest/organization/pull_requests/creating_pull_requests.html)
 documentation for tips on using Git, amending commits and rebasing branches.
 

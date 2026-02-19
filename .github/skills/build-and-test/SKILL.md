@@ -62,6 +62,24 @@ C:\Python313\python.exe -m pre_commit run --all-files
 C:\Python313\python.exe -m pre_commit run --files path/to/file.cpp path/to/another_file.gd
 ```
 
+## Commit/push quality gate (required)
+
+Before any commit/push flow:
+
+1. Run pre-commit (all files for broad changes, targeted files for narrow fixes).
+2. Run the most relevant tests for changed areas (if tests exist).
+3. Run at least one build command when C++/build logic changed.
+4. If hooks modify files during `git commit`, re-stage and commit again.
+5. Do not bypass hooks with `--no-verify` in normal development.
+
+Recommended terminal sequence:
+
+```powershell
+C:\Python313\python.exe -m pre_commit run --files <changed-file-1> <changed-file-2>
+# Optional broader validation when scope is wide:
+C:\Python313\python.exe -m pre_commit run --all-files
+```
+
 ## Validation checklist
 
 When the user asks to validate or check their work:

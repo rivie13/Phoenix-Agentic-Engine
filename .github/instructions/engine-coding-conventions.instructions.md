@@ -30,3 +30,11 @@ Match the style of the file you are editing (indentation, naming, include order,
 - New global state/singletons without strong justification.
 - Per-frame avoidable allocations/string churn in hot paths.
 - Cross-cutting refactors unrelated to the requested change.
+
+## Git hygiene conventions
+
+- Keep commits focused and minimal; do not mix unrelated changes in one commit.
+- Stage intentionally (avoid broad `git add .` when narrowing scope matters).
+- Run pre-commit checks before push (or let `git commit` hooks run and resolve all hook failures).
+- If hooks rewrite files, re-stage and commit again so committed content matches hook output.
+- Avoid force-pushing shared branches unless explicitly coordinated.

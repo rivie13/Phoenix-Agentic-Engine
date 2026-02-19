@@ -31,3 +31,11 @@ Priorities: minimal diffs, low upstream-merge risk, deterministic build/package 
 - Keep PRs narrow; split unrelated refactors.
 - Avoid direct edits inside vendored third-party trees under `modules/ultimate_ai/external/*` unless intentionally updating submodule pointers.
 - Reject prompt templates, secrets, credentials, or backend-only proprietary logic in public client code.
+
+## PR workflow hygiene
+
+- Prefer MCP GitHub tools for PR operations when acting as assistant (list/create/update/request review).
+- Treat Copilot review comments as actionable items: fix or respond with rationale.
+- Require re-validation (pre-commit + relevant tests/build checks) before marking review feedback as addressed.
+- Check PR status checks and GitHub Actions workflow runs; if failures exist, debug and fix before approval/merge.
+- Verify branch/base targets are correct before merge (typically into `feature/agent-backend-integration` unless explicitly overridden).

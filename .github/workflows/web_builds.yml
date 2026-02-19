@@ -146,39 +146,39 @@ jobs:
             fi
           done
 
-              if [ ! -f "./bin/phoenix_web_capabilities.json" ]; then
-              echo "Missing MVP capability manifest: ./bin/phoenix_web_capabilities.json" >&2
-              ls -la ./bin || true
-              exit 1
-              fi
+          if [ ! -f "./bin/phoenix_web_capabilities.json" ]; then
+            echo "Missing MVP capability manifest: ./bin/phoenix_web_capabilities.json" >&2
+            ls -la ./bin || true
+            exit 1
+          fi
 
-              python3 - <<'PY'
-              import json
-              from pathlib import Path
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
 
-              manifest_path = Path("./bin/phoenix_web_capabilities.json")
-              data = json.loads(manifest_path.read_text(encoding="utf-8"))
+          manifest_path = Path("./bin/phoenix_web_capabilities.json")
+          data = json.loads(manifest_path.read_text(encoding="utf-8"))
 
-              if data.get("schema_version") != "v1":
-                raise SystemExit("Invalid schema_version in phoenix_web_capabilities.json")
-              if data.get("profile") != "web_mvp_chat_pixelpen":
-                raise SystemExit("Invalid profile in phoenix_web_capabilities.json")
+          if data.get("schema_version") != "v1":
+              raise SystemExit("Invalid schema_version in phoenix_web_capabilities.json")
+          if data.get("profile") != "web_mvp_chat_pixelpen":
+              raise SystemExit("Invalid profile in phoenix_web_capabilities.json")
 
-              capabilities = data.get("capabilities")
-              if not isinstance(capabilities, dict):
-                raise SystemExit("Missing capabilities object in phoenix_web_capabilities.json")
+          capabilities = data.get("capabilities")
+          if not isinstance(capabilities, dict):
+              raise SystemExit("Missing capabilities object in phoenix_web_capabilities.json")
 
-              required_true = ["assistant_chat", "pixelpen"]
-              required_false = ["gdterm", "git_plugin", "diff_margin", "bfxr", "gut"]
+          required_true = ["assistant_chat", "pixelpen"]
+          required_false = ["gdterm", "git_plugin", "diff_margin", "bfxr", "gut"]
 
-              for key in required_true:
-                if capabilities.get(key) is not True:
+          for key in required_true:
+              if capabilities.get(key) is not True:
                   raise SystemExit(f"Expected capabilities.{key}=true in phoenix_web_capabilities.json")
 
-              for key in required_false:
-                if capabilities.get(key) is not False:
+          for key in required_false:
+              if capabilities.get(key) is not False:
                   raise SystemExit(f"Expected capabilities.{key}=false in phoenix_web_capabilities.json")
-              PY
+          PY
 
       - name: Upload artifact
         uses: ./.github/actions/upload-artifact

@@ -31,6 +31,16 @@ C:\Python313\python.exe -m pre_commit install
 C:\Python313\python.exe -m pre_commit run --all-files
 ```
 
+## Git hygiene before commit/push
+
+- Use terminal Git commands from the Engine repo (`git add`, `git commit`, `git push`) so local hooks run consistently.
+- Do not bypass hooks with `--no-verify` in normal development.
+- If `git commit` auto-runs pre-commit hooks and they modify files, re-stage those files and re-run `git commit`.
+- Before pushing, run either:
+	- full checks: `C:\Python313\python.exe -m pre_commit run --all-files`
+	- targeted checks for touched files: `C:\Python313\python.exe -m pre_commit run --files <file1> <file2>`
+- Treat any pre-commit failure as a block for push until fixed.
+
 ## Phoenix addon packaging expectations
 
 Editor artifact validation should include these staged paths when relevant:

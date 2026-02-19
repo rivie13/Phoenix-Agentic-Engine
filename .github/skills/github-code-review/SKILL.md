@@ -21,41 +21,46 @@ If the user doesn't specify a PR number, list open PRs:
 mcp_github_github_list_pull_requests(owner="rivie13", repo="Phoenix-Agentic-Engine", state="open")
 ```
 
-### Step 2: Get review comments
+### Step 2: Load PR details/comments with MCP PR tools
 
-Fetch review threads (which include resolved/unresolved status):
+Use PR management tools to inspect the active/open PR (files, reviews, comments, checks):
 
-```
-mcp_github_github_pull_request_read(method="get_review_comments", owner="rivie13", repo="Phoenix-Agentic-Engine", pullNumber=<PR_NUMBER>)
-```
+1. Activate PR management tools.
+2. Retrieve the active/open PR details and comments.
+3. Use those comments as the canonical fix list.
 
-Also get the list of reviews to understand overall review status:
-
-```
-mcp_github_github_pull_request_read(method="get_reviews", owner="rivie13", repo="Phoenix-Agentic-Engine", pullNumber=<PR_NUMBER>)
-```
-
-### Step 3: Get changed files for context
-
-```
-mcp_github_github_pull_request_read(method="get_files", owner="rivie13", repo="Phoenix-Agentic-Engine", pullNumber=<PR_NUMBER>)
-```
-
-### Step 4: Address each unresolved comment
+### Step 3: Address each unresolved comment
 
 For each unresolved review thread:
 1. Read the file and surrounding context using `read_file`
 2. Understand the reviewer's concern
 3. Make the fix using file edit tools
-4. Report what was changed and why
+4. Re-run pre-commit + relevant tests
+5. Report what was changed and why
 
-### Step 5: Request a new review (optional)
+### Step 3b: Check PR workflows and fix CI failures
+
+After pushing review fixes:
+
+1. Check PR status checks and workflow runs.
+2. If any workflow fails, use the `github-actions-debug` skill to investigate logs.
+3. Apply fixes, re-run local validation, and push again.
+4. Repeat until required checks are green.
+
+### Step 4: Request a new review (optional)
 
 After addressing all comments, the user may want to request a re-review:
 
 ```
 mcp_github_github_request_copilot_review(owner="rivie13", repo="Phoenix-Agentic-Engine", pullNumber=<PR_NUMBER>)
 ```
+
+## Copilot review resolution loop (required)
+
+- Treat Copilot comments like any other review: fix, validate, push.
+- Prefer small, focused commits per feedback batch.
+- Run `pre_commit` and relevant tests before pushing each fix batch.
+- If a comment is not actioned, reply with rationale in the PR.
 
 ## Workflow: Request a Copilot Code Review
 

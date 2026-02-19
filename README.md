@@ -103,6 +103,17 @@ The best way to get in touch with the core engine developers is to join the
 To get started contributing to the project, see the [contributing guide](CONTRIBUTING.md).
 This document also includes guidelines for reporting bugs.
 
+### Phoenix git hygiene quick checks
+
+For this fork, we use a terminal-first Git workflow so local hooks run consistently:
+
+- Run `git add` / `git commit` / `git push` from terminal in the repo root.
+- Do not use `--no-verify` for normal commits.
+- Ensure pre-commit passes before push:
+  - `C:\Python313\python.exe -m pre_commit run --all-files`
+  - or `C:\Python313\python.exe -m pre_commit run --files <file1> <file2>`
+- If hooks modify files during commit, re-stage and commit again.
+
 ## Documentation and demos
 
 The official documentation is hosted on [Read the Docs](https://docs.godotengine.org).

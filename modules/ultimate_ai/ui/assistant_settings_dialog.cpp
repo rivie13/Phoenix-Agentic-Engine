@@ -92,7 +92,7 @@ bool _service_mode_uses_byok_credentials(const String &p_mode) {
 }
 
 bool _allow_env_token_resolution() {
-#ifdef DEBUG_ENABLED
+#if defined(DEBUG_ENABLED) || defined(TOOLS_ENABLED)
 	return true;
 #else
 	return false;
@@ -100,7 +100,7 @@ bool _allow_env_token_resolution() {
 }
 
 bool _allow_static_gateway_token_overrides() {
-#ifdef DEBUG_ENABLED
+#if defined(DEBUG_ENABLED) || defined(TOOLS_ENABLED)
 	return true;
 #else
 	return false;

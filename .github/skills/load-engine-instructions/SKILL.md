@@ -27,7 +27,7 @@ All files live in `Phoenix-Agentic-Engine/.github/instructions/`:
 | File | Content | When to load |
 |------|---------|-------------|
 | `engine-coding-conventions.instructions.md` | C++ style, Godot patterns, naming | When writing or reviewing code |
-| `engine-build-and-test.instructions.md` | SCons build, pre-commit, validation | When building, testing, or fixing build errors |
+| `engine-build-and-test.instructions.md` | SCons build, pre-commit, validation, git hygiene gates | When building, testing, validating, or preparing commits |
 | `engine-project-structure.instructions.md` | Directory layout, module organization | When navigating the codebase or adding new files |
 | `engine-private-architecture.instructions.md` | Brain-Body split, module internals | When making architectural decisions |
 | `engine-private-roadmap.instructions.md` | Phase plan, integrations, milestones | When planning work or checking status |
@@ -43,6 +43,12 @@ Read the files you need using `read_file`. Common patterns:
 ```
 read_file("Phoenix-Agentic-Engine/.github/instructions/engine-coding-conventions.instructions.md")
 read_file("Phoenix-Agentic-Engine/.github/instructions/engine-project-structure.instructions.md")
+```
+
+For commit/push preparation, also load:
+
+```
+read_file("Phoenix-Agentic-Engine/.github/instructions/engine-build-and-test.instructions.md")
 ```
 
 ### Build/test troubleshooting

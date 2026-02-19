@@ -391,7 +391,8 @@ cpp.hint
 .DS_Store
 __MACOSX
 Godot.app
-
+# Agent prompts (private, never commit)
+prompts/
 # Windows
 # https://github.com/github/gitignore/blob/main/Global/Windows.gitignore
 [Tt]humbs.db
