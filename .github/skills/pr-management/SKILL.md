@@ -114,7 +114,7 @@ mcp_github_github_request_copilot_review(owner="rivie13", repo="Phoenix-Agentic-
 2. Apply fixes in focused commits.
 3. Re-run pre-commit + relevant tests.
 4. Push updates to the same PR branch.
-5. Request Copilot re-review if needed.
+5. Request Copilot re-review only if needed and missing for the latest commit set.
 
 ## Update PR Branch (rebase/merge from base)
 

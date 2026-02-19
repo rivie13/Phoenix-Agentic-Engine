@@ -52,7 +52,7 @@ After pushing review fixes:
 After addressing all comments, the user may want to request a re-review:
 
 - First check if a Copilot review is already present/recent on the PR.
-- Only request if none exists for the current change batch, or if user explicitly asks for another pass.
+- Only request if none exists for the latest commit set, or if the user explicitly asks for another pass.
 
 ```
 mcp_github_github_request_copilot_review(owner="rivie13", repo="Phoenix-Agentic-Engine", pullNumber=<PR_NUMBER>)
@@ -65,12 +65,13 @@ mcp_github_github_request_copilot_review(owner="rivie13", repo="Phoenix-Agentic-
 - Run `pre_commit` and relevant tests before pushing each fix batch.
 - If a comment is not actioned, reply with rationale in the PR.
 
-## Workflow: Request a Copilot Code Review
+## Workflow: Request a Copilot Code Review (manual fallback)
 
-To request an automated Copilot code review on a PR:
+If a Copilot review is missing for the latest commit set on a PR:
 
-- Treat Copilot reviews as expensive; request sparingly.
-- Default policy: one request per PR unless explicitly needed.
+- Copilot review is expected to auto-trigger when available.
+- Do not request manually if a Copilot review already exists for the latest commit set.
+- Request manually only when missing for the latest commit set.
 
 ```
 mcp_github_github_request_copilot_review(owner="rivie13", repo="Phoenix-Agentic-Engine", pullNumber=<PR_NUMBER>)
