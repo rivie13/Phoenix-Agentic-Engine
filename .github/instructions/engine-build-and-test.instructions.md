@@ -41,6 +41,19 @@ C:\Python313\python.exe -m pre_commit run --all-files
 	- targeted checks for touched files: `C:\Python313\python.exe -m pre_commit run --files <file1> <file2>`
 - Treat any pre-commit failure as a block for push until fixed.
 
+## VS Code validation tasks (separate from pre-commit)
+
+Run these tasks as an additional gate before commit/push:
+
+- `dev: verify: check` — runs `dev: build editor` then headless version/startup smoke checks.
+- `dev: verify: check (full)` — same as above plus headless doctool check to a temp output directory.
+
+Available focused tasks:
+
+- `dev: verify: headless:version`
+- `dev: verify: headless:startup`
+- `dev: verify: headless:doctool-temp`
+
 ## Phoenix addon packaging expectations
 
 Editor artifact validation should include these staged paths when relevant:
@@ -57,3 +70,4 @@ Editor artifact validation should include these staged paths when relevant:
 - Include build/test commands and platform in PR notes.
 - Keep tests deterministic and local-only.
 - Verify changed addon integrations still stage and bootstrap in editor builds.
+- Run `dev: verify: check` (or `dev: verify: check (full)` when touching doc-exposed/editor-surface code) before commit/push.

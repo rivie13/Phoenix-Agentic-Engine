@@ -114,6 +114,19 @@ For this fork, we use a terminal-first Git workflow so local hooks run consisten
   - or `C:\Python313\python.exe -m pre_commit run --files <file1> <file2>`
 - If hooks modify files during commit, re-stage and commit again.
 
+### Phoenix extra validation tasks (separate from pre-commit)
+
+Before commit/push, run these VS Code tasks in addition to pre-commit:
+
+- `dev: verify: check` (build + headless version/startup smoke checks)
+- Optional deeper check: `dev: verify: check (full)` (adds headless doctool-to-temp validation)
+
+You can also run the individual tasks directly:
+
+- `dev: verify: headless:version`
+- `dev: verify: headless:startup`
+- `dev: verify: headless:doctool-temp`
+
 ## Documentation and demos
 
 The official documentation is hosted on [Read the Docs](https://docs.godotengine.org).

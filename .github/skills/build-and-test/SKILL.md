@@ -31,7 +31,7 @@ Always invoke SCons with the full Python path to avoid PATH mismatches.
 C:\Python313\python.exe -m SCons platform=windows target=editor d3d12=no
 
 # Compiled binary
-bin\godot.windows.editor.x86_64.exe
+bin\phoenix_agentic.windows.editor.x86_64.exe
 ```
 
 ### Other Platforms
@@ -80,14 +80,27 @@ C:\Python313\python.exe -m pre_commit run --files <changed-file-1> <changed-file
 C:\Python313\python.exe -m pre_commit run --all-files
 ```
 
+## Extra VS Code validation tasks (separate from pre-commit)
+
+Run these before commit/push as additional safety checks:
+
+| Task label | What it does |
+|------------|---------------|
+| `dev: verify: check` | Runs `dev: build editor` + headless version/startup smoke checks |
+| `dev: verify: check (full)` | Runs `dev: verify: check` plus headless doctool check to temp dir |
+| `dev: verify: headless:version` | Runs editor with `--headless --version` |
+| `dev: verify: headless:startup` | Runs editor with `--headless --quit` |
+| `dev: verify: headless:doctool-temp` | Runs `--doctool <temp-dir> --headless` and cleans temp output |
+
 ## Validation checklist
 
 When the user asks to validate or check their work:
 
 1. **Pre-commit passes** — run `pre_commit run --all-files`
 2. **Build succeeds** — run the SCons build command above
-3. **Binary launches** — confirm `bin\godot.windows.editor.x86_64.exe` starts without crash
-4. **No regressions** — if editing core files, check that existing functionality still works
+3. **Headless checks pass** — run `dev: verify: check` (or `dev: verify: check (full)`)
+4. **Binary launches (interactive smoke)** — confirm `bin\phoenix_agentic.windows.editor.x86_64.exe` starts without crash when needed
+5. **No regressions** — if editing core files, check that existing functionality still works
 
 ## Common build errors and fixes
 
@@ -104,5 +117,6 @@ When the user asks to validate or check their work:
 1. Make code changes
 2. Run pre-commit on changed files
 3. Build with SCons
-4. Launch editor binary to smoke-test
-5. Report: what was built, what was tested, platform used
+4. Run `dev: verify: check` (or `dev: verify: check (full)`)
+5. Launch editor binary to smoke-test when relevant
+6. Report: what was built, what was tested, platform used
