@@ -34,6 +34,7 @@ description: Update Copilot instruction files to reflect current project state, 
 - Client/backend boundary shifted? → Update `engine-private-strategy.instructions.md`
 - Review priorities changed? → Update `engine-code-review.instructions.md`
 - Git/branch/pre-commit workflow changed? → Update `engine-build-and-test.instructions.md`, `engine-coding-conventions.instructions.md`, and relevant skills (`build-and-test`, `pr-management`, `github-code-review`)
+- Copilot review request policy changed? → Update `engine-code-review.instructions.md` + `pr-management`/`github-code-review` skills with one-request-per-PR cost controls.
 
 ### Step 2: Read the current file and update it
 

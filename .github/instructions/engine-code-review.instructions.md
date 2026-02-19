@@ -36,6 +36,8 @@ Priorities: minimal diffs, low upstream-merge risk, deterministic build/package 
 
 - Prefer MCP GitHub tools for PR operations when acting as assistant (list/create/update/request review).
 - Treat Copilot review comments as actionable items: fix or respond with rationale.
+- Copilot review requests are automatic but budgeted: check whether a Copilot review is already requested/completed on the PR before requesting.
+- Do not request duplicate Copilot reviews by default; request at most one per PR unless user explicitly asks for another round after substantial new changes.
 - Require re-validation (pre-commit + relevant tests/build checks) before marking review feedback as addressed.
 - Check PR status checks and GitHub Actions workflow runs; if failures exist, debug and fix before approval/merge.
 - Verify branch/base targets are correct before merge (typically into `feature/agent-backend-integration` unless explicitly overridden).

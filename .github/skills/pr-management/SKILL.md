@@ -97,6 +97,13 @@ After PR creation and after each push:
 
 ## Request Copilot Review
 
+Policy:
+
+1. Copilot review should happen automatically for new PRs.
+2. Before requesting, check whether Copilot review was already requested/completed for that PR.
+3. If already present, do not request again by default (cost control).
+4. Request another round only when the user explicitly asks or when substantial new changes were pushed and no recent Copilot pass exists.
+
 ```
 mcp_github_github_request_copilot_review(owner="rivie13", repo="Phoenix-Agentic-Engine", pullNumber=<PR_NUMBER>)
 ```
