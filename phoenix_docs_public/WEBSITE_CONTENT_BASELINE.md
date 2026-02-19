@@ -9,6 +9,7 @@ This document is the public source of truth for high-level website copy in the p
 - Phoenix supports documented Ask/Plan/Agent workflows.
 - User approvals, previews, and visible action boundaries are core UX principles.
 - The editor is open source, with optional managed service lanes.
+- For the current web MVP, access is account-gated and scoped to chat + PixelPen prototype workflows.
 
 ### Pricing
 
@@ -19,6 +20,7 @@ This document is the public source of truth for high-level website copy in the p
 
 - Website demo content should reference published resources only (for example, official Godot demo resources and public Phoenix docs).
 - Do not present fabricated customer/media demo claims.
+- If web editor parity is incomplete, demo copy should explicitly label the experience as an MVP prototype.
 
 ### Reviews
 

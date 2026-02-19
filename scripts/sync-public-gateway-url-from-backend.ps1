@@ -11,6 +11,8 @@ if (-not (Test-Path $backendEnv)) {
 
 $url = ""
 $baseUrl = ""
+$apiToken = ""
+$authMode = ""
 foreach ($line in Get-Content -Path $backendEnv) {
     if ($line -match '^\s*PHOENIX_PUBLIC_GATEWAY_URL=(.*)$') {
         $url = $matches[1].Trim()
@@ -18,13 +20,28 @@ foreach ($line in Get-Content -Path $backendEnv) {
     elseif ($line -match '^\s*PHOENIX_GATEWAY_BASE_URL=(.*)$') {
         $baseUrl = $matches[1].Trim()
     }
+    elseif ($line -match '^\s*PHOENIX_API_TOKEN=(.*)$') {
+        $apiToken = $matches[1].Trim()
+    }
+    elseif ($line -match '^\s*PHOENIX_AUTH_MODE=(.*)$') {
+        $authMode = $matches[1].Trim()
+    }
 }
 
 if ([string]::IsNullOrWhiteSpace($url)) {
     throw "PHOENIX_PUBLIC_GATEWAY_URL is not set in backend .env.local"
 }
 
-& (Join-Path $repoRoot "scripts\set-public-gateway-url.ps1") -Url $url
+if ([string]::IsNullOrWhiteSpace($authMode)) {
+    $authMode = "managed"
+}
+
+$setArgs = @("-Url", $url, "-AuthMode", $authMode, "-ConfigSource", "backend:.env.local")
+if (-not [string]::IsNullOrWhiteSpace($apiToken)) {
+    $setArgs += @("-ApiToken", $apiToken)
+}
+
+& (Join-Path $repoRoot "scripts\set-public-gateway-url.ps1") @setArgs
 
 if (-not [string]::IsNullOrWhiteSpace($baseUrl)) {
     $lines = @()
@@ -52,4 +69,3 @@ if (-not [string]::IsNullOrWhiteSpace($baseUrl)) {
 }
 
 Write-Host "Synced engine PHOENIX_PUBLIC_GATEWAY_URL from backend .env.local" -ForegroundColor Green
-Write-Host "Note: this script intentionally never syncs PHOENIX_API_TOKEN." -ForegroundColor DarkGray

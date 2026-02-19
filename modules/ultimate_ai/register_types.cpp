@@ -37,6 +37,7 @@
 #include "core/backend_contract_adapter.h"
 #include "core/bfxr_runtime_bridge.h"
 #include "core/object/class_db.h"
+#include "core/os/os.h"
 #include "core/terminal_orchestrator_bridge.h"
 #include "ui/bfxr_editor_plugin.h"
 #include "ui/diff_margin_editor_plugin.h"
@@ -47,21 +48,55 @@
 #include "ui/ultimate_ai_editor_plugin.h"
 #endif
 
+#ifdef TOOLS_ENABLED
+namespace {
+bool _is_truthy_env_value(const String &p_value) {
+	const String value = p_value.strip_edges().to_lower();
+	return value == "1" || value == "true" || value == "yes" || value == "on";
+}
+
+bool _is_web_mvp_chat_pixelpen_profile_enabled() {
+#ifdef PHOENIX_WEB_MVP_CHAT_PIXELPEN
+	return true;
+#else
+	OS *os = OS::get_singleton();
+	if (!os) {
+		return false;
+	}
+
+	const String profile = os->get_environment("PHOENIX_CAPABILITY_PROFILE").strip_edges().to_lower();
+	if (profile == "web_mvp_chat_pixelpen" || profile == "web-mvp-chat-pixelpen") {
+		return true;
+	}
+
+	return _is_truthy_env_value(os->get_environment("PHOENIX_WEB_MVP_CHAT_PIXELPEN"));
+#endif
+}
+} //namespace
+#endif
+
 void initialize_ultimate_ai_module(ModuleInitializationLevel p_level) {
 	if (p_level != MODULE_INITIALIZATION_LEVEL_EDITOR) {
 		return;
 	}
 
 #ifdef TOOLS_ENABLED
-	ClassDB::register_class<BfxrRuntimeBridge>();
+	const bool web_mvp_chat_pixelpen_only = _is_web_mvp_chat_pixelpen_profile_enabled();
+
 	ClassDB::register_class<UltimateAIBackendContractAdapter>();
-	ClassDB::register_class<UltimateAITerminalBridge>();
+	if (!web_mvp_chat_pixelpen_only) {
+		ClassDB::register_class<BfxrRuntimeBridge>();
+		ClassDB::register_class<UltimateAITerminalBridge>();
+	}
+
 	EditorPlugins::add_by_type<UltimateAIEditorPlugin>();
-	EditorPlugins::add_by_type<BfxrEditorPlugin>();
-	EditorPlugins::add_by_type<DiffMarginEditorPlugin>();
-	EditorPlugins::add_by_type<GDTermEditorPlugin>();
-	EditorPlugins::add_by_type<GitPluginEditorPlugin>();
-	EditorPlugins::add_by_type<GutEditorPlugin>();
+	if (!web_mvp_chat_pixelpen_only) {
+		EditorPlugins::add_by_type<BfxrEditorPlugin>();
+		EditorPlugins::add_by_type<DiffMarginEditorPlugin>();
+		EditorPlugins::add_by_type<GDTermEditorPlugin>();
+		EditorPlugins::add_by_type<GitPluginEditorPlugin>();
+		EditorPlugins::add_by_type<GutEditorPlugin>();
+	}
 	EditorPlugins::add_by_type<PixelPenEditorPlugin>();
 #endif
 }

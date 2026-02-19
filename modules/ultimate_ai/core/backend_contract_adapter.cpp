@@ -240,7 +240,7 @@ Dictionary UltimateAIBackendContractAdapter::_request_once(HTTPClient::Method p_
 	String base_url = runtime_config.base_url.strip_edges();
 	if (base_url.is_empty()) {
 		response["transport_error"] = true;
-		response["error"] = "Runtime config missing base_url.";
+		response["error"] = "Runtime config missing base_url. Set PHOENIX_PUBLIC_GATEWAY_URL (or PHOENIX_GATEWAY_BASE_URL) in .env.local, or run local gateway at http://localhost:5244 in debug editor builds.";
 		return response;
 	}
 
@@ -282,7 +282,7 @@ Dictionary UltimateAIBackendContractAdapter::_request_once(HTTPClient::Method p_
 	while (client->get_status() == HTTPClient::STATUS_RESOLVING || client->get_status() == HTTPClient::STATUS_CONNECTING) {
 		if (OS::get_singleton()->get_ticks_msec() - started > (uint64_t)runtime_config.timeout_ms) {
 			response["transport_error"] = true;
-			response["error"] = "Connection timeout while reaching backend.";
+			response["error"] = vformat("Connection timeout while reaching backend host %s:%d.", host, port);
 			return response;
 		}
 		Error poll_err = client->poll();
@@ -342,7 +342,7 @@ Dictionary UltimateAIBackendContractAdapter::_request_once(HTTPClient::Method p_
 	while (true) {
 		if (OS::get_singleton()->get_ticks_msec() - started > (uint64_t)runtime_config.timeout_ms) {
 			response["transport_error"] = true;
-			response["error"] = "Request timed out while reading backend response.";
+			response["error"] = vformat("Request timed out while reading backend response for %s.", p_path);
 			return response;
 		}
 

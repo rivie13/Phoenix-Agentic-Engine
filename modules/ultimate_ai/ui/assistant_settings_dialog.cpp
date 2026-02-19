@@ -107,6 +107,14 @@ bool _allow_static_gateway_token_overrides() {
 #endif
 }
 
+String _default_local_gateway_base_url() {
+#ifdef DEBUG_ENABLED
+	return "http://localhost:5244";
+#else
+	return String();
+#endif
+}
+
 String _default_tier_for_mode(const String &p_mode) {
 	if (p_mode == "offline") {
 		return "offline";
@@ -164,28 +172,42 @@ String _get_env_file_value(const String &p_file_path, const String &p_key) {
 PackedStringArray _collect_env_file_candidates() {
 	PackedStringArray candidates;
 
+	auto append_candidate_dirs = [&](const String &p_dir) {
+		String current = p_dir.simplify_path();
+		for (int depth = 0; depth < 6; depth++) {
+			if (current.is_empty()) {
+				break;
+			}
+
+			String candidate = current.path_join(".env.local").simplify_path();
+			if (!candidate.is_empty() && !candidates.has(candidate)) {
+				candidates.push_back(candidate);
+			}
+
+			String parent = current.get_base_dir().simplify_path();
+			if (parent.is_empty() || parent == current) {
+				break;
+			}
+			current = parent;
+		}
+	};
+
 	ProjectSettings *project_settings = ProjectSettings::get_singleton();
 	if (project_settings) {
-		String project_env = project_settings->globalize_path("res://.env.local").simplify_path();
-		if (!project_env.is_empty()) {
-			candidates.push_back(project_env);
-		}
+		String project_root = project_settings->globalize_path("res://").simplify_path();
+		append_candidate_dirs(project_root);
 	}
 
 	Ref<DirAccess> current_dir_access = DirAccess::create(DirAccess::ACCESS_FILESYSTEM);
 	if (current_dir_access.is_valid()) {
 		String current_dir = current_dir_access->get_current_dir().simplify_path();
-		if (!current_dir.is_empty()) {
-			candidates.push_back(current_dir.path_join(".env.local").simplify_path());
-		}
+		append_candidate_dirs(current_dir);
 	}
 
 	OS *os = OS::get_singleton();
 	if (os) {
 		String executable_dir = os->get_executable_path().get_base_dir().simplify_path();
-		if (!executable_dir.is_empty()) {
-			candidates.push_back(executable_dir.path_join(".env.local").simplify_path());
-		}
+		append_candidate_dirs(executable_dir);
 	}
 
 	PackedStringArray deduped;
@@ -643,6 +665,9 @@ Dictionary UltimateAISettingsDialog::get_runtime_config() const {
 	String effective_base_url = persisted_base_url;
 	if (service_mode_value != "offline" && effective_base_url.is_empty()) {
 		effective_base_url = _resolve_gateway_base_url();
+	}
+	if (service_mode_value != "offline" && effective_base_url.is_empty()) {
+		effective_base_url = _default_local_gateway_base_url();
 	}
 	if (service_mode_value == "offline") {
 		effective_base_url = String();

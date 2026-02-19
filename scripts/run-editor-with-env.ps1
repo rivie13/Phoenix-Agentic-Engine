@@ -1,5 +1,6 @@
 param(
-    [string]$EditorBinary = ".\\bin\\phoenix_agentic.windows.editor.dev.x86_64.exe"
+    [string]$EditorBinary = ".\\bin\\phoenix_agentic.windows.editor.dev.x86_64.exe",
+    [switch]$SkipConnectivityCheck
 )
 
 $ErrorActionPreference = "Stop"
@@ -45,6 +46,19 @@ if ([string]::IsNullOrWhiteSpace($env:PHOENIX_GATEWAY_BASE_URL) -and -not [strin
 
 if ([string]::IsNullOrWhiteSpace($env:PHOENIX_GATEWAY_BASE_URL)) {
     throw "PHOENIX_GATEWAY_BASE_URL or PHOENIX_PUBLIC_GATEWAY_URL must be set in .env.local before launching the editor."
+}
+
+if (-not $SkipConnectivityCheck.IsPresent) {
+    $checkScript = Join-Path $repoRoot "scripts\check-dev-connectivity.ps1"
+    if (-not (Test-Path $checkScript)) {
+        throw "Connectivity check script missing at $checkScript"
+    }
+
+    Write-Host "Running dev connectivity/auth preflight..." -ForegroundColor Cyan
+    & $checkScript -EnvFile ".env.local"
+    if ($LASTEXITCODE -ne 0) {
+        exit $LASTEXITCODE
+    }
 }
 
 if (-not (Test-Path $EditorBinary)) {

@@ -32,3 +32,17 @@ The key product goal is that external tools feel like “extensions” of the ed
 - Tools should be toggleable and permissioned.
 - Changes should be previewed before application where feasible.
 - Actions should be auditable (what ran, what changed, when).
+
+## Web MVP prototype scope (current planning target)
+
+For the first exported web prototype, the target scope is intentionally narrow:
+
+- **Assistant chat workflow** only (Ask/Plan/Agent interaction path).
+- **Pixel art workflow** via PixelPen only.
+
+The web MVP is expected to keep other editor integrations out of scope until parity and reliability are proven.
+
+Access model requirement for web MVP:
+
+- Web access to Phoenix runtime/orchestration features is **account-gated**.
+- Unauthenticated users should not be able to reach protected Phoenix runtime endpoints.
