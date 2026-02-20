@@ -51,6 +51,25 @@ read_file(".github/context/CURRENT_TASK.md")
 5. Commit the reset
 6. Offer to pick the next task
 
+### Assign to Copilot cloud agent (user says "assign to copilot", "cloud agent this")
+
+1. Confirm the issue is well-scoped with clear acceptance criteria
+2. Add the `cloud-agent` label to the issue
+3. The `cloud-agent-assign.yml` workflow will auto-assign Copilot
+4. Set "Work mode" to "Cloud Agent" on the project board
+5. Move board item to "Ready" if not already there
+6. Note in CURRENT_TASK.md that this task is delegated to cloud agent
+
+## Issue hierarchy
+
+Use sub-issues for structured work. See `.github/docs/PROJECT_WORKFLOW.md` for full details.
+
+- **Epic** (label: `epic`) — Multi-repo milestone, spans weeks–months
+- **Feature** (label: `feature`) — Single-repo deliverable, days–weeks
+- **Task** (label: `task`) — Single PR unit of work, hours–days
+
+Sub-issues can cross repos. An Engine Epic can have Backend or Interface sub-issues.
+
 ## Cross-repo awareness
 
 This is the **Engine** repo (Godot fork). Related repos:
@@ -63,6 +82,11 @@ If the current task has cross-repo dependencies, note them in the "Depends on" f
 
 - **Board URL:** https://github.com/users/rivie13/projects/3
 - **Columns:** Backlog → Ready → In Progress → In Review → Done
+
+## Reference docs
+
+- **Full workflow:** `.github/docs/PROJECT_WORKFLOW.md` — Ralph Loop, issue hierarchy, cloud agent flow
+- **Roadmap:** `phoenix_docs_private/ROADMAP.md`
 
 ## Privacy rules
 

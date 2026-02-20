@@ -1,0 +1,121 @@
+# Securely assign Copilot coding agent when the `cloud-agent` label is added.
+# Optional hardening: set repository variable CLOUD_AGENT_ALLOWED_USERS (comma-separated usernames).
+# If set, actor must be in this allowlist AND have write/maintain/admin permission.
+
+name: Assign Copilot Cloud Agent
+
+on:
+  issues:
+    types: [labeled]
+
+jobs:
+  assign-copilot:
+    if: github.event.label.name == 'cloud-agent'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      contents: read
+      actions: read
+    steps:
+      - name: Validate delegator permissions
+        id: guard
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const actor = context.actor;
+
+            let permission = 'none';
+            try {
+              const permissionResp = await github.rest.repos.getCollaboratorPermissionLevel({
+                owner,
+                repo,
+                username: actor,
+              });
+              permission = permissionResp.data.permission;
+            } catch (error) {
+              permission = 'none';
+            }
+
+            const allowedByPermission = ['admin', 'maintain', 'write'].includes(permission);
+
+            let allowlistRaw = '';
+            try {
+              const variableResp = await github.rest.actions.getRepoVariable({
+                owner,
+                repo,
+                name: 'CLOUD_AGENT_ALLOWED_USERS',
+              });
+              allowlistRaw = variableResp.data.value || '';
+            } catch (error) {
+              allowlistRaw = '';
+            }
+
+            const allowlist = (allowlistRaw || '')
+              .split(',')
+              .map((entry) => entry.trim())
+              .filter(Boolean);
+            const allowedByAllowlist = allowlist.length === 0 ? true : allowlist.includes(actor);
+
+            const allowed = allowedByPermission && allowedByAllowlist;
+
+            core.setOutput('allowed', String(allowed));
+            core.setOutput('permission', permission);
+            core.setOutput('allowlistEnabled', String(allowlist.length > 0));
+
+      - name: Reject unauthorized delegation
+        if: steps.guard.outputs.allowed != 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const issue_number = context.payload.issue.number;
+            const actor = context.actor;
+            const permission = '${{ steps.guard.outputs.permission }}';
+            const allowlistEnabled = '${{ steps.guard.outputs.allowlistEnabled }}' === 'true';
+
+            try {
+              await github.rest.issues.removeLabel({
+                owner,
+                repo,
+                issue_number,
+                name: 'cloud-agent',
+              });
+            } catch (error) {
+            }
+
+            const reason = allowlistEnabled
+              ? `@${actor} is not authorized by CLOUD_AGENT_ALLOWED_USERS or lacks required repository permission.`
+              : `@${actor} has '${permission}' permission; write/maintain/admin is required to delegate to Copilot.`;
+
+            await github.rest.issues.createComment({
+              owner,
+              repo,
+              issue_number,
+              body: `⛔ Cloud-agent delegation blocked. ${reason}`,
+            });
+
+      - name: Assign @copilot
+        if: steps.guard.outputs.allowed == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const issue_number = context.payload.issue.number;
+
+            await github.rest.issues.addAssignees({
+              owner,
+              repo,
+              issue_number,
+              assignees: ['copilot'],
+            });
+
+            await github.rest.issues.createComment({
+              owner,
+              repo,
+              issue_number,
+              body: '🤖 Copilot coding agent has been assigned via the `cloud-agent` label.',
+            });

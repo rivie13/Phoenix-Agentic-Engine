@@ -14,12 +14,23 @@ All tasks are tracked on the **Phoenix Project Board**: https://github.com/users
 
 Board columns: Backlog → Ready → In Progress → In Review → Done
 
-## Task lifecycle
+## Task lifecycle (Ralph Loop)
+
+The task lifecycle follows the **Ralph Loop** — a conditional iteration loop. See `.github/docs/PROJECT_WORKFLOW.md` for the full diagram and documentation.
 
 1. **Pick**: Read roadmap → select next task → create/assign issue → fill CURRENT_TASK.md → move to "In Progress"
-2. **Work**: Implement the task, updating checkpoint in CURRENT_TASK.md periodically
-3. **Complete**: Verify acceptance criteria → move to "In Review"/"Done" → reset CURRENT_TASK.md
-4. **Next**: Repeat from step 1
+2. **Decide**: Local IDE or Cloud Agent? If cloud, add `cloud-agent` label to auto-assign Copilot
+3. **Work**: Implement the task, updating checkpoint in CURRENT_TASK.md periodically
+4. **Complete**: Verify acceptance criteria → move to "In Review"/"Done" → reset CURRENT_TASK.md
+5. **Next**: Repeat from step 1
+
+## Issue hierarchy
+
+Use GitHub sub-issues for structured work: **Epic** → **Feature** → **Task**. Sub-issues can cross repos.
+
+## Cloud agent assignment
+
+When an issue is labeled `cloud-agent`, the `cloud-agent-assign.yml` workflow auto-assigns Copilot coding agent. Use this for well-scoped tasks with clear acceptance criteria.
 
 ## Cross-repo coordination
 
