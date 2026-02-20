@@ -46,10 +46,25 @@ read_file(".github/context/CURRENT_TASK.md")
 
 1. Read `.github/context/CURRENT_TASK.md`
 2. Verify acceptance criteria are met
-3. Move the issue to "Done" on the project board (or "In Review" if PR is open)
-4. Reset `.github/context/CURRENT_TASK.md` to the "no active task" state
-5. Commit the reset
-6. Offer to pick the next task
+3. **Close the GitHub issue** — do NOT rely solely on `Closes #N` in the PR body. Explicitly close it:
+   ```
+   mcp_github_github_issue_write(method="update", owner="rivie13", repo="Phoenix-Agentic-Engine", issueNumber=<N>, state="closed", stateReason="completed")
+   ```
+4. **Close related sub-issues** — list sub-issues of the current issue and verify each completed one is closed:
+   ```
+   mcp_github_github_issue_read(owner="rivie13", repo="Phoenix-Agentic-Engine", issueNumber=<PARENT_N>)
+   ```
+   For each sub-issue whose work is merged/done, close it explicitly if still open:
+   ```
+   mcp_github_github_issue_write(method="update", owner="rivie13", repo="<SUB_ISSUE_REPO>", issueNumber=<SUB_N>, state="closed", stateReason="completed")
+   ```
+5. **Check parent epic** — if this issue was a sub-issue of an epic, read the parent epic and check whether all sibling sub-issues are now closed. If all are done, close the parent epic too.
+6. Move the issue/epic to "Done" on the project board
+7. Reset `.github/context/CURRENT_TASK.md` to the "no active task" state
+8. Commit the reset
+9. Offer to pick the next task
+
+> **Why explicit closing?** GitHub's `Closes #N` auto-close only works when the PR merges into the repo's *default branch*. Subfeature PRs that merge into a `feature/*` branch will NOT auto-close their linked issues. Always close issues explicitly via MCP tools.
 
 ### Assign to Copilot cloud agent (user says "assign to copilot", "cloud agent this")
 
