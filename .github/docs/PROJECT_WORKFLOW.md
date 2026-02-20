@@ -100,28 +100,34 @@ The Ralph Loop is the core task lifecycle. It is a **conditional iteration loop*
 
 Use GitHub's **sub-issues** feature to structure work in a hierarchy. This creates traceability from high-level goals down to individual PRs.
 
-### Three-Level Hierarchy
+### Three-Level Hierarchy with Branch Mapping
 
 ```
 Epic (high-level goal, spans multiple repos)
+│   Branch: feature/<topic>  →  PR targets main
 ├── Feature (deliverable, usually one repo)
-│   ├── Task (implementable unit → becomes a PR)
-│   ├── Task
-│   └── Task
+│   ├── Task  →  subfeature/task/<desc>      →  PR targets feature/<topic>
+│   ├── Bug   →  subfeature/bugfix/<desc>     →  PR targets feature/<topic>
+│   └── Chore →  subfeature/chore/<desc>      →  PR targets feature/<topic>
 ├── Feature (another repo)
-│   ├── Task
-│   └── Task
+│   ├── Task  →  subfeature/task/<desc>       →  PR targets feature/<topic>
+│   └── Test  →  subfeature/test/<desc>       →  PR targets feature/<topic>
 └── Feature
-    └── Task
+    └── Docs  →  subfeature/docs/<desc>       →  PR targets feature/<topic>
 ```
 
 ### Level Definitions
 
-| Level | Scope | Lifetime | Label | Example |
-|-------|-------|----------|-------|---------|
-| **Epic** | Multi-repo milestone | Weeks–months | `epic` | "Phase 3: .NET Gateway + Service Bus wiring" |
-| **Feature** | Single repo deliverable | Days–weeks | `feature` | "Implement JWT auth middleware in Gateway" |
-| **Task** | Single PR unit of work | Hours–days | `task` | "Add token validation to auth pipeline" |
+| Level | Scope | Lifetime | Label | Branch pattern | Example |
+|-------|-------|----------|-------|----------------|---------|
+| **Epic** | Multi-repo milestone | Weeks–months | `epic` | `feature/<topic>` → PR to `main` | "Phase 3: .NET Gateway + Service Bus wiring" |
+| **Feature** | Single repo deliverable | Days–weeks | `feature` | (same as parent epic branch) | "Implement JWT auth middleware in Gateway" |
+| **Task** | Single PR unit of work | Hours–days | `task` | `subfeature/task/<desc>` → PR to `feature/*` | "Add token validation to auth pipeline" |
+| **Bug** | Bug fix within a feature | Hours–days | `bug` | `subfeature/bugfix/<desc>` → PR to `feature/*` | "Fix token expiry edge case" |
+| **Refactor** | Code restructuring | Hours–days | `refactor` | `subfeature/refactor/<desc>` → PR to `feature/*` | "Extract validation into middleware" |
+| **Test** | Test additions/fixes | Hours–days | `test` | `subfeature/test/<desc>` → PR to `feature/*` | "Add auth integration tests" |
+| **Docs** | Documentation | Hours–days | `docs` | `subfeature/docs/<desc>` → PR to `feature/*` | "Document auth flow" |
+| **Chore** | Maintenance/tooling | Hours–days | `chore` | `subfeature/chore/<desc>` → PR to `feature/*` | "Update CI pipeline" |
 
 ### How to Create the Hierarchy
 
@@ -161,9 +167,14 @@ The project board shows all of these regardless of which repo they live in.
 ### Labels to Use
 
 Create these labels in each repo:
-- `epic` — Multi-repo milestone
-- `feature` — Repo-level deliverable
-- `task` — PR-level unit of work
+- `epic` — Multi-repo milestone → maps to `feature/<topic>` branch
+- `feature` — Repo-level deliverable (sub-issue of epic)
+- `task` — PR-level unit of work → maps to `subfeature/task/<desc>` branch
+- `bug` — Bug fix → maps to `subfeature/bugfix/<desc>` branch
+- `refactor` — Code restructuring → maps to `subfeature/refactor/<desc>` branch
+- `test` — Test additions/fixes → maps to `subfeature/test/<desc>` branch
+- `docs` — Documentation → maps to `subfeature/docs/<desc>` branch
+- `chore` — Maintenance/tooling → maps to `subfeature/chore/<desc>` branch
 - `cloud-agent` — Assign to Copilot coding agent
 - `blocked` — Cannot proceed (note reason in issue)
 

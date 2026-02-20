@@ -21,30 +21,66 @@ description: Enforce branch hygiene, pre-commit validation, PR setup via GitHub 
 
 ## Branch workflow
 
-1. Sync base branch:
+### Hierarchy
+
+| Tier | Pattern | Branches from | Merges into |
+|------|---------|---------------|-------------|
+| **main** | `main` | — | — |
+| **feature** | `feature/<topic>` | `main` | `main` |
+| **subfeature** | `subfeature/<type>/<desc>` | parent `feature/*` | parent `feature/*` |
+
+### Starting a feature
 
 ```bash
-git checkout feature/agent-backend-integration   # or main
-git pull --rebase origin feature/agent-backend-integration
+git checkout main
+git pull --rebase origin main
+git checkout -b feature/<topic>
 ```
 
-2. Create focused branch:
+### Starting a subfeature (daily work)
 
 ```bash
-git checkout -b feature/<short-topic>
+git checkout feature/<topic>
+git pull --rebase origin feature/<topic>
+git checkout -b subfeature/<type>/<short-description>
 ```
+
+Where `<type>` is one of: `task`, `bugfix`, `refactor`, `test`, `docs`, `chore`.
+
+**Examples:**
+- `subfeature/task/wire-up-assistant-panel`
+- `subfeature/bugfix/fix-panel-null-crash`
+- `subfeature/refactor/extract-message-renderer`
+
+### Subfeature PRs target the feature branch — never `main`
+
+```bash
+# PR: subfeature/task/wire-up-assistant-panel → feature/assistant-panel
+```
+
+### Feature PRs target `main` (when all subfeatures are merged)
+
+```bash
+# PR: feature/assistant-panel → main   (will be large — that is expected)
+```
+
+### Top-level branches (non-feature work)
+
+For small standalone changes: `fix/<topic>`, `chore/<topic>`, `mcp-docs/<topic>` — branch from and merge to `main`.
 
 3. Keep PR scope single-purpose and small.
 
 ## PR size discipline (mandatory)
 
 - Keep PRs small and focused — one logical change per PR.
-- If a feature branch grows large, break it into sub-branches:
-  1. Create sub-branches off the feature branch for discrete pieces of work.
-  2. Open PRs from each sub-branch into the feature branch.
-  3. Once sub-branch PRs are merged into the feature branch, open a single PR from the feature branch into `main`.
-- Target: PRs should ideally be under ~400 lines of meaningful change (excluding generated files, lock files, submodule pointer updates).
-- If a PR exceeds this, strongly consider splitting before requesting review.
+- **Subfeature → feature PRs** are the normal unit of review.
+- **Feature → main PRs** will be large — that is expected.
+- Break work into subfeature branches early:
+  1. Create `subfeature/<type>/<description>` branches off the parent `feature/*` branch.
+  2. Open PRs from each subfeature branch into the `feature/*` branch.
+  3. Once all subfeature PRs are merged, open a single PR from `feature/*` into `main`.
+- Target: subfeature PRs should ideally be under ~400 lines of meaningful change (excluding generated files, lock files, submodule pointer updates).
+- If a subfeature PR exceeds this, strongly consider splitting before requesting review.
 
 ## Pre-commit quality gate (required)
 
@@ -117,6 +153,13 @@ If any job fails, use the GitHub Actions Debug skill flow to inspect logs, fix r
 - For non-sensitive, public-facing work: assign to Copilot (cloud agent) using `mcp_github_github_assign_copilot_to_issue`.
 - Do NOT create public issues for private/sensitive matters (secrets, auth, proprietary logic, infrastructure, security vulnerabilities).
 - Search for existing issues before creating duplicates using `mcp_github_github_search_issues`.
+
+### Issue–branch alignment
+
+- **Epic issues** (label: `epic`) map to `feature/*` branches.
+- **Sub-issues** (labels: `task`, `bug`, `refactor`, `test`, `docs`, `chore`) map to `subfeature/<type>/<desc>` branches.
+- Create sub-issues using `mcp_github_github_sub_issue_write`, linking them to the parent epic.
+- Subfeature PRs reference sub-issues with `Closes #N`. Feature PRs reference the epic with `Closes #N`.
 
 ## Engine-specific checks for PR readiness
 

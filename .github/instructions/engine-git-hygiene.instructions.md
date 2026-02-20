@@ -14,15 +14,66 @@ Use it whenever making code changes, preparing pull requests, or handling review
 
 ## Branch hygiene
 
-- Always branch from the target base (usually `feature/agent-backend-integration` or `main`).
-- Keep one focused concern per branch/PR.
-- Branch naming:
-  - `feature/<short-topic>`
-  - `fix/<short-topic>`
-  - `mcp-docs/<short-topic>`
-  - `chore/<short-topic>` for non-functional maintenance
-- Avoid direct commits to shared integration branches.
-- Rebase/sync regularly with the base branch to reduce merge drift.
+### Hierarchy
+
+There are **three branch tiers**:
+
+| Tier | Pattern | Branches from | Merges into | Purpose |
+|------|---------|---------------|-------------|---------|
+| **main** | `main` | — | — | Stable release line |
+| **feature** | `feature/<topic>` | `main` | `main` | Large, multi-PR deliverable |
+| **subfeature** | `subfeature/<type>/<description>` | parent `feature/*` | parent `feature/*` | Focused piece of work within a feature |
+
+### Feature branches (`feature/*`)
+
+- Branch from `main` for new top-level work.
+- Merged into `main` **only when the entire feature is complete and validated**.
+- The final `feature → main` PR will be large — that is expected and acceptable.
+- Keep one focused feature per branch.
+
+### Subfeature branches (`subfeature/*`)
+
+Subfeature branches are the primary unit of daily work. They branch off a parent `feature/*` branch and merge back into it via small, focused PRs.
+
+**Naming convention** — always three segments:
+
+```
+subfeature/<type>/<short-description>
+```
+
+Where `<type>` is one of:
+
+| Type | Use for |
+|------|---------|
+| `task` | Planned implementation work |
+| `bugfix` | Bug discovered during feature development |
+| `refactor` | Structural improvement within the feature |
+| `test` | Adding/improving tests for the feature |
+| `docs` | Documentation specific to the feature |
+| `chore` | Non-functional maintenance (deps, config, formatting) |
+
+**Examples:**
+- `subfeature/task/wire-up-assistant-panel`
+- `subfeature/bugfix/fix-panel-null-crash`
+- `subfeature/refactor/extract-message-renderer`
+- `subfeature/test/add-panel-unit-tests`
+- `subfeature/docs/update-architecture-after-panel`
+
+### Top-level branches (non-feature work)
+
+For small, standalone changes that do not belong to a larger feature:
+- `fix/<short-topic>` — standalone bug fixes (branches from and merges to `main`)
+Examples:
+- `chore/<short-topic>` — non-functional maintenance
+- `mcp-docs/<short-topic>` — mcp docs server work
+- `docs/<short-topic>` — documentation work
+
+### Rules
+
+- Avoid direct commits to `main` or shared `feature/*` branches.
+- Rebase/sync regularly with the parent branch to reduce merge drift.
+- **Subfeature branches MUST target their parent `feature/*` branch** — never `main` directly.
+- Delete subfeature branches after merge into the feature branch.
 
 ## Commit hygiene
 
@@ -41,12 +92,14 @@ Use it whenever making code changes, preparing pull requests, or handling review
 ## PR size discipline (mandatory)
 
 - Keep PRs small and focused — one logical change per PR.
-- If a feature branch grows large, break it into sub-branches:
-  1. Create sub-branches off the feature branch for discrete pieces of work.
-  2. Open PRs from each sub-branch into the feature branch.
-  3. Once sub-branch PRs are merged into the feature branch, open a single PR from the feature branch into `main`.
-- Target: PRs should ideally be under ~400 lines of meaningful change (excluding generated files, lock files, submodule pointer updates).
-- If a PR exceeds this, strongly consider splitting before requesting review.
+- **Subfeature → feature PRs** should be the normal unit of review. Each should cover one discrete piece of work.
+- **Feature → main PRs** will be large (accumulating all merged subfeature work). This is expected. The feature-level PR serves as the final integration gate and should summarize all subfeature PRs that were merged.
+- Break work into subfeature branches early. Do not wait until a feature branch is bloated to split.
+  1. Create `subfeature/<type>/<description>` branches off the parent `feature/*` branch.
+  2. Open PRs from each subfeature branch into the `feature/*` branch.
+  3. Once all subfeature PRs are merged and the feature is complete, open a single PR from `feature/*` into `main`.
+- Target: subfeature PRs should ideally be under ~400 lines of meaningful change (excluding generated files, lock files, submodule pointer updates).
+- If a subfeature PR exceeds this, strongly consider splitting into further subfeature branches.
 - Never let PRs accumulate dozens of unrelated changes — this makes review impossible and increases merge risk.
 
 ## Pull request hygiene
@@ -102,6 +155,26 @@ Terminal git is still appropriate for local worktree tasks (status, branch, add/
 - For public-facing, non-sensitive issues: assign to Copilot (cloud agent) when appropriate using `mcp_github_github_assign_copilot_to_issue`.
 - Do NOT create public issues or assign to Copilot for work involving private/sensitive matters (secrets, auth internals, proprietary logic, infrastructure details, security vulnerabilities).
 - Search for existing issues before creating duplicates using `mcp_github_github_search_issues`.
+
+### Issue–branch alignment (mandatory)
+
+Issues must mirror the branch hierarchy so that work is traceable:
+
+| Issue type | Label | Maps to branch | Description |
+|------------|-------|----------------|-------------|
+| **Epic** | `epic` | `feature/<topic>` | Multi-PR deliverable; the parent issue for all subfeature work |
+| **Task** | `task` | `subfeature/task/<desc>` | Planned implementation work within the feature |
+| **Bug** | `bug` | `subfeature/bugfix/<desc>` | Bug found during feature development |
+| **Refactor** | `refactor` | `subfeature/refactor/<desc>` | Structural cleanup within the feature |
+| **Test** | `test` | `subfeature/test/<desc>` | Test coverage for the feature |
+| **Docs** | `docs` | `subfeature/docs/<desc>` | Documentation for the feature |
+| **Chore** | `chore` | `subfeature/chore/<desc>` | Non-functional maintenance |
+
+- **Epic issues** should be created for each `feature/*` branch. They act as the parent tracker.
+- **Sub-issues** should be created for each `subfeature/*` branch using `mcp_github_github_sub_issue_write`. Each sub-issue links to its parent epic.
+- When creating a subfeature PR, reference its sub-issue with `Closes #N`.
+- When merging the final `feature → main` PR, reference the parent epic with `Closes #N`.
+- This creates a clear audit trail: epic → sub-issues → subfeature PRs → feature PR → main.
 
 ## Engine quality gate (required before PR readiness)
 

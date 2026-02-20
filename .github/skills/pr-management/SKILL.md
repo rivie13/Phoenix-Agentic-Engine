@@ -16,33 +16,57 @@ description: Create, update, and manage GitHub pull requests across Phoenix repo
 
 - **Owner**: `rivie13`
 - **Repo**: `Phoenix-Agentic-Engine`
-- **Canonical integration base**: `feature/agent-backend-integration` (unless user specifies another base)
+- **Canonical integration base**: Determined by branch tier:
+  - Subfeature branches → parent `feature/*` branch
+  - Feature branches → `main`
+  - Standalone fix/chore branches → `main`
 
 ## Branch hygiene (required)
 
-1. Start from the latest target base branch.
-2. Create a focused topic branch (`feature/*`, `fix/*`, `mcp-docs/*`, etc.).
+### Hierarchy
+
+| Tier | Pattern | Branches from | Merges into |
+|------|---------|---------------|-------------|
+| **main** | `main` | — | — |
+| **feature** | `feature/<topic>` | `main` | `main` |
+| **subfeature** | `subfeature/<type>/<desc>` | parent `feature/*` | parent `feature/*` |
+
+Subfeature `<type>` values: `task`, `bugfix`, `refactor`, `test`, `docs`, `chore`.
+
+1. Start from the latest target base branch (feature branch for subfeatures, main for features).
+2. Create a focused topic branch with the appropriate naming convention.
 3. Keep PR scope narrow; avoid unrelated file changes.
 4. Run pre-commit + relevant tests before push.
 5. Never force-push shared branches unless explicitly coordinated.
+6. **Subfeature PRs MUST target their parent `feature/*` branch** — never `main`.
 
 ## PR size discipline (mandatory)
 
 - Keep PRs small and focused — one logical change per PR.
-- If a feature branch grows large, break it into sub-branches:
-  1. Create sub-branches off the feature branch for discrete pieces of work.
-  2. Open PRs from each sub-branch into the feature branch.
-  3. Once sub-branch PRs are merged into the feature branch, open a single PR from the feature branch into `main`.
-- Target: PRs should ideally be under ~400 lines of meaningful change (excluding generated files, lock files, submodule pointer updates).
-- If a PR exceeds this, strongly consider splitting before requesting review.
+- **Subfeature → feature PRs** are the normal unit of review.
+- **Feature → main PRs** will be large (accumulating all merged subfeature work). This is expected.
+- Break work into subfeature branches early:
+  1. Create `subfeature/<type>/<description>` branches off the parent `feature/*` branch.
+  2. Open PRs from each subfeature branch into the `feature/*` branch.
+  3. Once all subfeature PRs are merged, open a single PR from `feature/*` into `main`.
+- Target: subfeature PRs should ideally be under ~400 lines of meaningful change (excluding generated files, lock files, submodule pointer updates).
+- If a subfeature PR exceeds this, strongly consider splitting before requesting review.
 - Never let PRs accumulate dozens of unrelated changes.
 
-Example setup:
+Example setup (subfeature workflow):
 
 ```bash
-git checkout feature/agent-backend-integration
-git pull --rebase origin feature/agent-backend-integration
-git checkout -b <topic-branch>
+git checkout feature/assistant-panel
+git pull --rebase origin feature/assistant-panel
+git checkout -b subfeature/task/wire-up-panel-shell
+```
+
+Example setup (feature workflow):
+
+```bash
+git checkout main
+git pull --rebase origin main
+git checkout -b feature/assistant-panel
 ```
 
 ## Create a Pull Request
@@ -78,8 +102,8 @@ mcp_github_github_create_pull_request(
   repo="Phoenix-Agentic-Engine",
   title="<descriptive title>",
   body="<use template if found>",
-  head="<feature-branch>",
-  base="feature/agent-backend-integration"
+  head="<branch-name>",
+  base="<parent branch>"   # feature/* for subfeatures, main for features
 )
 ```
 
@@ -156,8 +180,10 @@ mcp_github_github_push_files(
 
 ## Branch conventions
 
-- `feature/<name>` — new features
-- `fix/<name>` — bug fixes
+- `feature/<name>` — new features (branches from `main`, merges to `main`)
+- `subfeature/<type>/<name>` — work within a feature (branches from `feature/*`, merges to `feature/*`)
+  - Types: `task`, `bugfix`, `refactor`, `test`, `docs`, `chore`
+- `fix/<name>` — standalone bug fixes (branches from `main`)
 - `upstream-sync` — reserved for upstream Godot sync
 
 ## Issue creation (public repo — never use `gh` CLI)
@@ -167,3 +193,10 @@ mcp_github_github_push_files(
 - Do NOT create public issues for private/sensitive matters (secrets, auth, proprietary logic, security vulnerabilities).
 - Search for existing issues before creating duplicates using `mcp_github_github_search_issues`.
 - Use issues to break large features into smaller, trackable units of work.
+
+### Issue–branch alignment
+
+- **Epic issues** (label: `epic`) map to `feature/*` branches.
+- **Sub-issues** (labels: `task`, `bug`, `refactor`, `test`, `docs`, `chore`) map to `subfeature/<type>/<desc>` branches.
+- Create sub-issues using `mcp_github_github_sub_issue_write`, linking them to the parent epic.
+- Subfeature PRs reference sub-issues with `Closes #N`. Feature PRs reference the epic with `Closes #N`.

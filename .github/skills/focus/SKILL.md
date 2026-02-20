@@ -64,11 +64,27 @@ read_file(".github/context/CURRENT_TASK.md")
 
 Use sub-issues for structured work. See `.github/docs/PROJECT_WORKFLOW.md` for full details.
 
-- **Epic** (label: `epic`) — Multi-repo milestone, spans weeks–months
-- **Feature** (label: `feature`) — Single-repo deliverable, days–weeks
-- **Task** (label: `task`) — Single PR unit of work, hours–days
+- **Epic** (label: `epic`) — Multi-PR milestone, maps to a `feature/*` branch, spans weeks–months
+- **Feature** (label: `feature`) — Single-repo deliverable, days–weeks (may also map to a `feature/*` branch)
+- **Task** (label: `task`) — Single PR unit of work, maps to a `subfeature/task/<desc>` branch, hours–days
+- **Bug** (label: `bug`) — Maps to a `subfeature/bugfix/<desc>` branch
+- **Refactor/Test/Docs/Chore** — Maps to `subfeature/<type>/<desc>` branches
 
 Sub-issues can cross repos. An Engine Epic can have Backend or Interface sub-issues.
+
+### Issue–branch mapping
+
+| Issue type | Branch pattern | PR target |
+|------------|---------------|-----------|
+| Epic | `feature/<topic>` | `main` |
+| Task | `subfeature/task/<desc>` | parent `feature/*` |
+| Bug | `subfeature/bugfix/<desc>` | parent `feature/*` |
+| Refactor | `subfeature/refactor/<desc>` | parent `feature/*` |
+| Test | `subfeature/test/<desc>` | parent `feature/*` |
+| Docs | `subfeature/docs/<desc>` | parent `feature/*` |
+| Chore | `subfeature/chore/<desc>` | parent `feature/*` |
+
+When picking a task, identify which epic/feature branch it belongs to and branch from that feature branch.
 
 ## Cross-repo awareness
 
