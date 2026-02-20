@@ -160,6 +160,50 @@ mcp_github_github_request_copilot_review(owner="rivie13", repo="Phoenix-Agentic-
 4. Push updates to the same PR branch.
 5. Request Copilot re-review only if needed and missing for the latest commit set.
 
+## Post-merge issue completion (mandatory)
+
+After a PR is merged, **always** verify and close linked issues. Do NOT rely solely on `Closes #N` in the PR body — GitHub only auto-closes issues when a PR merges into the repo's **default branch**. Subfeature PRs merging into `feature/*` branches will NOT auto-close issues.
+
+### Step 1: Close the linked issue
+
+```
+mcp_github_github_issue_write(method="update", owner="rivie13", repo="Phoenix-Agentic-Engine", issueNumber=<N>, state="closed", stateReason="completed")
+```
+
+### Step 2: Close any completed sub-issues
+
+Read the parent issue to list sub-issues:
+
+```
+mcp_github_github_issue_read(owner="rivie13", repo="Phoenix-Agentic-Engine", issueNumber=<PARENT_N>)
+```
+
+For each sub-issue whose work is merged, close it if still open:
+
+```
+mcp_github_github_issue_write(method="update", owner="rivie13", repo="<SUB_ISSUE_REPO>", issueNumber=<SUB_N>, state="closed", stateReason="completed")
+```
+
+### Step 3: Check if parent epic should be closed
+
+If the closed issue was a sub-issue of an epic, check whether **all** sibling sub-issues are now closed. If so, close the epic:
+
+```
+mcp_github_github_issue_write(method="update", owner="rivie13", repo="Phoenix-Agentic-Engine", issueNumber=<EPIC_N>, state="closed", stateReason="completed")
+```
+
+### Step 4: Set Status → Done on project board
+
+Add a signal label to move the issue to Done:
+
+```
+mcp_github_github_issue_write(method="update", owner="rivie13", repo="Phoenix-Agentic-Engine", issueNumber=<N>, labels=["task", "set:status:done"])
+```
+
+The `sync-project-fields.yml` workflow will set the Status field and remove the signal label.
+
+> **Rule:** Never consider a PR "fully done" until all linked issues are verified closed and moved to Done. This is as important as passing CI.
+
 ## Update PR Branch (rebase/merge from base)
 
 ```

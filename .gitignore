@@ -87,11 +87,20 @@ __pycache__/
 # Python modules
 .*_cache/
 
+# Phoenix MCP docs image marker — local build state, not committed
+# The stub is committed via git add -f and protected with skip-worktree.
+# Local builds update this file but changes stay local.
+modules/ultimate_ai/.phoenix_docs_image_revision
+
 # Documentation
 doc/_build/
 phoenix_docs_private/
 phoenix_docs_private/ARCHITECTURE.md
 .github/copilot-instructions.md
+
+# Active task pointer (local working copy — never commit)
+# The committed stub template lives at .github/context/CURRENT_TASK.md.stub
+.github/context/CURRENT_TASK.md
 
 # Private Copilot instruction files (local only — never commit)
 .github/instructions/private-*.instructions.md

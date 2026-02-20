@@ -88,11 +88,17 @@ The Ralph Loop is the core task lifecycle. It is a **conditional iteration loop*
 - Code review (human or Copilot review)
 - Merge when approved
 
-#### 5. RESET — Complete and loop
+#### 5. RESET — Complete, close issues, and loop
+- **Close the GitHub issue explicitly** using `mcp_github_github_issue_write` (state: `closed`, stateReason: `completed`)
+  - Do NOT rely solely on `Closes #N` in the PR body — GitHub only auto-closes issues when merging into the default branch. Subfeature PRs merging into `feature/*` branches will NOT auto-close linked issues.
+- **Close completed sub-issues** — verify each sub-issue whose work was merged is closed. Close any that remain open.
+- **Close parent epic if all children are done** — if the completed task was a sub-issue, check the parent epic. If all siblings are closed, close the epic too.
 - Board item moves to **Done**
 - `CURRENT_TASK.md` is reset to "no active task"
 - The `focus` skill offers to pick the next task
 - Loop restarts
+
+> **CRITICAL:** Never skip issue closing. A task is not complete until its GitHub issue is verified closed.
 
 ---
 

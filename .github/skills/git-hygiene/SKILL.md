@@ -147,6 +147,26 @@ If any job fails, use the GitHub Actions Debug skill flow to inspect logs, fix r
 
 6. Apply fixes and re-run quality gate.
 
+## Post-merge issue completion (mandatory)
+
+After any PR is merged, **always close linked issues explicitly**. Do NOT rely solely on `Closes #N` in the PR body — GitHub only auto-closes issues when merging into the repo's **default branch**. Subfeature PRs that merge into `feature/*` branches will NOT auto-close linked issues.
+
+1. **Close the linked issue:**
+   ```
+   mcp_github_github_issue_write(method="update", owner="rivie13", repo="Phoenix-Agentic-Engine", issueNumber=<N>, state="closed", stateReason="completed")
+   ```
+
+2. **Close completed sub-issues** — if this was a parent issue with sub-issues, verify each merged sub-issue is closed.
+
+3. **Close parent epic if all children are done** — if this was a sub-issue, check whether all sibling sub-issues are now closed. If so, close the parent epic too.
+
+4. **Set Status → Done** on the project board using a signal label:
+   ```
+   mcp_github_github_issue_write(method="update", owner="rivie13", repo="Phoenix-Agentic-Engine", issueNumber=<N>, labels=["task", "set:status:done"])
+   ```
+
+> **Rule:** A PR is not "fully done" until all linked issues are verified closed.
+
 ## Issue creation (public repo rules)
 
 - Create issues using `mcp_github_github_issue_write` — never `gh issue create`.
