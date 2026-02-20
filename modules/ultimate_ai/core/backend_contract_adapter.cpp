@@ -33,7 +33,10 @@
 
 #include "backend_contract_adapter.h"
 
+#include "core/config/project_settings.h"
 #include "core/crypto/crypto.h"
+#include "core/io/dir_access.h"
+#include "core/io/file_access.h"
 #include "core/io/json.h"
 #include "core/object/class_db.h"
 #include "core/os/os.h"
@@ -77,8 +80,12 @@ inline String _normalize_service_mode(const String &p_mode) {
 	return "managed";
 }
 
+inline bool _service_mode_requires_auth_header(const String &p_mode) {
+	return p_mode == "managed" || p_mode == "managed_byok" || p_mode == "byok";
+}
+
 inline bool _allow_env_token_hooks() {
-#ifdef DEBUG_ENABLED
+#if defined(DEBUG_ENABLED) || defined(TOOLS_ENABLED)
 	return true;
 #else
 	return false;
@@ -86,11 +93,145 @@ inline bool _allow_env_token_hooks() {
 }
 
 inline bool _allow_static_runtime_tokens() {
-#ifdef DEBUG_ENABLED
+#if defined(DEBUG_ENABLED) || defined(TOOLS_ENABLED)
 	return true;
 #else
 	return false;
 #endif
+}
+
+String _get_env_file_value(const String &p_file_path, const String &p_key) {
+	if (p_file_path.is_empty() || p_key.is_empty() || !FileAccess::exists(p_file_path)) {
+		return String();
+	}
+
+	Ref<FileAccess> env_file = FileAccess::open(p_file_path, FileAccess::READ);
+	if (env_file.is_null()) {
+		return String();
+	}
+
+	while (!env_file->eof_reached()) {
+		String line = env_file->get_line().strip_edges();
+		if (!line.is_empty() && line.unicode_at(0) == 0xFEFF) {
+			line = line.substr(1, line.length() - 1);
+		}
+		if (line.is_empty() || line.begins_with("#")) {
+			continue;
+		}
+
+		int separator = line.find("=");
+		if (separator <= 0) {
+			continue;
+		}
+
+		String key = line.substr(0, separator).strip_edges();
+		if (key != p_key) {
+			continue;
+		}
+
+		int value_start = separator + 1;
+		int value_len = line.length() - value_start;
+		String value = line.substr(value_start, value_len).strip_edges();
+		if (value.length() >= 2) {
+			if ((value.begins_with("\"") && value.ends_with("\"")) || (value.begins_with("'") && value.ends_with("'"))) {
+				value = value.substr(1, value.length() - 2);
+			}
+		}
+		return value.strip_edges();
+	}
+
+	return String();
+}
+
+PackedStringArray _collect_env_file_candidates() {
+	PackedStringArray candidates;
+
+	auto append_candidate_dirs = [&](const String &p_dir) {
+		String current = p_dir.simplify_path();
+		for (int depth = 0; depth < 6; depth++) {
+			if (current.is_empty()) {
+				break;
+			}
+
+			String candidate = current.path_join(".env.local").simplify_path();
+			if (!candidate.is_empty() && !candidates.has(candidate)) {
+				candidates.push_back(candidate);
+			}
+
+			String parent = current.get_base_dir().simplify_path();
+			if (parent.is_empty() || parent == current) {
+				break;
+			}
+			current = parent;
+		}
+	};
+
+	ProjectSettings *project_settings = ProjectSettings::get_singleton();
+	if (project_settings) {
+		String project_root = project_settings->globalize_path("res://").simplify_path();
+		append_candidate_dirs(project_root);
+	}
+
+	Ref<DirAccess> current_dir_access = DirAccess::create(DirAccess::ACCESS_FILESYSTEM);
+	if (current_dir_access.is_valid()) {
+		String current_dir = current_dir_access->get_current_dir().simplify_path();
+		append_candidate_dirs(current_dir);
+	}
+
+	OS *os = OS::get_singleton();
+	if (os) {
+		String executable_dir = os->get_executable_path().get_base_dir().simplify_path();
+		append_candidate_dirs(executable_dir);
+	}
+
+	PackedStringArray deduped;
+	for (int i = 0; i < candidates.size(); i++) {
+		String candidate = candidates[i].strip_edges();
+		if (candidate.is_empty()) {
+			continue;
+		}
+		if (deduped.has(candidate)) {
+			continue;
+		}
+		deduped.push_back(candidate);
+	}
+
+	return deduped;
+}
+
+String _resolve_gateway_api_token_from_env_sources() {
+	OS *os = OS::get_singleton();
+	if (os) {
+		if (os->has_environment("PHOENIX_API_TOKEN")) {
+			String value = os->get_environment("PHOENIX_API_TOKEN").strip_edges();
+			if (!value.is_empty()) {
+				return value;
+			}
+		}
+		if (os->has_environment("PHOENIX_GATEWAY_API_TOKEN")) {
+			String value = os->get_environment("PHOENIX_GATEWAY_API_TOKEN").strip_edges();
+			if (!value.is_empty()) {
+				return value;
+			}
+		}
+	}
+
+	PackedStringArray candidates = _collect_env_file_candidates();
+	for (int i = 0; i < candidates.size(); i++) {
+		String value = _get_env_file_value(candidates[i], "PHOENIX_API_TOKEN");
+		if (!value.is_empty()) {
+			return value;
+		}
+	}
+
+	for (int i = 0; i < candidates.size(); i++) {
+		String value = _get_env_file_value(candidates[i], "PHOENIX_GATEWAY_API_TOKEN");
+		if (!value.is_empty()) {
+			return value;
+		}
+	}
+
+	return String();
 }
 
 void _apply_default_command_allowlist(PackedStringArray &r_allowlist) {
@@ -140,36 +281,39 @@ String UltimateAIBackendContractAdapter::_generate_request_id(const String &p_pr
 }
 
 String UltimateAIBackendContractAdapter::_resolve_auth_token() const {
-	if (!_allow_static_runtime_tokens()) {
-		return String();
-	}
-
 	String token = runtime_config.token.strip_edges();
-	if (!token.is_empty()) {
+	if (!token.is_empty() && _allow_static_runtime_tokens()) {
 		return token;
 	}
 
 	String hook = runtime_config.token_hook.strip_edges();
-	if (hook.is_empty()) {
+	if (!hook.is_empty()) {
+		if (hook.begins_with("env:")) {
+			if (_allow_env_token_hooks()) {
+				String env_var = hook.substr(4, hook.length()).strip_edges();
+				if (!env_var.is_empty() && OS::get_singleton()->has_environment(env_var)) {
+					String env_value = OS::get_singleton()->get_environment(env_var).strip_edges();
+					if (!env_value.is_empty()) {
+						return env_value;
+					}
+				}
+			}
+		} else {
+			if (_allow_static_runtime_tokens()) {
+				return hook;
+			}
+		}
+	}
+
+	if (_normalize_service_mode(runtime_config.auth_mode) == "offline") {
 		return String();
 	}
 
-	if (hook.begins_with("env:")) {
-		if (!_allow_env_token_hooks()) {
-			return String();
-		}
-
-		String env_var = hook.substr(4, hook.length()).strip_edges();
-		if (env_var.is_empty()) {
-			return String();
-		}
-		if (!OS::get_singleton()->has_environment(env_var)) {
-			return String();
-		}
-		return OS::get_singleton()->get_environment(env_var).strip_edges();
+	if (!_allow_env_token_hooks()) {
+		return String();
 	}
 
-	return hook;
+	return _resolve_gateway_api_token_from_env_sources();
 }
 
 String UltimateAIBackendContractAdapter::_extract_header_value(const List<String> &p_headers, const String &p_key) const {
@@ -314,8 +458,9 @@ Dictionary UltimateAIBackendContractAdapter::_request_once(HTTPClient::Method p_
 	headers.push_back(String("Content-Type: application/json"));
 	headers.push_back(vformat("%s: %s", HEADER_REQUEST_ID, request_id));
 	headers.push_back(vformat("%s: %s", HEADER_CORRELATION_ID, correlation_id));
-	headers.push_back(vformat("x-phoenix-service-mode: %s", runtime_config.auth_mode));
-	headers.push_back(vformat("x-phoenix-auth-mode: %s", runtime_config.auth_mode));
+	String auth_mode = _normalize_service_mode(runtime_config.auth_mode);
+	headers.push_back(vformat("x-phoenix-service-mode: %s", auth_mode));
+	headers.push_back(vformat("x-phoenix-auth-mode: %s", auth_mode));
 	if (!runtime_config.tier.is_empty()) {
 		headers.push_back(vformat("x-phoenix-tier: %s", runtime_config.tier));
 	}
@@ -324,6 +469,11 @@ Dictionary UltimateAIBackendContractAdapter::_request_once(HTTPClient::Method p_
 	}
 
 	String auth_token = _resolve_auth_token();
+	if (_service_mode_requires_auth_header(auth_mode) && auth_token.is_empty()) {
+		response["transport_error"] = true;
+		response["error"] = "Missing gateway auth token for managed/byok mode. Set PHOENIX_API_TOKEN (or PHOENIX_GATEWAY_API_TOKEN) in the engine environment or in a discoverable .env.local near the project/editor/executable working directories.";
+		return response;
+	}
 	if (!auth_token.is_empty()) {
 		headers.push_back(vformat("%s: Bearer %s", HEADER_AUTHORIZATION, auth_token));
 	}

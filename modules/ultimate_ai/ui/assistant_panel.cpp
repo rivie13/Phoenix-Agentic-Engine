@@ -202,7 +202,7 @@ bool _is_allowed_help_topic(const String &p_topic) {
 
 	for (int i = 0; i < topic.length(); i++) {
 		char32_t character = topic[i];
-		if (_is_ascii_identifier_char(character) || character == ':') {
+		if (_is_ascii_identifier_char(character) || character == ':' || character == '@') {
 			continue;
 		}
 		return false;
@@ -1732,6 +1732,31 @@ void UltimateAssistantPanel::_append_message(int p_tab_id, const String &p_role,
 		return;
 	}
 	_clear_loading_chat_indicator_for_tab(p_tab_id);
+	if (tab.command_stream_active) {
+		String incoming_role_key = safe_role.to_lower();
+		if (incoming_role_key.is_empty()) {
+			incoming_role_key = "assistant";
+		}
+
+		String stream_role_key = tab.command_stream_role.strip_edges().to_lower();
+		if (stream_role_key.is_empty()) {
+			stream_role_key = "assistant";
+		}
+
+		if (incoming_role_key != stream_role_key) {
+			if (!tab.command_stream_remaining.is_empty()) {
+				String remaining = tab.command_stream_remaining;
+				tab.command_stream_remaining.clear();
+				_append_stream_delta_for_tab(p_tab_id, tab.command_stream_role, remaining, true);
+			} else if (tab.assistant_stream_open) {
+				_append_stream_delta_for_tab(p_tab_id, String(), String(), true);
+			}
+
+			tab.command_stream_active = false;
+			tab.command_stream_role.clear();
+			tab.next_command_stream_tick_msec = 0;
+		}
+	}
 	if (tab.assistant_stream_open) {
 		_append_stream_delta_for_tab(p_tab_id, String(), String(), true);
 		tab.assistant_stream_from_realtime = false;
@@ -3828,7 +3853,10 @@ void UltimateAssistantPanel::_execute_single_command(int p_tab_id, const Diction
 			}
 		}
 
-		_extract_docs_candidates_from_text(query, class_candidates);
+		const bool has_explicit_class_candidates = !class_candidates.is_empty();
+		if (!has_explicit_class_candidates) {
+			_extract_docs_candidates_from_text(query, class_candidates);
+		}
 
 		String resolved_class_name;
 		for (int i = 0; i < class_candidates.size(); i++) {
@@ -3839,10 +3867,6 @@ void UltimateAssistantPanel::_execute_single_command(int p_tab_id, const Diction
 			}
 		}
 
-		if (resolved_class_name.is_empty() && !class_candidates.is_empty()) {
-			resolved_class_name = class_candidates[0];
-		}
-
 		if (!resolved_class_name.is_empty()) {
 			script_editor->goto_help("class:" + resolved_class_name);
 			_append_message(p_tab_id, TTR("System"), vformat("Opened in-editor docs for class: %s", resolved_class_name));
@@ -3850,7 +3874,16 @@ void UltimateAssistantPanel::_execute_single_command(int p_tab_id, const Diction
 		}
 
 		String topic = String(p_command.get("topic", String())).strip_edges();
-		if (topic.is_empty() && _is_allowed_help_topic(query)) {
+		if (topic.is_empty()) {
+			String raw_class_name = String(p_command.get("class_name", String())).strip_edges();
+			if (raw_class_name.begins_with("@")) {
+				String normalized_class_name = raw_class_name.substr(1, raw_class_name.length() - 1).strip_edges();
+				if (!normalized_class_name.is_empty()) {
+					topic = "class_name:" + normalized_class_name;
+				}
+			}
+		}
+		if (topic.is_empty() && !has_explicit_class_candidates && _is_allowed_help_topic(query)) {
 			topic = query;
 		}
 

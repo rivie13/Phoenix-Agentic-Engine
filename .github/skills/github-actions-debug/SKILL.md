@@ -24,6 +24,15 @@ description: Debug failed GitHub Actions CI/CD workflow runs. Use when user asks
 | `web_builds.yml` | Upstream Godot Web builds |
 | `ios_builds.yml` | Upstream Godot iOS builds |
 
+## PR gate usage (required)
+
+During PR work, treat failed GitHub Actions checks as a merge blocker:
+
+1. Inspect failed runs for the PR.
+2. Triage root cause using logs.
+3. Fix issues locally and re-validate (`pre_commit` + relevant tests/build).
+4. Push and confirm checks recover.
+
 ## Debugging Workflow: Step-by-step
 
 ### Step 1: List recent workflow runs

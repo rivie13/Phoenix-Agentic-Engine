@@ -33,10 +33,18 @@ description: Update Copilot instruction files to reflect current project state, 
 - Conventions changed? → Update `engine-coding-conventions.instructions.md`
 - Client/backend boundary shifted? → Update `engine-private-strategy.instructions.md`
 - Review priorities changed? → Update `engine-code-review.instructions.md`
+- Git/branch/pre-commit workflow changed? → Update `engine-build-and-test.instructions.md`, `engine-coding-conventions.instructions.md`, and relevant skills (`build-and-test`, `pr-management`, `github-code-review`)
+- Copilot review request policy changed? → Update `engine-code-review.instructions.md` + `pr-management`/`github-code-review` skills with one-request-per-PR cost controls.
 
 ### Step 2: Read the current file and update it
 
 Use `read_file` to load, then edit with current state.
+
+If workflow behavior changes, keep these three layers aligned in the same PR when possible:
+
+1. Contributor docs (`README.md` and/or `CONTRIBUTING.md`)
+2. Instruction files (`.github/instructions/*.instructions.md`)
+3. Skills (`.github/skills/*/SKILL.md`)
 
 ### Step 3: Keep instructions concise
 

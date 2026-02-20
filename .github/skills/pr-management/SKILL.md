@@ -5,11 +5,69 @@ description: Create, update, and manage GitHub pull requests across Phoenix repo
 
 # PR Management — Phoenix Agentic Engine
 
+## CLI tool policy (mandatory)
+
+- **NEVER use `gh` CLI** — it is not installed and must not be used.
+- **Always prefer GitHub MCP tools** (`mcp_github_*`) for all GitHub operations.
+- Fall back to terminal `git` commands only for local worktree operations or when MCP tools fail.
+- Do NOT suggest or attempt any `gh` subcommand.
+
 ## Repo Context
 
 - **Owner**: `rivie13`
 - **Repo**: `Phoenix-Agentic-Engine`
-- **Default branch**: `main`
+- **Canonical integration base**: Determined by branch tier:
+  - Subfeature branches → parent `feature/*` branch
+  - Feature branches → `main`
+  - Standalone fix/chore branches → `main`
+
+## Branch hygiene (required)
+
+### Hierarchy
+
+| Tier | Pattern | Branches from | Merges into |
+|------|---------|---------------|-------------|
+| **main** | `main` | — | — |
+| **feature** | `feature/<topic>` | `main` | `main` |
+| **subfeature** | `subfeature/<type>/<desc>` | parent `feature/*` | parent `feature/*` |
+
+Subfeature `<type>` values: `task`, `bugfix`, `refactor`, `test`, `docs`, `chore`.
+
+1. Start from the latest target base branch (feature branch for subfeatures, main for features).
+2. Create a focused topic branch with the appropriate naming convention.
+3. Keep PR scope narrow; avoid unrelated file changes.
+4. Run pre-commit + relevant tests before push.
+5. Never force-push shared branches unless explicitly coordinated.
+6. **Subfeature PRs MUST target their parent `feature/*` branch** — never `main`.
+
+## PR size discipline (mandatory)
+
+- Keep PRs small and focused — one logical change per PR.
+- **Subfeature → feature PRs** are the normal unit of review.
+- **Feature → main PRs** will be large (accumulating all merged subfeature work). This is expected.
+- Break work into subfeature branches early:
+  1. Create `subfeature/<type>/<description>` branches off the parent `feature/*` branch.
+  2. Open PRs from each subfeature branch into the `feature/*` branch.
+  3. Once all subfeature PRs are merged, open a single PR from `feature/*` into `main`.
+- Target: subfeature PRs should ideally be under ~400 lines of meaningful change (excluding generated files, lock files, submodule pointer updates).
+- If a subfeature PR exceeds this, strongly consider splitting before requesting review.
+- Never let PRs accumulate dozens of unrelated changes.
+
+Example setup (subfeature workflow):
+
+```bash
+git checkout feature/assistant-panel
+git pull --rebase origin feature/assistant-panel
+git checkout -b subfeature/task/wire-up-panel-shell
+```
+
+Example setup (feature workflow):
+
+```bash
+git checkout main
+git pull --rebase origin main
+git checkout -b feature/assistant-panel
+```
 
 ## Create a Pull Request
 
@@ -18,7 +76,8 @@ description: Create, update, and manage GitHub pull requests across Phoenix repo
 Look for a PR template before creating:
 
 ```
-mcp_github_github_get_file_contents(owner="rivie13", repo="Phoenix-Agentic-Engine", path=".github/PULL_REQUEST_TEMPLATE.md")
+file_search(".github/PULL_REQUEST_TEMPLATE*.md")
+file_search(".github/PULL_REQUEST_TEMPLATE/**")
 ```
 
 Also check `.github/PULL_REQUEST_TEMPLATE/` directory.
@@ -27,7 +86,15 @@ Also check `.github/PULL_REQUEST_TEMPLATE/` directory.
 
 Use `get_changed_files` to see what's modified.
 
-### Step 3: Create the PR
+### Step 3: Push and create the PR with MCP tools
+
+Push branch from terminal:
+
+```bash
+git push -u origin <feature-branch>
+```
+
+Create PR via MCP tool:
 
 ```
 mcp_github_github_create_pull_request(
@@ -35,16 +102,19 @@ mcp_github_github_create_pull_request(
   repo="Phoenix-Agentic-Engine",
   title="<descriptive title>",
   body="<use template if found>",
-  head="<feature-branch>",
-  base="main"
+  head="<branch-name>",
+  base="<parent branch>"   # feature/* for subfeatures, main for features
 )
 ```
 
 ### PR description should include (per repo conventions):
-- What was built/changed
-- What was run/tested
-- Platform tested on
+- **Summary**: What was built/changed and why
+- **Changes**: Bullet list of key changes
+- **Testing**: What was run/tested, platform, and pass/fail results
+- **Breaking changes**: Any upstream-merge or compatibility concerns
+- **Related issues**: Link related issues with `Closes #N` or `Relates to #N`
 - If core files changed: justification and `CORE_MODIFICATIONS.md` entry
+- Pre-commit/test commands run and outcomes
 
 ## List Open PRs
 
@@ -55,14 +125,40 @@ mcp_github_github_list_pull_requests(owner="rivie13", repo="Phoenix-Agentic-Engi
 ## Check PR Status
 
 ```
-mcp_github_github_pull_request_read(method="get", owner="rivie13", repo="Phoenix-Agentic-Engine", pullNumber=<PR_NUMBER>)
+mcp_github_github_list_pull_requests(owner="rivie13", repo="Phoenix-Agentic-Engine", state="open")
+# or use active/open PR management tools for deeper status/details
 ```
 
+## PR CI/workflow gate (required)
+
+After PR creation and after each push:
+
+1. Check PR status checks and workflow runs.
+2. If any GitHub Actions run fails, use the `github-actions-debug` skill to triage logs and root cause.
+3. Fix failures in code/workflow as needed.
+4. Re-run pre-commit + relevant tests locally.
+5. Push fixes and re-check until required checks pass.
+
 ## Request Copilot Review
+
+Policy:
+
+1. Copilot review should happen automatically for new PRs.
+2. Before requesting, check whether Copilot review was already requested/completed for that PR.
+3. If already present, do not request again by default (cost control).
+4. Request another round only when the user explicitly asks or when substantial new changes were pushed and no recent Copilot pass exists.
 
 ```
 mcp_github_github_request_copilot_review(owner="rivie13", repo="Phoenix-Agentic-Engine", pullNumber=<PR_NUMBER>)
 ```
+
+## After review feedback
+
+1. Fetch review comments/status.
+2. Apply fixes in focused commits.
+3. Re-run pre-commit + relevant tests.
+4. Push updates to the same PR branch.
+5. Request Copilot re-review only if needed and missing for the latest commit set.
 
 ## Update PR Branch (rebase/merge from base)
 
@@ -84,6 +180,23 @@ mcp_github_github_push_files(
 
 ## Branch conventions
 
-- `feature/<name>` — new features
-- `fix/<name>` — bug fixes
+- `feature/<name>` — new features (branches from `main`, merges to `main`)
+- `subfeature/<type>/<name>` — work within a feature (branches from `feature/*`, merges to `feature/*`)
+  - Types: `task`, `bugfix`, `refactor`, `test`, `docs`, `chore`
+- `fix/<name>` — standalone bug fixes (branches from `main`)
 - `upstream-sync` — reserved for upstream Godot sync
+
+## Issue creation (public repo — never use `gh` CLI)
+
+- Create issues using `mcp_github_github_issue_write`.
+- For non-sensitive, public-facing work: assign to Copilot (cloud agent) using `mcp_github_github_assign_copilot_to_issue`.
+- Do NOT create public issues for private/sensitive matters (secrets, auth, proprietary logic, security vulnerabilities).
+- Search for existing issues before creating duplicates using `mcp_github_github_search_issues`.
+- Use issues to break large features into smaller, trackable units of work.
+
+### Issue–branch alignment
+
+- **Epic issues** (label: `epic`) map to `feature/*` branches.
+- **Sub-issues** (labels: `task`, `bug`, `refactor`, `test`, `docs`, `chore`) map to `subfeature/<type>/<desc>` branches.
+- Create sub-issues using `mcp_github_github_sub_issue_write`, linking them to the parent epic.
+- Subfeature PRs reference sub-issues with `Closes #N`. Feature PRs reference the epic with `Closes #N`.

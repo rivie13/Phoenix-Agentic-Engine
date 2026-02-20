@@ -226,7 +226,8 @@ cscope.po.out
 *.swp
 
 # Visual Studio Code
-.vscode/
+.vscode/*
+!.vscode/tasks.json
 *.code-workspace
 .history/
 
@@ -391,7 +392,8 @@ cpp.hint
 .DS_Store
 __MACOSX
 Godot.app
-
+# Agent prompts (private, never commit)
+prompts/
 # Windows
 # https://github.com/github/gitignore/blob/main/Global/Windows.gitignore
 [Tt]humbs.db

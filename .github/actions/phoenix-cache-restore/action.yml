@@ -6,7 +6,7 @@ inputs:
     default: ${{ github.job }}
   cache-scope:
     description: Logical scope to avoid cache key collisions across workflows.
-    default: ${{ github.workflow_ref }}
+    default: ${{ github.workflow }}
   scons-cache:
     description: The SCons cache path.
     default: ${{ github.workspace }}/.scons_cache/
@@ -22,8 +22,6 @@ runs:
         key: ${{ inputs.cache-name }}|${{ inputs.cache-scope }}|${{ github.ref_name }}|${{ github.sha }}
         restore-keys: |
           ${{ inputs.cache-name }}|${{ inputs.cache-scope }}|${{ github.ref_name }}|
-          ${{ inputs.cache-name }}|${{ inputs.cache-scope }}|${{ github.event.repository.default_branch }}|
-          ${{ inputs.cache-name }}|${{ inputs.cache-scope }}|
 
     - name: Store unix timestamp
       shell: sh
