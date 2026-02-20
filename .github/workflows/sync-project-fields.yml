@@ -28,7 +28,6 @@ on:
         type: choice
         options:
           - create-signal-labels
-          - delete-signal-labels
 
 env:
   PROJECT_NUMBER: 3
@@ -81,20 +80,6 @@ jobs:
                 }
               }
               core.info('All signal labels created.');
-            } else if (action === 'delete-signal-labels') {
-              for (const label of SIGNAL_LABELS) {
-                try {
-                  await github.rest.issues.deleteLabel({ owner, repo, name: label.name });
-                  core.info(`Deleted label: ${label.name}`);
-                } catch (e) {
-                  if (e.status === 404) {
-                    core.info(`Label not found: ${label.name}`);
-                  } else {
-                    core.warning(`Failed to delete ${label.name}: ${e.message}`);
-                  }
-                }
-              }
-              core.info('All signal labels deleted.');
             }
 
   # ── Main: sync a signal label to a project field ───────────────────
