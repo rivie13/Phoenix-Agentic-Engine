@@ -33,7 +33,7 @@ Use GitHub sub-issues for structured work: **Epic** → **Feature** → **Task**
 
 ## Cloud agent assignment
 
-When an issue is labeled `cloud-agent`, the `cloud-agent-assign.yml` workflow auto-assigns Copilot coding agent. Use this for well-scoped tasks with clear acceptance criteria.
+When an issue is labeled `cloud-agent`, the `cloud-agent-assign.yml` workflow checks that the issue is in **Ready** status on the project board. If not Ready (e.g. still in Backlog), the label is removed and the assignment is rejected. On success, the workflow assigns Copilot and automatically updates the board: Status → In Progress, Work mode → Cloud Agent. Use this for well-scoped tasks with clear acceptance criteria.
 
 ## Cross-repo coordination
 

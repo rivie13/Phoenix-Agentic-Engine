@@ -69,11 +69,16 @@ read_file(".github/context/CURRENT_TASK.md")
 ### Assign to Copilot cloud agent (user says "assign to copilot", "cloud agent this")
 
 1. Confirm the issue is well-scoped with clear acceptance criteria
-2. Add the `cloud-agent` label to the issue
-3. The `cloud-agent-assign.yml` workflow will auto-assign Copilot
-4. Set "Work mode" to "Cloud Agent" on the project board
-5. Move board item to "Ready" if not already there
-6. Note in CURRENT_TASK.md that this task is delegated to cloud agent
+2. **Move the issue to "Ready" status on the project board** (required — the workflow rejects non-Ready issues)
+3. Add the `cloud-agent` label to the issue
+4. The `cloud-agent-assign.yml` workflow will:
+   - Verify the issue is in Ready status (rejects Backlog / No Status / other)
+   - Assign @copilot to the issue
+   - Update board Status → **In Progress** automatically
+   - Update board Work mode → **Cloud Agent** automatically
+5. Note in CURRENT_TASK.md that this task is delegated to cloud agent
+
+> **Do NOT** add the `cloud-agent` label to issues in Backlog — the workflow will remove the label and post a rejection comment.
 
 ## Issue hierarchy
 

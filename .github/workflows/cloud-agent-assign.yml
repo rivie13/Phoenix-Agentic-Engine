@@ -1,12 +1,19 @@
 # Securely assign Copilot coding agent when the `cloud-agent` label is added.
-# Optional hardening: set repository variable CLOUD_AGENT_ALLOWED_USERS (comma-separated usernames).
-# If set, actor must be in this allowlist AND have write/maintain/admin permission.
+# Guards:
+#   1. Actor must have write/maintain/admin permission (+ optional CLOUD_AGENT_ALLOWED_USERS allowlist).
+#   2. Issue must be in "Ready" status on the project board (prevents firing from Backlog).
+# On success:
+#   - Assigns @copilot to the issue.
+#   - Updates project board: Status → "In Progress", Work mode → "Cloud Agent".
 
 name: Assign Copilot Cloud Agent
 
 on:
   issues:
     types: [labeled]
+
+env:
+  PROJECT_NUMBER: 3
 
 jobs:
   assign-copilot:
@@ -17,6 +24,7 @@ jobs:
       contents: read
       actions: read
     steps:
+      # ── 1. Permission guard ──────────────────────────────────────────
       - name: Validate delegator permissions
         id: guard
         uses: actions/github-script@v7
@@ -97,8 +105,66 @@ jobs:
               body: `⛔ Cloud-agent delegation blocked. ${reason}`,
             });
 
-      - name: Assign @copilot
+      # ── 2. Project board "Ready" guard ───────────────────────────────
+      - name: Check project board status
         if: steps.guard.outputs.allowed == 'true'
+        id: board
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.PROJECT_BOARD_TOKEN }}
+          script: |
+            const projectNumber = Number(process.env.PROJECT_NUMBER);
+            const issueNumber = context.payload.issue.number;
+
+            // Fetch this issue's project-board item and its Status value
+            const query = `
+              query($owner: String!, $repo: String!, $issueNumber: Int!) {
+                repository(owner: $owner, name: $repo) {
+                  issue(number: $issueNumber) {
+                    projectItems(first: 10) {
+                      nodes {
+                        id
+                        project { id number }
+                        fieldValueByName(name: "Status") {
+                          ... on ProjectV2ItemFieldSingleSelectValue {
+                            name
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }`;
+
+            const result = await github.graphql(query, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issueNumber,
+            });
+
+            const items = result.repository.issue.projectItems.nodes;
+            const boardItem = items.find(i => i.project.number === projectNumber);
+
+            if (!boardItem) {
+              core.setOutput('ready', 'false');
+              core.setOutput('reason', 'Issue is not on the project board. Add it to the board and set status to **Ready** first.');
+              return;
+            }
+
+            const currentStatus = boardItem.fieldValueByName?.name || 'No Status';
+
+            if (currentStatus !== 'Ready') {
+              core.setOutput('ready', 'false');
+              core.setOutput('reason', `Issue status is **${currentStatus}** — only issues in **Ready** status can be assigned to the cloud agent. Move it to Ready first.`);
+              return;
+            }
+
+            core.setOutput('ready', 'true');
+            core.setOutput('projectId', boardItem.project.id);
+            core.setOutput('itemId', boardItem.id);
+
+      - name: Reject non-ready issue
+        if: steps.guard.outputs.allowed == 'true' && steps.board.outputs.ready != 'true'
         uses: actions/github-script@v7
         with:
           script: |
@@ -106,6 +172,37 @@ jobs:
             const repo = context.repo.repo;
             const issue_number = context.payload.issue.number;
 
+            try {
+              await github.rest.issues.removeLabel({
+                owner,
+                repo,
+                issue_number,
+                name: 'cloud-agent',
+              });
+            } catch (error) {}
+
+            const reason = `${{ steps.board.outputs.reason }}`;
+            await github.rest.issues.createComment({
+              owner,
+              repo,
+              issue_number,
+              body: `⛔ Cloud-agent assignment blocked.\n\n${reason}\n\n**Required steps:**\n1. Ensure the issue is on the [project board](https://github.com/users/rivie13/projects/3)\n2. Move the issue to **Ready** status\n3. Re-add the \`cloud-agent\` label`,
+            });
+
+      # ── 3. Assign Copilot & update board status ─────────────────────
+      - name: Assign @copilot and update project board
+        if: steps.guard.outputs.allowed == 'true' && steps.board.outputs.ready == 'true'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.PROJECT_BOARD_TOKEN }}
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const issue_number = context.payload.issue.number;
+            const projectId = '${{ steps.board.outputs.projectId }}';
+            const itemId = '${{ steps.board.outputs.itemId }}';
+
+            // Assign Copilot to the issue
             await github.rest.issues.addAssignees({
               owner,
               repo,
@@ -113,9 +210,76 @@ jobs:
               assignees: ['copilot'],
             });
 
+            // Fetch project field definitions (Status + Work mode)
+            const fieldQuery = `
+              query($projectId: ID!) {
+                node(id: $projectId) {
+                  ... on ProjectV2 {
+                    fields(first: 30) {
+                      nodes {
+                        ... on ProjectV2SingleSelectField {
+                          id
+                          name
+                          options { id name }
+                        }
+                      }
+                    }
+                  }
+                }
+              }`;
+
+            const fieldResult = await github.graphql(fieldQuery, { projectId });
+            const fields = fieldResult.node.fields.nodes.filter(f => f.name);
+
+            const updateMutation = `
+              mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) {
+                updateProjectV2ItemFieldValue(
+                  input: {
+                    projectId: $projectId
+                    itemId: $itemId
+                    fieldId: $fieldId
+                    value: { singleSelectOptionId: $optionId }
+                  }
+                ) { projectV2Item { id } }
+              }`;
+
+            const updates = [];
+
+            // Update Status → "In Progress"
+            const statusField = fields.find(f => f.name === 'Status');
+            if (statusField) {
+              const inProgress = statusField.options.find(o => o.name === 'In Progress');
+              if (inProgress) {
+                await github.graphql(updateMutation, {
+                  projectId, itemId,
+                  fieldId: statusField.id,
+                  optionId: inProgress.id,
+                });
+                updates.push('Status → **In Progress**');
+              }
+            }
+
+            // Update Work mode → "Cloud Agent"
+            const workModeField = fields.find(f => f.name === 'Work mode');
+            if (workModeField) {
+              const cloudAgent = workModeField.options.find(o => o.name === 'Cloud Agent');
+              if (cloudAgent) {
+                await github.graphql(updateMutation, {
+                  projectId, itemId,
+                  fieldId: workModeField.id,
+                  optionId: cloudAgent.id,
+                });
+                updates.push('Work mode → **Cloud Agent**');
+              }
+            }
+
+            const boardNote = updates.length > 0
+              ? `\n📋 Board updated: ${updates.join(', ')}`
+              : '';
+
             await github.rest.issues.createComment({
               owner,
               repo,
               issue_number,
-              body: '🤖 Copilot coding agent has been assigned via the `cloud-agent` label.',
+              body: `🤖 Copilot coding agent has been assigned via the \`cloud-agent\` label.${boardNote}`,
             });
