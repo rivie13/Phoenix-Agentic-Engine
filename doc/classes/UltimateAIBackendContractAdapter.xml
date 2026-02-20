@@ -49,12 +49,42 @@
 			<description>
 			</description>
 		</method>
+		<method name="list_locks" qualifiers="const">
+			<return type="Dictionary" />
+			<param index="0" name="session_id" type="String" default="&quot;&quot;" />
+			<description>
+			</description>
+		</method>
 		<method name="list_tools" qualifiers="const">
 			<return type="Dictionary" />
 			<description>
 			</description>
 		</method>
+		<method name="realtime_join" qualifiers="const">
+			<return type="Dictionary" />
+			<param index="0" name="payload" type="Dictionary" />
+			<description>
+			</description>
+		</method>
+		<method name="realtime_negotiate" qualifiers="const">
+			<return type="Dictionary" />
+			<param index="0" name="payload" type="Dictionary" />
+			<description>
+			</description>
+		</method>
+		<method name="release_lock" qualifiers="const">
+			<return type="Dictionary" />
+			<param index="0" name="lock_id" type="String" />
+			<description>
+			</description>
+		</method>
 		<method name="request_task" qualifiers="const">
+			<return type="Dictionary" />
+			<param index="0" name="payload" type="Dictionary" />
+			<description>
+			</description>
+		</method>
+		<method name="send_session_delta" qualifiers="const">
 			<return type="Dictionary" />
 			<param index="0" name="payload" type="Dictionary" />
 			<description>

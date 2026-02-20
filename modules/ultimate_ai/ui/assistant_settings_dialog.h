@@ -43,6 +43,7 @@ class LineEdit;
 class OptionButton;
 class Label;
 class SpinBox;
+class VBoxContainer;
 
 class UltimateAISettingsDialog : public AcceptDialog {
 	GDCLASS(UltimateAISettingsDialog, AcceptDialog);
@@ -52,22 +53,36 @@ class UltimateAISettingsDialog : public AcceptDialog {
 	Button *add_button = nullptr;
 	Button *remove_button = nullptr;
 	OptionButton *service_mode = nullptr;
-	LineEdit *base_url = nullptr;
-	LineEdit *local_endpoint = nullptr;
+	Label *service_mode_help = nullptr;
+	VBoxContainer *byok_section = nullptr;
 	LineEdit *byok_key = nullptr;
-	LineEdit *managed_endpoint = nullptr;
-	LineEdit *token_hook = nullptr;
-	LineEdit *actor_id = nullptr;
-	LineEdit *tier = nullptr;
 	SpinBox *timeout_ms = nullptr;
 	SpinBox *retry_count = nullptr;
+	CheckBox *mcp_enabled = nullptr;
+	CheckBox *tool_godot_mcp_docs_enabled = nullptr;
+	CheckBox *tool_godot_mcp_enabled = nullptr;
+	CheckBox *tool_godot_copilot_enabled = nullptr;
+	CheckBox *tool_autonomous_primitives_enabled = nullptr;
+	OptionButton *mcp_transport = nullptr;
+	LineEdit *mcp_config_path = nullptr;
+	CheckBox *mcp_auto_discover = nullptr;
+	CheckBox *mcp_require_approvals = nullptr;
 	CheckBox *allow_background_agents = nullptr;
 	CheckBox *auto_approve_reads = nullptr;
 	CheckBox *require_approvals = nullptr;
 	CheckBox *require_signed_commands = nullptr;
+	CheckBox *show_thinking_stream = nullptr;
+
+	String persisted_base_url;
+	String persisted_token;
+	String persisted_token_hook;
+	String persisted_actor_id;
+	String persisted_tier;
 
 	void _on_add_pressed();
 	void _on_remove_pressed();
+	void _on_service_mode_selected(int p_index);
+	void _on_open_url_pressed(const String &p_url);
 
 protected:
 	static void _bind_methods();
@@ -77,6 +92,8 @@ public:
 	PackedStringArray get_selected_models() const;
 	void set_runtime_config(const Dictionary &p_config);
 	Dictionary get_runtime_config() const;
+	void set_thinking_stream_enabled(bool p_enabled);
+	bool is_thinking_stream_enabled() const;
 
 	UltimateAISettingsDialog();
 };

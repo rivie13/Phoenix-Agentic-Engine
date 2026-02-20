@@ -6,7 +6,7 @@ inputs:
     default: ${{ github.job }}
   cache-scope:
     description: Logical scope to avoid cache key collisions across workflows.
-    default: ${{ github.workflow_ref }}
+    default: ${{ github.workflow }}
   scons-cache:
     description: The SCons cache path.
     default: ${{ github.workspace }}/.scons_cache/

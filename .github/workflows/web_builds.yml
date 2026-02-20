@@ -26,12 +26,21 @@ jobs:
             target: template_release
             scons-flags: threads=yes
             artifact: true
+            mvp-lane: false
 
           - name: Template w/o threads (target=template_release, threads=no)
             cache-name: web-nothreads-template
             target: template_release
             scons-flags: threads=no
             artifact: true
+            mvp-lane: false
+
+          - name: Web MVP (chat + PixelPen only, target=template_release, threads=yes)
+            cache-name: web-mvp-chat-pixelpen-template
+            target: template_release
+            scons-flags: threads=yes CPPFLAGS=-DPHOENIX_WEB_MVP_CHAT_PIXELPEN=1
+            artifact: true
+            mvp-lane: true
 
     steps:
       - name: Checkout
@@ -71,6 +80,40 @@ jobs:
           cache-name: ${{ matrix.cache-name }}
         continue-on-error: true
 
+      - name: Stage MVP payload (chat + PixelPen only)
+        if: matrix.mvp-lane
+        run: |
+          pixelpen_src="./modules/ultimate_ai/external/pixelpen/project/addons/net.yarvis.pixel_pen"
+          if [ ! -d "$pixelpen_src" ]; then
+            echo "Missing PixelPen addon directory: $pixelpen_src" >&2
+            exit 1
+          fi
+
+          mkdir -p ./bin/addons
+          find ./bin/addons -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+
+          pixelpen_dst="./bin/addons/net.yarvis.pixel_pen"
+          cp -R "$pixelpen_src" "$pixelpen_dst"
+
+      - name: Write MVP capability manifest
+        if: matrix.mvp-lane
+        run: |
+          cat > ./bin/phoenix_web_capabilities.json <<'JSON'
+          {
+            "schema_version": "v1",
+            "profile": "web_mvp_chat_pixelpen",
+            "capabilities": {
+              "assistant_chat": true,
+              "pixelpen": true,
+              "gdterm": false,
+              "git_plugin": false,
+              "diff_margin": false,
+              "bfxr": false,
+              "gut": false
+            }
+          }
+          JSON
+
       - name: Guard artifact payload
         if: matrix.artifact
         run: |
@@ -79,6 +122,63 @@ jobs:
             find ./bin -maxdepth 2 -type f | sort || true
             exit 1
           fi
+
+      - name: Guard MVP payload (chat + PixelPen only)
+        if: matrix.artifact && matrix.mvp-lane
+        run: |
+          if [ ! -d "./bin/addons/net.yarvis.pixel_pen" ]; then
+            echo "Missing required MVP addon directory: ./bin/addons/net.yarvis.pixel_pen" >&2
+            ls -la ./bin/addons || true
+            exit 1
+          fi
+
+          if ! find ./bin/addons/net.yarvis.pixel_pen -type f | grep -q .; then
+            echo "PixelPen addon directory is empty: ./bin/addons/net.yarvis.pixel_pen" >&2
+            find ./bin/addons/net.yarvis.pixel_pen -maxdepth 2 -print || true
+            exit 1
+          fi
+
+          for addon in godot-git-plugin diff-margin gdterm bfxr2-mcp-server gut; do
+            if [ -e "./bin/addons/$addon" ]; then
+              echo "Unexpected non-MVP addon found in MVP lane: ./bin/addons/$addon" >&2
+              ls -la ./bin/addons || true
+              exit 1
+            fi
+          done
+
+          if [ ! -f "./bin/phoenix_web_capabilities.json" ]; then
+            echo "Missing MVP capability manifest: ./bin/phoenix_web_capabilities.json" >&2
+            ls -la ./bin || true
+            exit 1
+          fi
+
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          manifest_path = Path("./bin/phoenix_web_capabilities.json")
+          data = json.loads(manifest_path.read_text(encoding="utf-8"))
+
+          if data.get("schema_version") != "v1":
+              raise SystemExit("Invalid schema_version in phoenix_web_capabilities.json")
+          if data.get("profile") != "web_mvp_chat_pixelpen":
+              raise SystemExit("Invalid profile in phoenix_web_capabilities.json")
+
+          capabilities = data.get("capabilities")
+          if not isinstance(capabilities, dict):
+              raise SystemExit("Missing capabilities object in phoenix_web_capabilities.json")
+
+          required_true = ["assistant_chat", "pixelpen"]
+          required_false = ["gdterm", "git_plugin", "diff_margin", "bfxr", "gut"]
+
+          for key in required_true:
+              if capabilities.get(key) is not True:
+                  raise SystemExit(f"Expected capabilities.{key}=true in phoenix_web_capabilities.json")
+
+          for key in required_false:
+              if capabilities.get(key) is not False:
+                  raise SystemExit(f"Expected capabilities.{key}=false in phoenix_web_capabilities.json")
+          PY
 
       - name: Upload artifact
         uses: ./.github/actions/upload-artifact

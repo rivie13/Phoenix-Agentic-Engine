@@ -1,5 +1,5 @@
 /**************************************************************************/
-/*  register_types.cpp                                                    */
+/*  frontend_runtime_adapter.h                                            */
 /**************************************************************************/
 /*                         This file is part of:                          */
 /*                     PHOENIX AGENTIC GAME ENGINE                        */
@@ -31,80 +31,14 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
 /**************************************************************************/
 
-#include "register_types.h"
+#pragma once
 
-#ifdef TOOLS_ENABLED
-#include "core/backend_contract_adapter.h"
-#include "core/bfxr_runtime_bridge.h"
-#include "core/object/class_db.h"
-#include "core/os/os.h"
-#include "core/terminal_orchestrator_bridge.h"
-#include "ui/bfxr_editor_plugin.h"
-#include "ui/diff_margin_editor_plugin.h"
-#include "ui/gdterm_editor_plugin.h"
-#include "ui/git_plugin_editor_plugin.h"
-#include "ui/gut_editor_plugin.h"
-#include "ui/pixelpen_editor_plugin.h"
-#include "ui/ultimate_ai_editor_plugin.h"
-#endif
+#include "core/variant/dictionary.h"
 
-#ifdef TOOLS_ENABLED
-namespace {
-bool _is_truthy_env_value(const String &p_value) {
-	const String value = p_value.strip_edges().to_lower();
-	return value == "1" || value == "true" || value == "yes" || value == "on";
-}
+class UltimateAIBackendContractAdapter;
 
-bool _is_web_mvp_chat_pixelpen_profile_enabled() {
-#ifdef PHOENIX_WEB_MVP_CHAT_PIXELPEN
-	return true;
-#else
-	OS *os = OS::get_singleton();
-	if (!os) {
-		return false;
-	}
-
-	const String profile = os->get_environment("PHOENIX_CAPABILITY_PROFILE").strip_edges().to_lower();
-	if (profile == "web_mvp_chat_pixelpen" || profile == "web-mvp-chat-pixelpen") {
-		return true;
-	}
-
-	return _is_truthy_env_value(os->get_environment("PHOENIX_WEB_MVP_CHAT_PIXELPEN"));
-#endif
-}
-} //namespace
-#endif
-
-void initialize_ultimate_ai_module(ModuleInitializationLevel p_level) {
-	if (p_level != MODULE_INITIALIZATION_LEVEL_EDITOR) {
-		return;
-	}
-
-#ifdef TOOLS_ENABLED
-	const bool web_mvp_chat_pixelpen_only = _is_web_mvp_chat_pixelpen_profile_enabled();
-
-	ClassDB::register_class<UltimateAIBackendContractAdapter>();
-	if (!web_mvp_chat_pixelpen_only) {
-		ClassDB::register_class<BfxrRuntimeBridge>();
-		ClassDB::register_class<UltimateAITerminalBridge>();
-	}
-
-	EditorPlugins::add_by_type<UltimateAIEditorPlugin>();
-	if (!web_mvp_chat_pixelpen_only) {
-		EditorPlugins::add_by_type<BfxrEditorPlugin>();
-		EditorPlugins::add_by_type<DiffMarginEditorPlugin>();
-		EditorPlugins::add_by_type<GDTermEditorPlugin>();
-		EditorPlugins::add_by_type<GitPluginEditorPlugin>();
-		EditorPlugins::add_by_type<GutEditorPlugin>();
-	}
-	EditorPlugins::add_by_type<PixelPenEditorPlugin>();
-#endif
-}
-
-void uninitialize_ultimate_ai_module(ModuleInitializationLevel p_level) {
-	if (p_level != MODULE_INITIALIZATION_LEVEL_EDITOR) {
-		return;
-	}
-
-	// TODO: Unregister classes for the Ultimate AI module.
-}
+class UltimateAIFrontendRuntimeAdapter {
+public:
+	Dictionary negotiate_realtime(UltimateAIBackendContractAdapter *p_backend_adapter, const String &p_session_id, const String &p_user_id) const;
+	Dictionary map_realtime_event(const Dictionary &p_event, const String &p_expected_session_id) const;
+};

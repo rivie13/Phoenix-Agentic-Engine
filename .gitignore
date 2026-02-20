@@ -74,6 +74,12 @@ st[A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9]
 .venv
 venv
 
+# Local environment files
+.env
+.env.*
+!.env.example
+!.env.local.example
+
 # Python generated
 __pycache__/
 *.pyc
@@ -81,11 +87,20 @@ __pycache__/
 # Python modules
 .*_cache/
 
+# Phoenix MCP docs image marker — local build state, not committed
+# The stub is committed via git add -f and protected with skip-worktree.
+# Local builds update this file but changes stay local.
+modules/ultimate_ai/.phoenix_docs_image_revision
+
 # Documentation
 doc/_build/
 phoenix_docs_private/
 phoenix_docs_private/ARCHITECTURE.md
 .github/copilot-instructions.md
+
+# Active task pointer (local working copy — never commit)
+# The committed stub template lives at .github/context/CURRENT_TASK.md.stub
+.github/context/CURRENT_TASK.md
 
 # Private Copilot instruction files (local only — never commit)
 .github/instructions/private-*.instructions.md
@@ -220,7 +235,8 @@ cscope.po.out
 *.swp
 
 # Visual Studio Code
-.vscode/
+.vscode/*
+!.vscode/tasks.json
 *.code-workspace
 .history/
 
@@ -385,7 +401,8 @@ cpp.hint
 .DS_Store
 __MACOSX
 Godot.app
-
+# Agent prompts (private, never commit)
+prompts/
 # Windows
 # https://github.com/github/gitignore/blob/main/Global/Windows.gitignore
 [Tt]humbs.db

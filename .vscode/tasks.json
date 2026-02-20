@@ -1,0 +1,111 @@
+{
+  "version": "2.0.0",
+  "inputs": [
+    {
+      "id": "publicGatewayUrl",
+      "type": "promptString",
+      "description": "Public Gateway URL (cloudflared/App Service)",
+      "default": "https://ensures-strap-tracy-constitution.trycloudflare.com"
+    }
+  ],
+  "tasks": [
+    {
+      "label": "dev: build editor",
+      "type": "shell",
+      "command": "C:\\Python313\\python.exe",
+      "args": [
+        "-m",
+        "SCons",
+        "platform=windows",
+        "target=editor",
+        "d3d12=no",
+        "module_ultimate_ai_enabled=yes",
+        "dev_build=yes"
+      ],
+      "group": "build"
+    },
+    {
+      "label": "dev: run editor (env)",
+      "type": "shell",
+      "command": ".\\scripts\\run-editor-with-env.ps1",
+      "group": "build"
+    },
+    {
+      "label": "dev: verify: headless:version",
+      "type": "shell",
+      "command": ".\\scripts\\validate-editor-headless.ps1",
+      "args": [
+        "-Action",
+        "version"
+      ],
+      "group": "test"
+    },
+    {
+      "label": "dev: verify: headless:startup",
+      "type": "shell",
+      "command": ".\\scripts\\validate-editor-headless.ps1",
+      "args": [
+        "-Action",
+        "startup"
+      ],
+      "group": "test"
+    },
+    {
+      "label": "dev: verify: headless:doctool-temp",
+      "type": "shell",
+      "command": ".\\scripts\\validate-editor-headless.ps1",
+      "args": [
+        "-Action",
+        "doctool-temp"
+      ],
+      "group": "test"
+    },
+    {
+      "label": "dev: verify: check",
+      "type": "shell",
+      "command": ".\\scripts\\validate-editor-headless.ps1",
+      "args": [
+        "-Action",
+        "all"
+      ],
+      "dependsOn": [
+        "dev: build editor"
+      ],
+      "dependsOrder": "sequence",
+      "group": "test"
+    },
+    {
+      "label": "dev: verify: check (full)",
+      "type": "shell",
+      "command": ".\\scripts\\validate-editor-headless.ps1",
+      "args": [
+        "-Action",
+        "all-full"
+      ],
+      "dependsOn": [
+        "dev: build editor"
+      ],
+      "dependsOrder": "sequence",
+      "group": "test"
+    },
+    {
+      "label": "dev: tunnel:set-public-url",
+      "type": "shell",
+      "command": ".\\scripts\\set-public-gateway-url.ps1",
+      "args": [
+        "-Url",
+        "${input:publicGatewayUrl}"
+      ]
+    },
+    {
+      "label": "dev: tunnel:show-config",
+      "type": "shell",
+      "command": ".\\scripts\\show-public-gateway-url.ps1"
+    },
+    {
+      "label": "dev: tunnel:sync-from-backend",
+      "type": "shell",
+      "command": ".\\scripts\\sync-public-gateway-url-from-backend.ps1"
+    }
+  ]
+}

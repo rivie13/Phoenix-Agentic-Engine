@@ -33,7 +33,10 @@
 
 #include "backend_contract_adapter.h"
 
+#include "core/config/project_settings.h"
 #include "core/crypto/crypto.h"
+#include "core/io/dir_access.h"
+#include "core/io/file_access.h"
 #include "core/io/json.h"
 #include "core/object/class_db.h"
 #include "core/os/os.h"
@@ -65,25 +68,206 @@ inline String _trim_header_value(const String &p_line) {
 	}
 	return p_line.substr(sep + 1, p_line.length()).strip_edges();
 }
+
+inline String _normalize_service_mode(const String &p_mode) {
+	String mode = p_mode.strip_edges().to_lower();
+	if (mode == "byok" || mode == "managed_byok" || mode == "managed" || mode == "offline") {
+		return mode;
+	}
+	if (mode == "local") {
+		return "offline";
+	}
+	return "managed";
+}
+
+inline bool _service_mode_requires_auth_header(const String &p_mode) {
+	return p_mode == "managed" || p_mode == "managed_byok" || p_mode == "byok";
+}
+
+inline bool _allow_env_token_hooks() {
+#if defined(DEBUG_ENABLED) || defined(TOOLS_ENABLED)
+	return true;
+#else
+	return false;
+#endif
+}
+
+inline bool _allow_static_runtime_tokens() {
+#if defined(DEBUG_ENABLED) || defined(TOOLS_ENABLED)
+	return true;
+#else
+	return false;
+#endif
+}
+
+String _get_env_file_value(const String &p_file_path, const String &p_key) {
+	if (p_file_path.is_empty() || p_key.is_empty() || !FileAccess::exists(p_file_path)) {
+		return String();
+	}
+
+	Ref<FileAccess> env_file = FileAccess::open(p_file_path, FileAccess::READ);
+	if (env_file.is_null()) {
+		return String();
+	}
+
+	while (!env_file->eof_reached()) {
+		String line = env_file->get_line().strip_edges();
+		if (!line.is_empty() && line.unicode_at(0) == 0xFEFF) {
+			line = line.substr(1, line.length() - 1);
+		}
+		if (line.is_empty() || line.begins_with("#")) {
+			continue;
+		}
+
+		int separator = line.find("=");
+		if (separator <= 0) {
+			continue;
+		}
+
+		String key = line.substr(0, separator).strip_edges();
+		if (key != p_key) {
+			continue;
+		}
+
+		int value_start = separator + 1;
+		int value_len = line.length() - value_start;
+		String value = line.substr(value_start, value_len).strip_edges();
+		if (value.length() >= 2) {
+			if ((value.begins_with("\"") && value.ends_with("\"")) || (value.begins_with("'") && value.ends_with("'"))) {
+				value = value.substr(1, value.length() - 2);
+			}
+		}
+		return value.strip_edges();
+	}
+
+	return String();
+}
+
+PackedStringArray _collect_env_file_candidates() {
+	PackedStringArray candidates;
+
+	auto append_candidate_dirs = [&](const String &p_dir) {
+		String current = p_dir.simplify_path();
+		for (int depth = 0; depth < 6; depth++) {
+			if (current.is_empty()) {
+				break;
+			}
+
+			String candidate = current.path_join(".env.local").simplify_path();
+			if (!candidate.is_empty() && !candidates.has(candidate)) {
+				candidates.push_back(candidate);
+			}
+
+			String parent = current.get_base_dir().simplify_path();
+			if (parent.is_empty() || parent == current) {
+				break;
+			}
+			current = parent;
+		}
+	};
+
+	ProjectSettings *project_settings = ProjectSettings::get_singleton();
+	if (project_settings) {
+		String project_root = project_settings->globalize_path("res://").simplify_path();
+		append_candidate_dirs(project_root);
+	}
+
+	Ref<DirAccess> current_dir_access = DirAccess::create(DirAccess::ACCESS_FILESYSTEM);
+	if (current_dir_access.is_valid()) {
+		String current_dir = current_dir_access->get_current_dir().simplify_path();
+		append_candidate_dirs(current_dir);
+	}
+
+	OS *os = OS::get_singleton();
+	if (os) {
+		String executable_dir = os->get_executable_path().get_base_dir().simplify_path();
+		append_candidate_dirs(executable_dir);
+	}
+
+	PackedStringArray deduped;
+	for (int i = 0; i < candidates.size(); i++) {
+		String candidate = candidates[i].strip_edges();
+		if (candidate.is_empty()) {
+			continue;
+		}
+		if (deduped.has(candidate)) {
+			continue;
+		}
+		deduped.push_back(candidate);
+	}
+
+	return deduped;
+}
+
+String _resolve_gateway_api_token_from_env_sources() {
+	OS *os = OS::get_singleton();
+	if (os) {
+		if (os->has_environment("PHOENIX_API_TOKEN")) {
+			String value = os->get_environment("PHOENIX_API_TOKEN").strip_edges();
+			if (!value.is_empty()) {
+				return value;
+			}
+		}
+		if (os->has_environment("PHOENIX_GATEWAY_API_TOKEN")) {
+			String value = os->get_environment("PHOENIX_GATEWAY_API_TOKEN").strip_edges();
+			if (!value.is_empty()) {
+				return value;
+			}
+		}
+	}
+
+	PackedStringArray candidates = _collect_env_file_candidates();
+	for (int i = 0; i < candidates.size(); i++) {
+		String value = _get_env_file_value(candidates[i], "PHOENIX_API_TOKEN");
+		if (!value.is_empty()) {
+			return value;
+		}
+	}
+
+	for (int i = 0; i < candidates.size(); i++) {
+		String value = _get_env_file_value(candidates[i], "PHOENIX_GATEWAY_API_TOKEN");
+		if (!value.is_empty()) {
+			return value;
+		}
+	}
+
+	return String();
+}
+
+void _apply_default_command_allowlist(PackedStringArray &r_allowlist) {
+	r_allowlist.clear();
+	r_allowlist.push_back("create_file");
+	r_allowlist.push_back("modify_text");
+	r_allowlist.push_back("create_node");
+	r_allowlist.push_back("chat_message");
+	r_allowlist.push_back("open_docs_query");
+	r_allowlist.push_back("open_docs_file");
+	r_allowlist.push_back("open_docs_url");
+}
 } //namespace
 
 void UltimateAIBackendContractAdapter::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("apply_runtime_config", "config"), &UltimateAIBackendContractAdapter::apply_runtime_config);
 	ClassDB::bind_method(D_METHOD("get_runtime_config"), &UltimateAIBackendContractAdapter::get_runtime_config);
 	ClassDB::bind_method(D_METHOD("start_session", "payload"), &UltimateAIBackendContractAdapter::start_session);
+	ClassDB::bind_method(D_METHOD("send_session_delta", "payload"), &UltimateAIBackendContractAdapter::send_session_delta);
 	ClassDB::bind_method(D_METHOD("request_task", "payload"), &UltimateAIBackendContractAdapter::request_task);
 	ClassDB::bind_method(D_METHOD("get_task_status", "plan_id"), &UltimateAIBackendContractAdapter::get_task_status);
 	ClassDB::bind_method(D_METHOD("submit_approval", "plan_id", "payload"), &UltimateAIBackendContractAdapter::submit_approval);
 	ClassDB::bind_method(D_METHOD("auth_handshake", "payload"), &UltimateAIBackendContractAdapter::auth_handshake);
 	ClassDB::bind_method(D_METHOD("list_tools"), &UltimateAIBackendContractAdapter::list_tools);
 	ClassDB::bind_method(D_METHOD("invoke_tool", "payload"), &UltimateAIBackendContractAdapter::invoke_tool);
+	ClassDB::bind_method(D_METHOD("realtime_negotiate", "payload"), &UltimateAIBackendContractAdapter::realtime_negotiate);
+	ClassDB::bind_method(D_METHOD("realtime_join", "payload"), &UltimateAIBackendContractAdapter::realtime_join);
+	ClassDB::bind_method(D_METHOD("list_locks", "session_id"), &UltimateAIBackendContractAdapter::list_locks, DEFVAL(String()));
+	ClassDB::bind_method(D_METHOD("release_lock", "lock_id"), &UltimateAIBackendContractAdapter::release_lock);
 	ClassDB::bind_method(D_METHOD("evaluate_command_trust", "command"), &UltimateAIBackendContractAdapter::evaluate_command_trust);
 	ClassDB::bind_method(D_METHOD("get_command_allowlist"), &UltimateAIBackendContractAdapter::get_command_allowlist);
 	ClassDB::bind_method(D_METHOD("set_command_allowlist", "allowlist"), &UltimateAIBackendContractAdapter::set_command_allowlist);
 }
 
 UltimateAIBackendContractAdapter::UltimateAIBackendContractAdapter() {
-	command_allowlist.push_back("chat_message");
+	_apply_default_command_allowlist(command_allowlist);
 }
 
 String UltimateAIBackendContractAdapter::_now_iso8601_utc() const {
@@ -93,32 +277,43 @@ String UltimateAIBackendContractAdapter::_now_iso8601_utc() const {
 String UltimateAIBackendContractAdapter::_generate_request_id(const String &p_prefix) const {
 	uint64_t now = OS::get_singleton()->get_ticks_usec();
 	uint64_t unix_time = (uint64_t)Time::get_singleton()->get_unix_time_from_system();
-	return vformat("%s-%llu-%llu", p_prefix, unix_time, now);
+	return p_prefix + "-" + itos((int64_t)unix_time) + "-" + itos((int64_t)now);
 }
 
 String UltimateAIBackendContractAdapter::_resolve_auth_token() const {
 	String token = runtime_config.token.strip_edges();
-	if (!token.is_empty()) {
+	if (!token.is_empty() && _allow_static_runtime_tokens()) {
 		return token;
 	}
 
 	String hook = runtime_config.token_hook.strip_edges();
-	if (hook.is_empty()) {
+	if (!hook.is_empty()) {
+		if (hook.begins_with("env:")) {
+			if (_allow_env_token_hooks()) {
+				String env_var = hook.substr(4, hook.length()).strip_edges();
+				if (!env_var.is_empty() && OS::get_singleton()->has_environment(env_var)) {
+					String env_value = OS::get_singleton()->get_environment(env_var).strip_edges();
+					if (!env_value.is_empty()) {
+						return env_value;
+					}
+				}
+			}
+		} else {
+			if (_allow_static_runtime_tokens()) {
+				return hook;
+			}
+		}
+	}
+
+	if (_normalize_service_mode(runtime_config.auth_mode) == "offline") {
 		return String();
 	}
 
-	if (hook.begins_with("env:")) {
-		String env_var = hook.substr(4, hook.length()).strip_edges();
-		if (env_var.is_empty()) {
-			return String();
-		}
-		if (!OS::get_singleton()->has_environment(env_var)) {
-			return String();
-		}
-		return OS::get_singleton()->get_environment(env_var).strip_edges();
+	if (!_allow_env_token_hooks()) {
+		return String();
 	}
 
-	return hook;
+	return _resolve_gateway_api_token_from_env_sources();
 }
 
 String UltimateAIBackendContractAdapter::_extract_header_value(const List<String> &p_headers, const String &p_key) const {
@@ -189,7 +384,7 @@ Dictionary UltimateAIBackendContractAdapter::_request_once(HTTPClient::Method p_
 	String base_url = runtime_config.base_url.strip_edges();
 	if (base_url.is_empty()) {
 		response["transport_error"] = true;
-		response["error"] = "Runtime config missing base_url.";
+		response["error"] = "Runtime config missing base_url. Set PHOENIX_PUBLIC_GATEWAY_URL (or PHOENIX_GATEWAY_BASE_URL) in .env.local, or run local gateway at http://localhost:5244 in debug editor builds.";
 		return response;
 	}
 
@@ -231,7 +426,7 @@ Dictionary UltimateAIBackendContractAdapter::_request_once(HTTPClient::Method p_
 	while (client->get_status() == HTTPClient::STATUS_RESOLVING || client->get_status() == HTTPClient::STATUS_CONNECTING) {
 		if (OS::get_singleton()->get_ticks_msec() - started > (uint64_t)runtime_config.timeout_ms) {
 			response["transport_error"] = true;
-			response["error"] = "Connection timeout while reaching backend.";
+			response["error"] = vformat("Connection timeout while reaching backend host %s:%d.", host, port);
 			return response;
 		}
 		Error poll_err = client->poll();
@@ -263,7 +458,9 @@ Dictionary UltimateAIBackendContractAdapter::_request_once(HTTPClient::Method p_
 	headers.push_back(String("Content-Type: application/json"));
 	headers.push_back(vformat("%s: %s", HEADER_REQUEST_ID, request_id));
 	headers.push_back(vformat("%s: %s", HEADER_CORRELATION_ID, correlation_id));
-	headers.push_back(vformat("x-phoenix-auth-mode: %s", runtime_config.auth_mode));
+	String auth_mode = _normalize_service_mode(runtime_config.auth_mode);
+	headers.push_back(vformat("x-phoenix-service-mode: %s", auth_mode));
+	headers.push_back(vformat("x-phoenix-auth-mode: %s", auth_mode));
 	if (!runtime_config.tier.is_empty()) {
 		headers.push_back(vformat("x-phoenix-tier: %s", runtime_config.tier));
 	}
@@ -272,6 +469,11 @@ Dictionary UltimateAIBackendContractAdapter::_request_once(HTTPClient::Method p_
 	}
 
 	String auth_token = _resolve_auth_token();
+	if (_service_mode_requires_auth_header(auth_mode) && auth_token.is_empty()) {
+		response["transport_error"] = true;
+		response["error"] = "Missing gateway auth token for managed/byok mode. Set PHOENIX_API_TOKEN (or PHOENIX_GATEWAY_API_TOKEN) in the engine environment or in a discoverable .env.local near the project/editor/executable working directories.";
+		return response;
+	}
 	if (!auth_token.is_empty()) {
 		headers.push_back(vformat("%s: Bearer %s", HEADER_AUTHORIZATION, auth_token));
 	}
@@ -290,7 +492,7 @@ Dictionary UltimateAIBackendContractAdapter::_request_once(HTTPClient::Method p_
 	while (true) {
 		if (OS::get_singleton()->get_ticks_msec() - started > (uint64_t)runtime_config.timeout_ms) {
 			response["transport_error"] = true;
-			response["error"] = "Request timed out while reading backend response.";
+			response["error"] = vformat("Request timed out while reading backend response for %s.", p_path);
 			return response;
 		}
 
@@ -397,17 +599,27 @@ Dictionary UltimateAIBackendContractAdapter::_request_json(HTTPClient::Method p_
 }
 
 void UltimateAIBackendContractAdapter::apply_runtime_config(const Dictionary &p_config) {
+	if (p_config.has("service_mode")) {
+		runtime_config.auth_mode = _normalize_service_mode(String(p_config["service_mode"]));
+	} else if (p_config.has("auth_mode")) {
+		runtime_config.auth_mode = _normalize_service_mode(String(p_config["auth_mode"]));
+	}
+
 	if (p_config.has("base_url")) {
 		runtime_config.base_url = String(p_config["base_url"]).strip_edges();
 	}
-	if (p_config.has("auth_mode")) {
-		runtime_config.auth_mode = String(p_config["auth_mode"]).strip_edges().to_lower();
-	}
 	if (p_config.has("token")) {
-		runtime_config.token = String(p_config["token"]).strip_edges();
+		String incoming_token = String(p_config["token"]).strip_edges();
+		// Security: never overwrite with redaction sentinel or empty on round-trip.
+		if (!incoming_token.is_empty() && incoming_token != "<configured>") {
+			runtime_config.token = incoming_token;
+		}
 	}
 	if (p_config.has("token_hook")) {
-		runtime_config.token_hook = String(p_config["token_hook"]).strip_edges();
+		String incoming_hook = String(p_config["token_hook"]).strip_edges();
+		if (!incoming_hook.is_empty() && incoming_hook != "<configured>") {
+			runtime_config.token_hook = incoming_hook;
+		}
 	}
 	if (p_config.has("actor_id")) {
 		runtime_config.actor_id = String(p_config["actor_id"]).strip_edges();
@@ -424,6 +636,43 @@ void UltimateAIBackendContractAdapter::apply_runtime_config(const Dictionary &p_
 	if (p_config.has("require_signed_commands")) {
 		runtime_config.require_signed_commands = bool(p_config["require_signed_commands"]);
 	}
+	if (p_config.has("allow_background_agents")) {
+		runtime_config.allow_background_agents = bool(p_config["allow_background_agents"]);
+	}
+	if (p_config.has("auto_approve_reads")) {
+		runtime_config.auto_approve_reads = bool(p_config["auto_approve_reads"]);
+	}
+	if (p_config.has("require_approvals")) {
+		runtime_config.require_approvals = bool(p_config["require_approvals"]);
+	}
+	if (p_config.has("mcp_enabled")) {
+		runtime_config.mcp_enabled = bool(p_config["mcp_enabled"]);
+	}
+	if (p_config.has("tool_godot_mcp_docs_enabled")) {
+		runtime_config.tool_godot_mcp_docs_enabled = bool(p_config["tool_godot_mcp_docs_enabled"]);
+	}
+	if (p_config.has("tool_godot_mcp_enabled")) {
+		runtime_config.tool_godot_mcp_enabled = bool(p_config["tool_godot_mcp_enabled"]);
+	}
+	if (p_config.has("tool_godot_copilot_enabled")) {
+		runtime_config.tool_godot_copilot_enabled = bool(p_config["tool_godot_copilot_enabled"]);
+	}
+	if (p_config.has("tool_autonomous_primitives_enabled")) {
+		runtime_config.tool_autonomous_primitives_enabled = bool(p_config["tool_autonomous_primitives_enabled"]);
+	}
+	if (p_config.has("mcp_transport")) {
+		String transport_value = String(p_config["mcp_transport"]).strip_edges().to_lower();
+		runtime_config.mcp_transport = transport_value == "http" ? "http" : "stdio";
+	}
+	if (p_config.has("mcp_auto_discover")) {
+		runtime_config.mcp_auto_discover = bool(p_config["mcp_auto_discover"]);
+	}
+	if (p_config.has("mcp_require_approvals")) {
+		runtime_config.mcp_require_approvals = bool(p_config["mcp_require_approvals"]);
+	}
+	if (p_config.has("mcp_config_path")) {
+		runtime_config.mcp_config_path = String(p_config["mcp_config_path"]).strip_edges();
+	}
 	if (p_config.has("command_allowlist")) {
 		Variant allowlist = p_config["command_allowlist"];
 		if (allowlist.get_type() == Variant::PACKED_STRING_ARRAY) {
@@ -432,27 +681,47 @@ void UltimateAIBackendContractAdapter::apply_runtime_config(const Dictionary &p_
 	}
 
 	if (command_allowlist.is_empty()) {
-		command_allowlist.push_back("chat_message");
+		_apply_default_command_allowlist(command_allowlist);
 	}
 }
 
 Dictionary UltimateAIBackendContractAdapter::get_runtime_config() const {
 	Dictionary config;
 	config["base_url"] = runtime_config.base_url;
+	config["service_mode"] = runtime_config.auth_mode;
 	config["auth_mode"] = runtime_config.auth_mode;
-	config["token"] = runtime_config.token;
-	config["token_hook"] = runtime_config.token_hook;
+	// Security: never expose raw token or hook to GDScript consumers.
+	// Only expose whether a token is configured so UI can show status.
+	config["token"] = runtime_config.token.is_empty() ? String() : String("<configured>");
+	config["token_hook"] = runtime_config.token_hook.is_empty() ? String() : String("<configured>");
+	config["has_token"] = !_resolve_auth_token().is_empty();
 	config["actor_id"] = runtime_config.actor_id;
 	config["tier"] = runtime_config.tier;
 	config["timeout_ms"] = runtime_config.timeout_ms;
 	config["retry_count"] = runtime_config.retry_count;
 	config["require_signed_commands"] = runtime_config.require_signed_commands;
+	config["allow_background_agents"] = runtime_config.allow_background_agents;
+	config["auto_approve_reads"] = runtime_config.auto_approve_reads;
+	config["require_approvals"] = runtime_config.require_approvals;
+	config["mcp_enabled"] = runtime_config.mcp_enabled;
+	config["tool_godot_mcp_docs_enabled"] = runtime_config.tool_godot_mcp_docs_enabled;
+	config["tool_godot_mcp_enabled"] = runtime_config.tool_godot_mcp_enabled;
+	config["tool_godot_copilot_enabled"] = runtime_config.tool_godot_copilot_enabled;
+	config["tool_autonomous_primitives_enabled"] = runtime_config.tool_autonomous_primitives_enabled;
+	config["mcp_transport"] = runtime_config.mcp_transport;
+	config["mcp_auto_discover"] = runtime_config.mcp_auto_discover;
+	config["mcp_require_approvals"] = runtime_config.mcp_require_approvals;
+	config["mcp_config_path"] = runtime_config.mcp_config_path;
 	config["command_allowlist"] = command_allowlist;
 	return config;
 }
 
 Dictionary UltimateAIBackendContractAdapter::start_session(const Dictionary &p_payload) const {
 	return _request_json(HTTPClient::METHOD_POST, "/api/v1/session/start", p_payload);
+}
+
+Dictionary UltimateAIBackendContractAdapter::send_session_delta(const Dictionary &p_payload) const {
+	return _request_json(HTTPClient::METHOD_POST, "/api/v1/session/delta", p_payload);
 }
 
 Dictionary UltimateAIBackendContractAdapter::request_task(const Dictionary &p_payload) const {
@@ -477,6 +746,39 @@ Dictionary UltimateAIBackendContractAdapter::list_tools() const {
 
 Dictionary UltimateAIBackendContractAdapter::invoke_tool(const Dictionary &p_payload) const {
 	return _request_json(HTTPClient::METHOD_POST, "/api/v1/tools/invoke", p_payload);
+}
+
+Dictionary UltimateAIBackendContractAdapter::realtime_negotiate(const Dictionary &p_payload) const {
+	return _request_json(HTTPClient::METHOD_POST, "/api/v1/realtime/negotiate", p_payload);
+}
+
+Dictionary UltimateAIBackendContractAdapter::realtime_join(const Dictionary &p_payload) const {
+	return _request_json(HTTPClient::METHOD_POST, "/api/v1/realtime/join", p_payload);
+}
+
+Dictionary UltimateAIBackendContractAdapter::list_locks(const String &p_session_id) const {
+	String path = "/api/v1/locks";
+	String session_id = p_session_id.strip_edges();
+	if (!session_id.is_empty()) {
+		path += "?session_id=" + session_id.uri_encode();
+	}
+	return _request_json(HTTPClient::METHOD_GET, path);
+}
+
+Dictionary UltimateAIBackendContractAdapter::release_lock(const String &p_lock_id) const {
+	String lock_id = p_lock_id.strip_edges();
+	if (lock_id.is_empty()) {
+		Dictionary response;
+		response["ok"] = false;
+		response["status_code"] = 0;
+		response["error"] = "lock_id is required.";
+		response["body"] = Variant();
+		response["transport_error"] = false;
+		response["request_id"] = String();
+		response["correlation_id"] = String();
+		return response;
+	}
+	return _request_json(HTTPClient::METHOD_POST, "/api/v1/locks/" + lock_id.uri_encode() + "/release");
 }
 
 bool UltimateAIBackendContractAdapter::_allowlist_contains(const String &p_action) const {
@@ -512,7 +814,7 @@ Dictionary UltimateAIBackendContractAdapter::evaluate_command_trust(const Dictio
 
 	trust["allowed"] = true;
 
-	if (!runtime_config.require_signed_commands || action == "chat_message") {
+	if (!runtime_config.require_signed_commands || action == "chat_message" || action == "open_docs_query" || action == "open_docs_url" || action == "open_docs_file") {
 		trust["trusted"] = true;
 		trust["reason"] = "trusted";
 		return trust;
@@ -552,6 +854,6 @@ PackedStringArray UltimateAIBackendContractAdapter::get_command_allowlist() cons
 void UltimateAIBackendContractAdapter::set_command_allowlist(const PackedStringArray &p_allowlist) {
 	command_allowlist = p_allowlist;
 	if (command_allowlist.is_empty()) {
-		command_allowlist.push_back("chat_message");
+		_apply_default_command_allowlist(command_allowlist);
 	}
 }

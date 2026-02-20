@@ -27,7 +27,7 @@ Backend (owns schemas) → Interface (mirrors fixtures + typed SDK) → Engine (
 ## How to check for contract drift
 
 1. Look at Interface repo `contracts/v1/*.json` for current fixture shapes
-2. Look at Backend repo `api/schemas/` for canonical Pydantic models
+2. Look at Backend repo `contracts/fixtures/v1/` for canonical backend fixture mirror
 3. Compare with Engine module's data handling code
 
 ## Key Engine files that depend on contracts

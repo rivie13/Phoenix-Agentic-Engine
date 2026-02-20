@@ -9,8 +9,10 @@ Phoenix is a fork of [Godot Engine](https://github.com/godotengine/godot) that f
 - [UX Assistant](UX_ASSISTANT.md)
 - [Architecture Overview](ARCHITECTURE.md)
 - [Integrations](INTEGRATIONS.md)
+- [Web MVP Export Plan](WEB_MVP_EXPORT_PLAN.md)
 - [Glue Architecture](GLUE_ARCHITECTURE.md)
 - [Monetization Overview](MONETIZATION.md)
+- [Website Content Baseline](WEBSITE_CONTENT_BASELINE.md)
 
 ## Scope and expectations
 

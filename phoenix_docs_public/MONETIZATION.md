@@ -1,21 +1,32 @@
 # Monetization Overview (Public)
 
-Phoenix Agentic Engine is open source (MIT) and is intended to support multiple usage modes.
+Phoenix Agentic Engine is open source (MIT) and supports multiple usage lanes.
 
 ## BYOK (Bring Your Own Key)
 
-Users can supply their own model provider credentials (where supported) and use Phoenix with their own accounts. This mode is designed to be accessible and transparent for developers. This is a single agent orchestration mode that is limited compared to the managed service.
+Users can provide their own model provider credentials (where supported). This lane is designed to be accessible and transparent, with intentionally narrower orchestration scope than managed service lanes.
 
-## Managed service (optional)
+## Managed service lanes (optional)
 
-A managed service may be offered as a convenience tier (for example: simplified setup, usage tracking, and access to preconfigured model options). Details can evolve over time and may differ by release. This is a multi agent orchestration mode that offers models trained specifically for the engine, on pixel art, bfxr sound palette, midi music, and other things
+Managed service lanes will be offered for convenience and advanced capabilities (for example: simplified setup, managed usage/billing workflows, and expanded orchestration/runtime features). Public-facing details may evolve by release.
 
 ## Offline / local-only usage
 
-Phoenix is designed so that core editor workflows remain usable even when external services are unavailable. Some agentic orchestration features may be limited in offline mode.
+Phoenix is designed so core editor workflows remain usable even when external services are unavailable. Some orchestration features are intentionally limited in offline mode.
+
+## Donation allocation policy
+
+- Donations may be accepted through approved platform channels.
+- **10% of gross donations are allocated to Godot Foundation support.**
+- Public donation copy should include this disclosure when donation messaging is shown.
+
+## Public website alignment rules
+
+- Public marketing pages must stay aligned with documented capabilities and publish-safe boundaries.
+- If pricing numbers are not actively published in public docs, the website should describe lanes/capabilities without implying finalized public pricing tables.
 
 ## Principles
 
 - Keep the open-source editor valuable on its own.
-- Make pricing (if/when offered) simple and user-friendly.
+- Keep optional service communication clear and accurate.
 - Preserve user control, privacy, and clear boundaries between local editor actions and optional services.

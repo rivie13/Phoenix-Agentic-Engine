@@ -17,3 +17,6 @@
 [submodule "modules/ultimate_ai/external/gut"]
 	path = modules/ultimate_ai/external/gut
 	url = https://github.com/rivie13/GUT-Godot-Unit-Test.git
+[submodule "modules/ultimate_ai/external/godot-mcp-docs"]
+	path = modules/ultimate_ai/external/godot-mcp-docs
+	url = https://github.com/rivie13/godot-mcp-docs.git

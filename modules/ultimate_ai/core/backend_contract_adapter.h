@@ -40,7 +40,7 @@ class UltimateAIBackendContractAdapter : public Object {
 	GDCLASS(UltimateAIBackendContractAdapter, Object);
 
 	struct RuntimeConfig {
-		String base_url = "http://localhost:5244";
+		String base_url = "";
 		String auth_mode = "managed";
 		String token = "";
 		String token_hook = "";
@@ -49,6 +49,18 @@ class UltimateAIBackendContractAdapter : public Object {
 		int timeout_ms = 15000;
 		int retry_count = 1;
 		bool require_signed_commands = true;
+		bool allow_background_agents = true;
+		bool auto_approve_reads = true;
+		bool require_approvals = true;
+		bool mcp_enabled = true;
+		bool tool_godot_mcp_docs_enabled = true;
+		bool tool_godot_mcp_enabled = true;
+		bool tool_godot_copilot_enabled = true;
+		bool tool_autonomous_primitives_enabled = true;
+		String mcp_transport = "stdio";
+		bool mcp_auto_discover = true;
+		bool mcp_require_approvals = true;
+		String mcp_config_path = "";
 	};
 
 	RuntimeConfig runtime_config;
@@ -74,12 +86,17 @@ public:
 	Dictionary get_runtime_config() const;
 
 	Dictionary start_session(const Dictionary &p_payload) const;
+	Dictionary send_session_delta(const Dictionary &p_payload) const;
 	Dictionary request_task(const Dictionary &p_payload) const;
 	Dictionary get_task_status(const String &p_plan_id) const;
 	Dictionary submit_approval(const String &p_plan_id, const Dictionary &p_payload) const;
 	Dictionary auth_handshake(const Dictionary &p_payload) const;
 	Dictionary list_tools() const;
 	Dictionary invoke_tool(const Dictionary &p_payload) const;
+	Dictionary realtime_negotiate(const Dictionary &p_payload) const;
+	Dictionary realtime_join(const Dictionary &p_payload) const;
+	Dictionary list_locks(const String &p_session_id = String()) const;
+	Dictionary release_lock(const String &p_lock_id) const;
 
 	Dictionary evaluate_command_trust(const Dictionary &p_command) const;
 	PackedStringArray get_command_allowlist() const;

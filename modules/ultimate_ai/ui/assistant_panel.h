@@ -55,9 +55,11 @@ class TextEdit;
 class VSplitContainer;
 class EditorFileSystemDirectory;
 class Texture2D;
+class WebSocketPeer;
 
 class UltimateAISettingsDialog;
 class UltimateAIBackendContractAdapter;
+class UltimateAIFrontendRuntimeAdapter;
 
 class UltimateAssistantPanel : public PanelContainer {
 	GDCLASS(UltimateAssistantPanel, PanelContainer);
@@ -70,6 +72,8 @@ class UltimateAssistantPanel : public PanelContainer {
 		OptionButton *mode_selector = nullptr;
 		OptionButton *model_selector = nullptr;
 		OptionButton *agent_mode_selector = nullptr;
+		OptionButton *tool_mode_selector = nullptr;
+		ItemList *tool_selector = nullptr;
 		LineEdit *session_name_input = nullptr;
 		ItemList *context_list = nullptr;
 		VBoxContainer *context_section = nullptr;
@@ -81,6 +85,7 @@ class UltimateAssistantPanel : public PanelContainer {
 		TextEdit *input_text = nullptr;
 		Label *status_label = nullptr;
 		Button *send_button = nullptr;
+		Button *copy_button = nullptr;
 		Button *steer_button = nullptr;
 		Button *resync_button = nullptr;
 		VBoxContainer *approval_section = nullptr;
@@ -90,12 +95,94 @@ class UltimateAssistantPanel : public PanelContainer {
 		Button *reject_button = nullptr;
 		bool is_active = false;
 		bool has_conflict = false;
+		bool realtime_bootstrapped = false;
 		String session_id;
 		String idempotency_key;
+		String realtime_user_id;
+		String realtime_url;
+		String realtime_access_token;
+		Ref<WebSocketPeer> realtime_peer;
+		bool realtime_stream_failed = false;
 		String last_plan_id;
+		bool status_poll_active = false;
+		uint64_t next_status_poll_msec = 0;
+		bool loading_indicator_active = false;
+		String loading_indicator_text;
+		uint64_t next_loading_tick_msec = 0;
+		int loading_indicator_phase = 0;
+		bool loading_chat_notice_emitted = false;
+		bool loading_chat_indicator_active = false;
+		int loading_chat_indicator_prefix_len = 0;
+		bool assistant_stream_open = false;
+		bool assistant_stream_from_realtime = false;
+		String assistant_stream_text;
+		int assistant_stream_prefix_len = 0;
+		bool thinking_stream_open = false;
+		String thinking_stream_text;
+		int thinking_stream_prefix_len = 0;
+		bool command_stream_active = false;
+		String command_stream_role;
+		String command_stream_remaining;
+		uint64_t next_command_stream_tick_msec = 0;
+		String last_reported_task_status;
+		int last_realtime_seq = -1;
+		bool suppress_next_chat_message = false;
+		int request_generation = 0;
+		bool task_request_in_flight = false;
+		int status_poll_generation = 0;
+		bool status_poll_request_in_flight = false;
+		int approval_generation = 0;
+		bool approval_request_in_flight = false;
 		PackedStringArray pending_action_ids;
 		Array pending_actions;
 		int task_counter = 0;
+	};
+
+	struct AsyncTaskRequestJob {
+		int tab_id = -1;
+		int request_generation = 0;
+		bool should_start_session = false;
+		String session_id;
+		String idempotency_key;
+		Dictionary runtime_config;
+		Dictionary session_payload;
+		Dictionary task_payload;
+		Dictionary session_response;
+		Dictionary task_response;
+	};
+
+	struct PendingAsyncTaskRequest {
+		int64_t task_id = -1;
+		AsyncTaskRequestJob *job = nullptr;
+	};
+
+	struct AsyncTaskStatusPollJob {
+		int tab_id = -1;
+		int poll_generation = 0;
+		String plan_id;
+		bool one_shot_refresh = false;
+		Dictionary runtime_config;
+		Dictionary response;
+	};
+
+	struct PendingAsyncTaskStatusPoll {
+		int64_t task_id = -1;
+		AsyncTaskStatusPollJob *job = nullptr;
+	};
+
+	struct AsyncApprovalJob {
+		int tab_id = -1;
+		int approval_generation = 0;
+		String plan_id;
+		String decision;
+		Dictionary runtime_config;
+		Dictionary payload;
+		Dictionary response;
+	};
+
+	struct PendingAsyncApproval {
+		int64_t task_id = -1;
+		AsyncApprovalJob *job = nullptr;
 	};
 
 	struct ArchivedSession {
@@ -115,7 +202,9 @@ class UltimateAssistantPanel : public PanelContainer {
 		int mode_selected = 0;
 		int model_selected = 0;
 		int agent_mode_selected = 0;
+		int tool_mode_selected = 0;
 		String session_name_text;
+		PackedStringArray selected_tool_ids;
 		PackedStringArray context_items;
 		Array context_metadata;
 		bool context_collapsed = false;
@@ -130,6 +219,7 @@ class UltimateAssistantPanel : public PanelContainer {
 	TabContainer *tab_container = nullptr;
 	UltimateAISettingsDialog *settings_dialog = nullptr;
 	UltimateAIBackendContractAdapter *backend_adapter = nullptr;
+	UltimateAIFrontendRuntimeAdapter *frontend_runtime_adapter = nullptr;
 	AcceptDialog *context_dialog = nullptr;
 	LineEdit *context_search_input = nullptr;
 	LineEdit *context_note_input = nullptr;
@@ -148,6 +238,9 @@ class UltimateAssistantPanel : public PanelContainer {
 
 	Vector<ChatTab> tabs;
 	Vector<ArchivedSession> archived_sessions;
+	Vector<PendingAsyncTaskRequest> pending_task_requests;
+	Vector<PendingAsyncTaskStatusPoll> pending_status_poll_requests;
+	Vector<PendingAsyncApproval> pending_approval_requests;
 	PackedStringArray available_models;
 	int tab_counter = 0;
 	bool theme_ready = false;
@@ -166,12 +259,14 @@ class UltimateAssistantPanel : public PanelContainer {
 	void _on_new_tab_pressed();
 	void _on_tab_close_requested(int p_tab_index);
 	void _on_send_pressed(int p_tab_id);
+	void _on_copy_pressed(int p_tab_id);
 	void _on_input_submitted(const String &p_text, int p_tab_id);
 	void _on_interrupt_pressed(int p_tab_id);
 	void _on_steer_pressed(int p_tab_id);
 	void _on_settings_pressed();
 	void _on_settings_confirmed();
-	void _on_tab_setting_changed(int p_tab_id);
+	void _on_tab_setting_changed(int p_selected_index, int p_tab_id);
+	void _on_tool_selection_changed(int p_index, bool p_selected, int p_tab_id);
 	void _on_context_add_pressed(int p_tab_id);
 	void _on_context_remove_pressed(int p_tab_id);
 	void _on_context_select_add_pressed();
@@ -188,14 +283,46 @@ class UltimateAssistantPanel : public PanelContainer {
 	void _on_resync_pressed(int p_tab_id);
 	void _set_tab_busy(int p_tab_id, bool p_busy, const String &p_status = String());
 	void _set_tab_status(int p_tab_id, const String &p_status, bool p_error = false);
+	void _set_tab_loading_state(int p_tab_id, bool p_active, const String &p_base_text = String());
+	void _update_loading_chat_indicator_for_tab(int p_tab_id);
+	void _clear_loading_chat_indicator_for_tab(int p_tab_id);
+	void _append_task_status_message(int p_tab_id, const String &p_status, bool p_force = false);
+	void _start_command_stream_for_tab(int p_tab_id, const String &p_role, const String &p_content);
 	Dictionary _build_project_map_payload(int p_tab_id) const;
 	Dictionary _build_task_context_payload(int p_tab_id) const;
+	String _resolve_runtime_user_id() const;
 	bool _start_session_for_tab(int p_tab_id, bool p_force_resync = false);
+	bool _bootstrap_realtime_for_tab(int p_tab_id);
+	bool _connect_realtime_stream_for_tab(int p_tab_id);
+	void _disconnect_realtime_stream_for_tab(int p_tab_id);
+	void _poll_realtime_stream_for_tab(int p_tab_id);
+	void _request_task_for_tab_deferred(int p_tab_id, const String &p_user_input);
 	void _request_task_for_tab(int p_tab_id, const String &p_user_input);
+	void _enqueue_async_task_request(AsyncTaskRequestJob *p_job);
+	void _run_async_task_request_job(AsyncTaskRequestJob *p_job);
+	void _pump_async_task_requests();
+	void _handle_async_task_request_completion(AsyncTaskRequestJob *p_job);
+	void _drain_async_task_requests();
+	void _enqueue_async_task_status_poll(AsyncTaskStatusPollJob *p_job);
+	void _run_async_task_status_poll_job(AsyncTaskStatusPollJob *p_job);
+	void _pump_async_task_status_polls();
+	void _handle_async_task_status_poll_completion(AsyncTaskStatusPollJob *p_job);
+	void _drain_async_task_status_polls();
+	void _enqueue_async_approval(AsyncApprovalJob *p_job);
+	void _run_async_approval_job(AsyncApprovalJob *p_job);
+	void _pump_async_approvals();
+	void _handle_async_approval_completion(AsyncApprovalJob *p_job);
+	void _drain_async_approvals();
+	void _apply_realtime_events_for_tab(int p_tab_id, const Array &p_events, bool p_refresh_status = true);
+	void _append_stream_delta_for_tab(int p_tab_id, const String &p_role, const String &p_delta, bool p_finish);
+	void _append_thinking_delta_for_tab(int p_tab_id, const String &p_delta, bool p_finish);
+	void _append_lock_snapshot_for_tab(int p_tab_id, const String &p_reason = String());
 	void _apply_conflict_state(int p_tab_id, const Dictionary &p_response);
 	void _clear_conflict_state(int p_tab_id);
 	void _show_approval_batch(int p_tab_id, const Dictionary &p_batch);
 	void _clear_approval_batch(int p_tab_id);
+	bool _handle_task_status_response_for_tab(int p_tab_id, const String &p_plan_id, const Dictionary &p_response);
+	void _finalize_task_poll_terminal_state(int p_tab_id);
 	bool _poll_task_status_for_tab(int p_tab_id, const String &p_plan_id);
 	void _submit_approval_for_tab(int p_tab_id, const String &p_decision);
 	void _execute_commands_for_tab(int p_tab_id, const Array &p_commands);
@@ -205,6 +332,10 @@ class UltimateAssistantPanel : public PanelContainer {
 	void _add_chat_tab(int p_forced_id = -1);
 	void _add_chat_tab_from_state(const SharedChatTabState &p_state);
 	void _refresh_model_selectors();
+	PackedStringArray _collect_enabled_tool_ids() const;
+	PackedStringArray _collect_selected_tool_ids(const ChatTab &p_tab) const;
+	void _refresh_tool_selector_for_tab(ChatTab &r_tab, const PackedStringArray &p_preferred_selected = PackedStringArray());
+	void _refresh_all_tool_selectors();
 	void _ensure_default_models();
 	int _find_tab_index_by_id(int p_tab_id) const;
 	int _find_tab_index_by_root(Control *p_root) const;

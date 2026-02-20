@@ -1,55 +1,73 @@
-
 # Build and test — Phoenix Agentic Engine (Godot fork)
 
-## Building (Windows)
+## Repo-scoped terminal/tool discipline (required)
 
-Always invoke SCons with the full Python path to avoid PATH mismatches:
+- In this multi-repo workspace, only run Engine commands from the Engine repo root:
+	- `C:\Users\rivie\vsCodeProjects\Phoenix-Agentic-Engine`
+- Before running build/test/tools, verify scope in the active terminal:
+	- `Get-Location`
+	- `git rev-parse --show-toplevel`
+	- `git branch --show-current`
+- If repo root or branch is wrong, open a fresh terminal for this repo and re-run the checks.
+- Do not run Engine scripts from Backend or Interface terminal contexts.
+
+## Canonical Windows build
+
+Always invoke SCons with the pinned Python path:
 
 ```powershell
-# Build editor (from repo root)
 C:\Python313\python.exe -m SCons platform=windows target=editor d3d12=no
-
-# Compiled binary location
-bin\godot.windows.editor.x86_64.exe
 ```
 
-For other platforms, use the standard Godot SCons workflow:
-
-```bash
-python -m SCons platform=<platform> target=editor
-```
+Primary Windows editor binaries:
+- `bin\phoenix_agentic.windows.editor.x86_64.exe`
+- `bin\phoenix_agentic.windows.editor.x86_64.console.exe`
 
 ## Pre-commit
 
 ```powershell
-# Install
 C:\Python313\python.exe -m pip install pre-commit
-
-# Set up hooks
 C:\Python313\python.exe -m pre_commit install
-
-# Run manually
 C:\Python313\python.exe -m pre_commit run --all-files
-
-# Run on specific files
-C:\Python313\python.exe -m pre_commit run --files path/to/file.cpp path/to/another_file.gd
 ```
 
-## Upstream sync workflow
+## Git hygiene before commit/push
 
-```bash
-git fetch upstream
-git checkout upstream-sync
-git reset --hard upstream/master
-git push origin upstream-sync --force
-git checkout main
-git merge upstream-sync
-# Resolve conflicts, then push
-git push origin main
-```
+- Use terminal Git commands from the Engine repo (`git add`, `git commit`, `git push`) so local hooks run consistently.
+- Do not bypass hooks with `--no-verify` in normal development.
+- If `git commit` auto-runs pre-commit hooks and they modify files, re-stage those files and re-run `git commit`.
+- Before pushing, run either:
+	- full checks: `C:\Python313\python.exe -m pre_commit run --all-files`
+	- targeted checks for touched files: `C:\Python313\python.exe -m pre_commit run --files <file1> <file2>`
+- Treat any pre-commit failure as a block for push until fixed.
+
+## VS Code validation tasks (separate from pre-commit)
+
+Run these tasks as an additional gate before commit/push:
+
+- `dev: verify: check` — runs `dev: build editor` then headless version/startup smoke checks.
+- `dev: verify: check (full)` — same as above plus headless doctool check to a temp output directory.
+
+Available focused tasks:
+
+- `dev: verify: headless:version`
+- `dev: verify: headless:startup`
+- `dev: verify: headless:doctool-temp`
+
+## Phoenix addon packaging expectations
+
+Editor artifact validation should include these staged paths when relevant:
+- `bin/addons/net.yarvis.pixel_pen`
+- `bin/addons/diff-margin`
+- `bin/addons/godot-git-plugin`
+- `bin/addons/gdterm`
+- `bin/addons/gut`
+- `bin/addons/bfxr2-mcp-server`
+- `bin/tools/node/<platform>/...` (bundled runtime for BFXR bridge)
 
 ## Validation expectations
 
-- PRs should include what was built, what was run, and what platform was tested.
-- Tests must be deterministic and must not require network access.
-- Build must succeed with the standard SCons command above before merging.
+- Include build/test commands and platform in PR notes.
+- Keep tests deterministic and local-only.
+- Verify changed addon integrations still stage and bootstrap in editor builds.
+- Run `dev: verify: check` (or `dev: verify: check (full)` when touching doc-exposed/editor-surface code) before commit/push.
