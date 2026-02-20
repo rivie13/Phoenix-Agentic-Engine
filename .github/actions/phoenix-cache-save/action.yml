@@ -14,20 +14,6 @@ inputs:
 runs:
   using: composite
   steps:
-    - name: Ensure cache tree hash
-      shell: sh
-      run: |
-        if [ -n "${CACHE_TREE_HASH:-}" ]; then
-          exit 0
-        fi
-
-        tree_hash="$(git rev-parse "${GITHUB_SHA}^{tree}" 2>/dev/null || git rev-parse HEAD^{tree})"
-        if [ -z "$tree_hash" ]; then
-          echo "Failed to compute git tree hash for cache key" >&2
-          exit 1
-        fi
-        echo "CACHE_TREE_HASH=$tree_hash" >> "$GITHUB_ENV"
-
     - name: Purge files before timestamp
       shell: sh
       run: misc/scripts/purge_cache.py ${{ env.CACHE_TIMESTAMP }} "${{ inputs.scons-cache }}"
@@ -36,4 +22,4 @@ runs:
       uses: actions/cache/save@v4
       with:
         path: ${{ inputs.scons-cache }}
-        key: ${{ inputs.cache-name }}|${{ inputs.cache-scope }}|${{ env.CACHE_TREE_HASH }}
+        key: ${{ inputs.cache-name }}|${{ inputs.cache-scope }}|${{ github.ref_name }}|${{ github.sha }}

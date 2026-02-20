@@ -14,22 +14,14 @@ inputs:
 runs:
   using: composite
   steps:
-    - name: Compute cache tree hash
-      shell: sh
-      run: |
-        tree_hash="$(git rev-parse "${GITHUB_SHA}^{tree}" 2>/dev/null || git rev-parse HEAD^{tree})"
-        if [ -z "$tree_hash" ]; then
-          echo "Failed to compute git tree hash for cache key" >&2
-          exit 1
-        fi
-        echo "CACHE_TREE_HASH=$tree_hash" >> "$GITHUB_ENV"
-
     - name: Restore cache
       uses: actions/cache/restore@v4
       id: cache-ping
       with:
         path: ${{ inputs.scons-cache }}
-        key: ${{ inputs.cache-name }}|${{ inputs.cache-scope }}|${{ env.CACHE_TREE_HASH }}
+        key: ${{ inputs.cache-name }}|${{ inputs.cache-scope }}|${{ github.ref_name }}|${{ github.sha }}
+        restore-keys: |
+          ${{ inputs.cache-name }}|${{ inputs.cache-scope }}|${{ github.ref_name }}|
 
     - name: Store unix timestamp
       shell: sh
