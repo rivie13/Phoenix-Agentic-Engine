@@ -192,11 +192,17 @@ If the closed issue was a sub-issue of an epic, check whether **all** sibling su
 mcp_github_github_issue_write(method="update", owner="rivie13", repo="Phoenix-Agentic-Engine", issueNumber=<EPIC_N>, state="closed", stateReason="completed")
 ```
 
-### Step 4: Verify on project board
+### Step 4: Set Status → Done on project board
 
-Move the issue/epic to "Done" on the project board.
+Add a signal label to move the issue to Done:
 
-> **Rule:** Never consider a PR "fully done" until all linked issues are verified closed. This is as important as passing CI.
+```
+mcp_github_github_issue_write(method="update", owner="rivie13", repo="Phoenix-Agentic-Engine", issueNumber=<N>, labels=["task", "set:status:done"])
+```
+
+The `sync-project-fields.yml` workflow will set the Status field and remove the signal label.
+
+> **Rule:** Never consider a PR "fully done" until all linked issues are verified closed and moved to Done. This is as important as passing CI.
 
 ## Update PR Branch (rebase/merge from base)
 

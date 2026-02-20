@@ -160,7 +160,10 @@ After any PR is merged, **always close linked issues explicitly**. Do NOT rely s
 
 3. **Close parent epic if all children are done** — if this was a sub-issue, check whether all sibling sub-issues are now closed. If so, close the parent epic too.
 
-4. **Move to Done** on the project board.
+4. **Set Status → Done** on the project board using a signal label:
+   ```
+   mcp_github_github_issue_write(method="update", owner="rivie13", repo="Phoenix-Agentic-Engine", issueNumber=<N>, labels=["task", "set:status:done"])
+   ```
 
 > **Rule:** A PR is not "fully done" until all linked issues are verified closed.
 
