@@ -5,6 +5,13 @@ description: Create, update, and manage GitHub pull requests across Phoenix repo
 
 # PR Management — Phoenix Agentic Engine
 
+## CLI tool policy (mandatory)
+
+- **NEVER use `gh` CLI** — it is not installed and must not be used.
+- **Always prefer GitHub MCP tools** (`mcp_github_*`) for all GitHub operations.
+- Fall back to terminal `git` commands only for local worktree operations or when MCP tools fail.
+- Do NOT suggest or attempt any `gh` subcommand.
+
 ## Repo Context
 
 - **Owner**: `rivie13`
@@ -18,6 +25,17 @@ description: Create, update, and manage GitHub pull requests across Phoenix repo
 3. Keep PR scope narrow; avoid unrelated file changes.
 4. Run pre-commit + relevant tests before push.
 5. Never force-push shared branches unless explicitly coordinated.
+
+## PR size discipline (mandatory)
+
+- Keep PRs small and focused — one logical change per PR.
+- If a feature branch grows large, break it into sub-branches:
+  1. Create sub-branches off the feature branch for discrete pieces of work.
+  2. Open PRs from each sub-branch into the feature branch.
+  3. Once sub-branch PRs are merged into the feature branch, open a single PR from the feature branch into `main`.
+- Target: PRs should ideally be under ~400 lines of meaningful change (excluding generated files, lock files, submodule pointer updates).
+- If a PR exceeds this, strongly consider splitting before requesting review.
+- Never let PRs accumulate dozens of unrelated changes.
 
 Example setup:
 
@@ -66,9 +84,11 @@ mcp_github_github_create_pull_request(
 ```
 
 ### PR description should include (per repo conventions):
-- What was built/changed
-- What was run/tested
-- Platform tested on
+- **Summary**: What was built/changed and why
+- **Changes**: Bullet list of key changes
+- **Testing**: What was run/tested, platform, and pass/fail results
+- **Breaking changes**: Any upstream-merge or compatibility concerns
+- **Related issues**: Link related issues with `Closes #N` or `Relates to #N`
 - If core files changed: justification and `CORE_MODIFICATIONS.md` entry
 - Pre-commit/test commands run and outcomes
 
@@ -139,3 +159,11 @@ mcp_github_github_push_files(
 - `feature/<name>` — new features
 - `fix/<name>` — bug fixes
 - `upstream-sync` — reserved for upstream Godot sync
+
+## Issue creation (public repo — never use `gh` CLI)
+
+- Create issues using `mcp_github_github_issue_write`.
+- For non-sensitive, public-facing work: assign to Copilot (cloud agent) using `mcp_github_github_assign_copilot_to_issue`.
+- Do NOT create public issues for private/sensitive matters (secrets, auth, proprietary logic, security vulnerabilities).
+- Search for existing issues before creating duplicates using `mcp_github_github_search_issues`.
+- Use issues to break large features into smaller, trackable units of work.
