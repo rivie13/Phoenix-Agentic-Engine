@@ -120,9 +120,16 @@ jobs:
             const parts = label.split(':');
             if (parts.length !== 3) {
               core.warning(`Invalid signal label format: ${label} (expected set:<field>:<value>)`);
+              await removeSignalLabel();
               return;
             }
-            const [, fieldKey, optionKey] = parts;
+            const normalizeKey = (value) => String(value || '')
+              .trim()
+              .toLowerCase()
+              .replace(/[_\s]+/g, '-');
+            const [, rawFieldKey, rawOptionKey] = parts;
+            const fieldKey = normalizeKey(rawFieldKey);
+            const optionKey = normalizeKey(rawOptionKey);
 
             // ── Field → project field name + option matchers ────────
             // Option matchers are regex patterns matched against the project
@@ -130,7 +137,7 @@ jobs:
             // to minor naming differences on the board.
             const FIELD_MAP = {
               priority: {
-                fieldName: 'Priority',
+                fieldNames: ['Priority'],
                 options: {
                   'p0': /p0/i,
                   'p1': /p1/i,
@@ -139,7 +146,7 @@ jobs:
                 },
               },
               size: {
-                fieldName: 'Size',
+                fieldNames: ['Size'],
                 options: {
                   'xs': /\bxs\b/i,
                   's':  /\bs\b/i,
@@ -148,14 +155,14 @@ jobs:
                 },
               },
               workmode: {
-                fieldName: 'Work mode',
+                fieldNames: ['Work mode', 'Work Mode', 'Workmode'],
                 options: {
-                  'cloud-agent': /cloud/i,
-                  'local-ide':   /local/i,
+                  'cloud-agent': /\bcloud\b.*\bagent\b|\bcloud\b/i,
+                  'local-ide':   /\blocal\b.*\bide\b|\blocal\b/i,
                 },
               },
               status: {
-                fieldName: 'Status',
+                fieldNames: ['Status'],
                 options: {
                   'backlog':     /backlog/i,
                   'ready':       /\bready\b/i,
@@ -166,21 +173,35 @@ jobs:
               },
             };
 
+            const OPTION_ALIASES = {
+              workmode: {
+                local: 'local-ide',
+                localide: 'local-ide',
+              },
+              status: {
+                inprogress: 'in-progress',
+                inreview: 'in-review',
+              },
+            };
+
             const fieldConfig = FIELD_MAP[fieldKey];
             if (!fieldConfig) {
               core.warning(`Unknown field key "${fieldKey}" in signal label "${label}". Valid keys: ${Object.keys(FIELD_MAP).join(', ')}`);
+              await removeSignalLabel();
               return;
             }
 
-            const optionMatcher = fieldConfig.options[optionKey];
+            const canonicalOptionKey = OPTION_ALIASES[fieldKey]?.[optionKey] || optionKey;
+            const optionMatcher = fieldConfig.options[canonicalOptionKey];
             if (!optionMatcher) {
               core.warning(`Unknown option "${optionKey}" for field "${fieldKey}". Valid options: ${Object.keys(fieldConfig.options).join(', ')}`);
+              await removeSignalLabel();
               return;
             }
 
             // `set:workmode:cloud-agent` is a compatibility signal.
             // Convert it to the real workflow trigger label and stop here.
-            if (fieldKey === 'workmode' && optionKey === 'cloud-agent') {
+            if (fieldKey === 'workmode' && canonicalOptionKey === 'cloud-agent') {
               const labels = (context.payload.issue.labels || [])
                 .map((entry) => typeof entry === 'string' ? entry : entry.name)
                 .filter(Boolean);
@@ -199,6 +220,22 @@ jobs:
 
               await removeSignalLabel();
               return;
+            }
+
+            // `set:workmode:local-ide` should explicitly clear any stale
+            // `cloud-agent` label to keep labels and project field aligned.
+            if (fieldKey === 'workmode' && canonicalOptionKey === 'local-ide') {
+              try {
+                await github.rest.issues.removeLabel({
+                  owner,
+                  repo,
+                  issue_number: issueNumber,
+                  name: 'cloud-agent',
+                });
+                core.info(`Removed real label "cloud-agent" from issue #${issueNumber}`);
+              } catch (e) {
+                core.info(`No real label "cloud-agent" to remove on issue #${issueNumber}`);
+              }
             }
 
             // ── Find issue's project board item ─────────────────────
@@ -269,16 +306,18 @@ jobs:
             const fields = fieldResult.node.fields.nodes.filter(f => f.name);
 
             // ── Find target field + option ───────────────────────────
-            const targetField = fields.find(f => f.name === fieldConfig.fieldName);
+            const targetField = fields.find((field) =>
+              fieldConfig.fieldNames.some((name) => field.name.toLowerCase() === name.toLowerCase())
+            );
             if (!targetField) {
-              core.warning(`Field "${fieldConfig.fieldName}" not found. Available: ${fields.map(f => f.name).join(', ')}`);
+              core.warning(`Field "${fieldConfig.fieldNames.join(' / ')}" not found. Available: ${fields.map(f => f.name).join(', ')}`);
               await removeSignalLabel();
               return;
             }
 
             const targetOption = targetField.options.find(o => optionMatcher.test(o.name));
             if (!targetOption) {
-              core.warning(`No matching option for "${optionKey}" in "${fieldConfig.fieldName}". Available: ${targetField.options.map(o => o.name).join(', ')}`);
+              core.warning(`No matching option for "${canonicalOptionKey}" in "${targetField.name}". Available: ${targetField.options.map(o => o.name).join(', ')}`);
               await removeSignalLabel();
               return;
             }
@@ -303,7 +342,7 @@ jobs:
               optionId: targetOption.id,
             });
 
-            core.info(`✅ Set ${fieldConfig.fieldName} → ${targetOption.name} for issue #${issueNumber}`);
+            core.info(`✅ Set ${targetField.name} → ${targetOption.name} for issue #${issueNumber}`);
 
             // ── Remove the signal label ─────────────────────────────
             await removeSignalLabel();
