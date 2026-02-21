@@ -78,6 +78,8 @@ Examples:
 ## Commit hygiene
 
 - Run validations before commit:
+  - Preferred VS Code task: `dev: precommit: check` (empty input = `--all-files`, non-empty input = `--files ...`)
+  - For all-files pre-commit runs, keep the task in foreground and wait until it fully finishes before proceeding.
   - `C:\Python313\python.exe -m pre_commit run --all-files`
   - Build: `C:\Python313\python.exe -m SCons platform=windows target=editor d3d12=no`
 - Keep commits atomic and reviewable.
@@ -183,7 +185,7 @@ The project board (rivie13/projects/3) has **separate fields** that are NOT labe
 | Field | Type | Values |
 |-------|------|--------|
 | **Priority** | Single select | P0 (Critical), P1 (High), P2 (Medium), P3 (Low) |
-| **Size** | Single select | XS, S, M, L |
+| **Size** | Single select | XS, S, M, L, XL |
 | **Work mode** | Single select | Cloud Agent, Local IDE |
 | **Status** | Single select | Backlog, Ready, In Progress, In Review, Done |
 | **Labels** | GitHub labels | `task`, `epic`, `feature`, `cloud-agent`, etc. |
@@ -261,7 +263,7 @@ After any PR is merged, **always close linked issues explicitly using MCP tools*
 
 ## Engine quality gate (required before PR readiness)
 
-- `pre_commit run --all-files` passes
+- `dev: precommit: check` (empty input) or `pre_commit run --all-files` passes
 - SCons build succeeds
 - PR GitHub Actions checks are green (or explicitly understood/waived)
 - Changes in `modules/ultimate_ai/` are expected; changes outside require `CORE_MODIFICATIONS.md` entry

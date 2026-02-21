@@ -91,6 +91,13 @@ C:\Python313\python.exe -m pre_commit run --all-files
 C:\Python313\python.exe -m SCons platform=windows target=editor d3d12=no
 ```
 
+Preferred VS Code task for pre-commit:
+
+- `dev: precommit: check`
+   - Empty prompt = `--all-files` (default).
+   - Space-separated files = `--files ...`.
+   - Full-repo runs are long-running; keep focus on this task and wait until it fully completes before commit/PR steps.
+
 If any command fails, fix before committing.
 
 ## Commit workflow
