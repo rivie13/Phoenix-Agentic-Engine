@@ -102,6 +102,20 @@ jobs:
             const issueNumber = context.payload.issue.number;
             const projectNumber = Number(process.env.PROJECT_NUMBER);
 
+            const removeSignalLabel = async () => {
+              try {
+                await github.rest.issues.removeLabel({
+                  owner,
+                  repo,
+                  issue_number: issueNumber,
+                  name: label,
+                });
+                core.info(`Removed signal label "${label}"`);
+              } catch (e) {
+                core.warning(`Failed to remove signal label "${label}": ${e.message}`);
+              }
+            };
+
             // ── Parse signal label ──────────────────────────────────
             const parts = label.split(':');
             if (parts.length !== 3) {
@@ -161,6 +175,29 @@ jobs:
             const optionMatcher = fieldConfig.options[optionKey];
             if (!optionMatcher) {
               core.warning(`Unknown option "${optionKey}" for field "${fieldKey}". Valid options: ${Object.keys(fieldConfig.options).join(', ')}`);
+              return;
+            }
+
+            // `set:workmode:cloud-agent` is a compatibility signal.
+            // Convert it to the real workflow trigger label and stop here.
+            if (fieldKey === 'workmode' && optionKey === 'cloud-agent') {
+              const labels = (context.payload.issue.labels || [])
+                .map((entry) => typeof entry === 'string' ? entry : entry.name)
+                .filter(Boolean);
+
+              if (!labels.includes('cloud-agent')) {
+                await github.rest.issues.addLabels({
+                  owner,
+                  repo,
+                  issue_number: issueNumber,
+                  labels: ['cloud-agent'],
+                });
+                core.info(`Added real label "cloud-agent" to issue #${issueNumber}`);
+              } else {
+                core.info(`Issue #${issueNumber} already has label "cloud-agent"`);
+              }
+
+              await removeSignalLabel();
               return;
             }
 
@@ -234,13 +271,15 @@ jobs:
             // ── Find target field + option ───────────────────────────
             const targetField = fields.find(f => f.name === fieldConfig.fieldName);
             if (!targetField) {
-              core.setFailed(`Field "${fieldConfig.fieldName}" not found. Available: ${fields.map(f => f.name).join(', ')}`);
+              core.warning(`Field "${fieldConfig.fieldName}" not found. Available: ${fields.map(f => f.name).join(', ')}`);
+              await removeSignalLabel();
               return;
             }
 
             const targetOption = targetField.options.find(o => optionMatcher.test(o.name));
             if (!targetOption) {
-              core.setFailed(`No matching option for "${optionKey}" in "${fieldConfig.fieldName}". Available: ${targetField.options.map(o => o.name).join(', ')}`);
+              core.warning(`No matching option for "${optionKey}" in "${fieldConfig.fieldName}". Available: ${targetField.options.map(o => o.name).join(', ')}`);
+              await removeSignalLabel();
               return;
             }
 
@@ -267,14 +306,4 @@ jobs:
             core.info(`✅ Set ${fieldConfig.fieldName} → ${targetOption.name} for issue #${issueNumber}`);
 
             // ── Remove the signal label ─────────────────────────────
-            try {
-              await github.rest.issues.removeLabel({
-                owner,
-                repo,
-                issue_number: issueNumber,
-                name: label,
-              });
-              core.info(`Removed signal label "${label}"`);
-            } catch (e) {
-              core.warning(`Failed to remove signal label "${label}": ${e.message}`);
-            }
+            await removeSignalLabel();
