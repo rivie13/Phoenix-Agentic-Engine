@@ -1,31 +1,45 @@
-# PRIORITY — Current Task Context
+# PRIORITY — Board-Driven Task Context
 
-## Active task pointer
+## Single source of truth
 
-**Read `.github/context/CURRENT_TASK.md` at the start of every session.** This file is the single source of truth for what is actively being worked on in this repo.
+Use the **Phoenix Project Board** as the only task state source:
 
-- The **stub template** is committed at `.github/context/CURRENT_TASK.md.stub`. This is the canonical, immutable template. Do NOT modify the stub.
-- The **working copy** lives at `.github/context/CURRENT_TASK.md` and is gitignored. Each developer/agent maintains their own local copy.
-- If `CURRENT_TASK.md` does not exist locally, copy the stub to create it: `cp .github/context/CURRENT_TASK.md.stub .github/context/CURRENT_TASK.md`
-- If the file contains an active task: that is your primary context. All work should relate to or acknowledge this task.
-- If the file says "No active task": use the `focus` skill to pick the next task from the roadmap.
-- If you are spawned for a side task (bug fix, tangent): still read CURRENT_TASK.md to understand the main thread. Note in your response that the main task is X and this is a tangent.
+- Board URL: https://github.com/users/rivie13/projects/3
+- Status flow: Backlog → Ready → Claimed → In Progress → QA Required → QA Feedback → In Review → Done
 
-## Project board
+Do not use local filesystem artifacts for coordination.
 
-All tasks are tracked on the **Phoenix Project Board**: https://github.com/users/rivie13/projects/3
+## Session start behavior
 
-Board columns: Backlog → Ready → In Progress → In Review → Done
+At the start of each session:
+
+1. Confirm the assigned issue/task from the incoming execution context (dispatcher prompt, local user instruction, or cloud assignment context).
+2. Verify the assignment exists on the board and confirm lock/dependency eligibility (`Area`, `Lock Key`, `Needed Files`, `Depends On`).
+3. Study the assignment context (issue body, acceptance criteria, linked PR/comments, dependency notes) before implementation.
+4. Execute the assignment and report checkpoints to board/issue/PR context.
+
+If a side task appears, treat it as a separate board item and keep references explicit via issue links/sub-issues.
+
+If no assignment is explicit, ask for assignment clarification (or only then select a ready unblocked item).
+
+## Concurrent task awareness
+
+Use board-native concurrency controls only:
+
+- Check active overlaps on `Lock Key` / `Needed Files` / `Area`.
+- Verify all `Depends On` prerequisites are complete.
+- If conflict/block exists, stop and report blocker context to the user.
+
+See `.github/docs/WORKER_FACTORY.md` and `.github/docs/PROJECT_WORKFLOW.md` for lock and dispatch rules.
 
 ## Task lifecycle (Ralph Loop)
 
-The task lifecycle follows the **Ralph Loop** — a conditional iteration loop. See `.github/docs/PROJECT_WORKFLOW.md` for the full diagram and documentation.
+The loop is board-driven:
 
-1. **Pick**: Read roadmap → select next task → create/assign issue → fill CURRENT_TASK.md → move to "In Progress"
-2. **Decide**: Local IDE or Cloud Agent? If cloud, add `cloud-agent` label to auto-assign Copilot
-3. **Work**: Implement the task, updating checkpoint in CURRENT_TASK.md periodically
-4. **Complete**: Verify acceptance criteria → move to "In Review"/"Done" → reset CURRENT_TASK.md
-5. **Next**: Repeat from step 1
+1. **Confirm Assignment**: identify assigned issue from dispatcher/local/cloud context and verify board linkage
+2. **Study + Work**: review assignment context, implement task, and post progress on board/issue/PR context
+3. **Complete**: verify acceptance criteria and move status to In Review/Done
+4. **Next**: publish completion and await the next assignment
 
 ## Issue hierarchy
 
@@ -33,15 +47,29 @@ Use GitHub sub-issues for structured work: **Epic** → **Feature** → **Task**
 
 ## Cloud agent assignment
 
-When an issue is labeled `cloud-agent`, the `cloud-agent-assign.yml` workflow checks that the issue is in **Ready** status on the project board. If not Ready (e.g. still in Backlog), the label is removed and the assignment is rejected. On success, the workflow assigns Copilot and automatically updates the board: Status → In Progress, Work mode → Cloud Agent. Use this for well-scoped tasks with clear acceptance criteria.
+`cloud-agent` labeling remains gated by board readiness:
+
+- Issue must be in **Ready** status
+- Workflow assigns Copilot and updates board to In Progress + Cloud Agent mode
+
+## Agent responsibilities — branches, PRs, issues
+
+Agents must manage their own git lifecycle:
+
+- Create branch, commit, push, open PR, and close issues explicitly
+- Update board metadata/status as work progresses
+- Release lock metadata on completion/failure/abandon
+
+Human actions should be limited to merge decisions (and conflict resolution when needed).
 
 ## Cross-repo coordination
 
-When a task in this repo depends on or affects another repo:
-- Note the dependency in CURRENT_TASK.md "Depends on" field
-- Check the other repo's CURRENT_TASK.md to avoid conflicts
+When work depends on other repos:
+
+- Model dependency on the board/issue links (sub-issues, `Depends On`)
+- Do not rely on local files for cross-repo state
 - Related repos: Backend (`rivie13/Phoenix-Agentic-Engine-Backend`), Interface (`rivie13/Phoenix-Agentic-Engine-Interface`)
 
 ## Privacy
 
-This repo is **public**. CURRENT_TASK.md must not contain secrets, private strategy, or internal business details.
+This repo is **public**. Keep progress notes, issues, and PR text free of secrets or private strategy details.

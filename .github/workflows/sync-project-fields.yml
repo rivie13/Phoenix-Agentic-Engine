@@ -10,8 +10,9 @@
 # Signal label format: set:<field>:<value>
 #   - set:priority:p0 | p1 | p2 | p3
 #   - set:size:xs | s | m | l
-#   - set:workmode:cloud-agent | local-ide
+#   - set:workmode:cloud-agent | local-ide | cli-agent
 #   - set:status:backlog | ready | in-progress | in-review | done
+#   - set:area:<area-name>  (see WORKER_FACTORY.md for valid area names per repo)
 #
 # Also supports workflow_dispatch to bootstrap signal labels in the repo.
 
@@ -57,8 +58,31 @@ jobs:
               { name: 'set:size:s',      color: 'BFD4F2', description: 'Signal: set Size → S' },
               { name: 'set:size:m',      color: 'BFD4F2', description: 'Signal: set Size → M' },
               { name: 'set:size:l',      color: 'BFD4F2', description: 'Signal: set Size → L' },
+              { name: 'set:size:xl',     color: 'BFD4F2', description: 'Signal: set Size → XL' },
               { name: 'set:workmode:cloud-agent', color: 'D4C5F9', description: 'Signal: set Work mode → Cloud Agent' },
               { name: 'set:workmode:local-ide',   color: 'D4C5F9', description: 'Signal: set Work mode → Local IDE' },
+              { name: 'set:workmode:cli-agent',   color: 'D4C5F9', description: 'Signal: set Work mode → CLI Agent' },
+              { name: 'set:area:module-assistant-ui', color: '0075CA', description: 'Signal: set Area → module/assistant-ui' },
+              { name: 'set:area:module-mcp',          color: '0075CA', description: 'Signal: set Area → module/mcp' },
+              { name: 'set:area:module-agent',        color: '0075CA', description: 'Signal: set Area → module/agent' },
+              { name: 'set:area:module-addons',       color: '0075CA', description: 'Signal: set Area → module/addons' },
+              { name: 'set:area:core',                color: '0075CA', description: 'Signal: set Area → core' },
+              { name: 'set:area:gateway',             color: '0075CA', description: 'Signal: set Area → gateway' },
+              { name: 'set:area:worker',              color: '0075CA', description: 'Signal: set Area → worker' },
+              { name: 'set:area:orchestrator',        color: '0075CA', description: 'Signal: set Area → orchestrator' },
+              { name: 'set:area:sdk-client',          color: '0075CA', description: 'Signal: set Area → sdk/client' },
+              { name: 'set:area:sdk-core',            color: '0075CA', description: 'Signal: set Area → sdk/core' },
+              { name: 'set:area:contracts',           color: '0075CA', description: 'Signal: set Area → contracts' },
+              { name: 'set:area:infra',               color: '0075CA', description: 'Signal: set Area → infra' },
+              { name: 'set:area:app-pages',           color: '0075CA', description: 'Signal: set Area → app/pages' },
+              { name: 'set:area:components',          color: '0075CA', description: 'Signal: set Area → components' },
+              { name: 'set:area:content',             color: '0075CA', description: 'Signal: set Area → content' },
+              { name: 'set:area:public',              color: '0075CA', description: 'Signal: set Area → public' },
+              { name: 'set:area:api',                 color: '0075CA', description: 'Signal: set Area → api' },
+              { name: 'set:area:domain',              color: '0075CA', description: 'Signal: set Area → domain' },
+              { name: 'set:area:tests',               color: '0075CA', description: 'Signal: set Area → tests' },
+              { name: 'set:area:docs',                color: '0075CA', description: 'Signal: set Area → docs' },
+              { name: 'set:area:ci',                  color: '0075CA', description: 'Signal: set Area → ci' },
               { name: 'set:status:backlog',     color: 'E4E669', description: 'Signal: set Status → Backlog' },
               { name: 'set:status:ready',       color: 'E4E669', description: 'Signal: set Status → Ready' },
               { name: 'set:status:in-progress', color: 'E4E669', description: 'Signal: set Status → In Progress' },
@@ -152,13 +176,16 @@ jobs:
                   's':  /\bs\b/i,
                   'm':  /\bm\b/i,
                   'l':  /\bl\b/i,
+                  'xl': /\bxl\b/i,
                 },
               },
               workmode: {
+                optional: true,
                 fieldNames: ['Work mode', 'Work Mode', 'Workmode'],
                 options: {
                   'cloud-agent': /\bcloud\b.*\bagent\b|\bcloud\b/i,
                   'local-ide':   /\blocal\b.*\bide\b|\blocal\b/i,
+                  'cli-agent':   /\bcli\b.*\bagent\b|\bcli.?agent\b|\bcli\b/i,
                 },
               },
               status: {
@@ -171,12 +198,50 @@ jobs:
                   'done':        /\bdone\b/i,
                 },
               },
+              area: {
+                optional: true,
+                fieldNames: ['Area'],
+                options: {
+                  'module-assistant-ui': /assistant.?ui|module\/assistant/i,
+                  'module-mcp':          /\bmcp\b/i,
+                  'module-agent':        /module\/agent|\bmodule\b.*\bagent\b/i,
+                  'module-addons':       /\baddons?\b/i,
+                  'core':                /\bcore\b/i,
+                  'gateway':             /\bgateway\b/i,
+                  'worker':              /\bworker\b/i,
+                  'orchestrator':        /\borchestrat/i,
+                  'sdk-client':          /sdk\/client|sdk.*client/i,
+                  'sdk-core':            /sdk\/core\b/i,
+                  'contracts':           /\bcontracts?\b/i,
+                  'infra':               /\binfra\b/i,
+                  'app-pages':           /app\/pages|app.*pages/i,
+                  'components':          /\bcomponents?\b/i,
+                  'content':             /\bcontent\b/i,
+                  'public':              /\bpublic\b/i,
+                  'api':                 /\bapi\b/i,
+                  'domain':              /\bdomain\b/i,
+                  'tests':               /\btests?\b/i,
+                  'docs':                /\bdocs?\b/i,
+                  'ci':                  /\bci\b/i,
+                },
+              },
             };
 
             const OPTION_ALIASES = {
               workmode: {
                 local: 'local-ide',
                 localide: 'local-ide',
+                cli: 'cli-agent',
+                cliagent: 'cli-agent',
+              },
+              area: {
+                moduleassistantui: 'module-assistant-ui',
+                modulemcp: 'module-mcp',
+                moduleagent: 'module-agent',
+                moduleaddons: 'module-addons',
+                sdkclient: 'sdk-client',
+                sdkcore: 'sdk-core',
+                apppages: 'app-pages',
               },
               status: {
                 inprogress: 'in-progress',
@@ -199,32 +264,30 @@ jobs:
               return;
             }
 
-            // `set:workmode:cloud-agent` is a compatibility signal.
-            // Convert it to the real workflow trigger label and stop here.
-            if (fieldKey === 'workmode' && canonicalOptionKey === 'cloud-agent') {
-              const labels = (context.payload.issue.labels || [])
-                .map((entry) => typeof entry === 'string' ? entry : entry.name)
-                .filter(Boolean);
-
-              if (!labels.includes('cloud-agent')) {
-                await github.rest.issues.addLabels({
-                  owner,
-                  repo,
-                  issue_number: issueNumber,
-                  labels: ['cloud-agent'],
-                });
-                core.info(`Added real label "cloud-agent" to issue #${issueNumber}`);
-              } else {
-                core.info(`Issue #${issueNumber} already has label "cloud-agent"`);
-              }
-
-              await removeSignalLabel();
-              return;
-            }
+            // `set:workmode:cloud-agent` signal now sets the Work mode project
+            // field via the normal flow below. It does NOT auto-add the real
+            // `cloud-agent` label — that must be added manually by an authorized
+            // user to trigger cloud-agent-assign.yml with its permission guard.
 
             // `set:workmode:local-ide` should explicitly clear any stale
             // `cloud-agent` label to keep labels and project field aligned.
             if (fieldKey === 'workmode' && canonicalOptionKey === 'local-ide') {
+              try {
+                await github.rest.issues.removeLabel({
+                  owner,
+                  repo,
+                  issue_number: issueNumber,
+                  name: 'cloud-agent',
+                });
+                core.info(`Removed real label "cloud-agent" from issue #${issueNumber}`);
+              } catch (e) {
+                core.info(`No real label "cloud-agent" to remove on issue #${issueNumber}`);
+              }
+            }
+
+            // `set:workmode:cli-agent` should also clear any stale
+            // `cloud-agent` label to keep labels and project field aligned.
+            if (fieldKey === 'workmode' && canonicalOptionKey === 'cli-agent') {
               try {
                 await github.rest.issues.removeLabel({
                   owner,
@@ -291,10 +354,16 @@ jobs:
                   ... on ProjectV2 {
                     fields(first: 30) {
                       nodes {
+                        __typename
                         ... on ProjectV2SingleSelectField {
                           id
                           name
                           options { id name }
+                        }
+                        ... on ProjectV2Field {
+                          id
+                          name
+                          dataType
                         }
                       }
                     }
@@ -303,27 +372,25 @@ jobs:
               }`;
 
             const fieldResult = await github.graphql(fieldQuery, { projectId });
-            const fields = fieldResult.node.fields.nodes.filter(f => f.name);
+            const fields = (fieldResult.node.fields.nodes || []).filter((field) => field?.name);
 
             // ── Find target field + option ───────────────────────────
             const targetField = fields.find((field) =>
               fieldConfig.fieldNames.some((name) => field.name.toLowerCase() === name.toLowerCase())
             );
             if (!targetField) {
-              core.warning(`Field "${fieldConfig.fieldNames.join(' / ')}" not found. Available: ${fields.map(f => f.name).join(', ')}`);
-              await removeSignalLabel();
-              return;
-            }
-
-            const targetOption = targetField.options.find(o => optionMatcher.test(o.name));
-            if (!targetOption) {
-              core.warning(`No matching option for "${canonicalOptionKey}" in "${targetField.name}". Available: ${targetField.options.map(o => o.name).join(', ')}`);
+              const availableFields = fields.map((field) => field.name).join(', ') || '(none)';
+              if (fieldConfig.optional) {
+                core.info(`Optional field "${fieldConfig.fieldNames.join(' / ')}" not found. Skipping signal label "${label}". Available: ${availableFields}`);
+              } else {
+                core.warning(`Field "${fieldConfig.fieldNames.join(' / ')}" not found. Available: ${availableFields}`);
+              }
               await removeSignalLabel();
               return;
             }
 
             // ── Set the field value ─────────────────────────────────
-            const updateMutation = `
+            const updateSingleSelectMutation = `
               mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) {
                 updateProjectV2ItemFieldValue(
                   input: {
@@ -335,14 +402,99 @@ jobs:
                 ) { projectV2Item { id } }
               }`;
 
-            await github.graphql(updateMutation, {
-              projectId,
-              itemId,
-              fieldId: targetField.id,
-              optionId: targetOption.id,
-            });
+            const updateTextMutation = `
+              mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $text: String!) {
+                updateProjectV2ItemFieldValue(
+                  input: {
+                    projectId: $projectId
+                    itemId: $itemId
+                    fieldId: $fieldId
+                    value: { text: $text }
+                  }
+                ) { projectV2Item { id } }
+              }`;
 
-            core.info(`✅ Set ${targetField.name} → ${targetOption.name} for issue #${issueNumber}`);
+            let appliedValue = null;
+
+            if (targetField.__typename === 'ProjectV2SingleSelectField') {
+              const targetOption = targetField.options.find((option) => optionMatcher.test(option.name));
+              if (!targetOption) {
+                core.warning(`No matching option for "${canonicalOptionKey}" in "${targetField.name}". Available: ${targetField.options.map((option) => option.name).join(', ')}`);
+                await removeSignalLabel();
+                return;
+              }
+
+              await github.graphql(updateSingleSelectMutation, {
+                projectId,
+                itemId,
+                fieldId: targetField.id,
+                optionId: targetOption.id,
+              });
+              appliedValue = targetOption.name;
+            } else if (targetField.__typename === 'ProjectV2Field' && targetField.dataType === 'TEXT') {
+              const textByOption = {
+                'cloud-agent': 'Cloud Agent',
+                'local-ide': 'Local IDE',
+                'cli-agent': 'CLI Agent',
+                'backlog': 'Backlog',
+                'ready': 'Ready',
+                'in-progress': 'In Progress',
+                'in-review': 'In Review',
+                'done': 'Done',
+                'p0': 'P0',
+                'p1': 'P1',
+                'p2': 'P2',
+                'p3': 'P3',
+                'xs': 'XS',
+                's': 'S',
+                'm': 'M',
+                'l': 'L',
+                'xl': 'XL',
+                // Area
+                'module-assistant-ui': 'module/assistant-ui',
+                'module-mcp': 'module/mcp',
+                'module-agent': 'module/agent',
+                'module-addons': 'module/addons',
+                'core': 'core',
+                'gateway': 'gateway',
+                'worker': 'worker',
+                'orchestrator': 'orchestrator',
+                'sdk-client': 'sdk/client',
+                'sdk-core': 'sdk/core',
+                'contracts': 'contracts',
+                'infra': 'infra',
+                'app-pages': 'app/pages',
+                'components': 'components',
+                'content': 'content',
+                'public': 'public',
+                'api': 'api',
+                'domain': 'domain',
+                'tests': 'tests',
+                'docs': 'docs',
+                'ci': 'ci',
+              };
+
+              const textValue = textByOption[canonicalOptionKey];
+              if (!textValue) {
+                core.warning(`Field "${targetField.name}" is a text field, but option "${canonicalOptionKey}" has no text mapping.`);
+                await removeSignalLabel();
+                return;
+              }
+
+              await github.graphql(updateTextMutation, {
+                projectId,
+                itemId,
+                fieldId: targetField.id,
+                text: textValue,
+              });
+              appliedValue = textValue;
+            } else {
+              core.warning(`Field "${targetField.name}" has unsupported type "${targetField.__typename}".`);
+              await removeSignalLabel();
+              return;
+            }
+
+            core.info(`✅ Set ${targetField.name} → ${appliedValue} for issue #${issueNumber}`);
 
             // ── Remove the signal label ─────────────────────────────
             await removeSignalLabel();

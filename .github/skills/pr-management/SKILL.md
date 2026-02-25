@@ -160,6 +160,22 @@ mcp_github_github_request_copilot_review(owner="rivie13", repo="Phoenix-Agentic-
 4. Push updates to the same PR branch.
 5. Request Copilot re-review only if needed and missing for the latest commit set.
 
+## Project board field management
+
+**Labels ≠ project fields.** Priority, Size, Work mode, Area, and Status are **project board fields** (rivie13/projects/3), NOT GitHub labels.
+
+To set project fields, add **signal labels** (`set:<field>:<value>`) when updating an issue:
+
+```text
+mcp_github_github_issue_write(method="update", ..., labels=["task", "set:priority:p1", "set:size:m", "set:area:module-mcp"])
+```
+
+The `sync-project-fields.yml` workflow sets the field via GraphQL and removes the signal label automatically.
+
+**Signal labels:** `set:priority:p0`–`p3`, `set:size:xs`/`s`/`m`/`l`, `set:workmode:cloud-agent`/`local-ide`/`cli-agent`, `set:status:backlog`/`ready`/`in-progress`/`in-review`/`done`, `set:area:<area-name>`.
+
+For `cloud-agent` labeled issues, `cloud-agent-assign.yml` already handles Work mode + Status — only add priority, size, and area signal labels.
+
 ## Post-merge issue completion (mandatory)
 
 After a PR is merged, **always** verify and close linked issues. Do NOT rely solely on `Closes #N` in the PR body — GitHub only auto-closes issues when a PR merges into the repo's **default branch**. Subfeature PRs merging into `feature/*` branches will NOT auto-close issues.

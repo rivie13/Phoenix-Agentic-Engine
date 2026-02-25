@@ -78,6 +78,8 @@ Examples:
 ## Commit hygiene
 
 - Run validations before commit:
+  - Preferred VS Code task: `dev: precommit: check` (empty input = `--all-files`, non-empty input = `--files ...`)
+  - For all-files pre-commit runs, keep the task in foreground and wait until it fully finishes before proceeding.
   - `C:\Python313\python.exe -m pre_commit run --all-files`
   - Build: `C:\Python313\python.exe -m SCons platform=windows target=editor d3d12=no`
 - Keep commits atomic and reviewable.
@@ -183,7 +185,7 @@ The project board (rivie13/projects/3) has **separate fields** that are NOT labe
 | Field | Type | Values |
 |-------|------|--------|
 | **Priority** | Single select | P0 (Critical), P1 (High), P2 (Medium), P3 (Low) |
-| **Size** | Single select | XS, S, M, L |
+| **Size** | Single select | XS, S, M, L, XL |
 | **Work mode** | Single select | Cloud Agent, Local IDE |
 | **Status** | Single select | Backlog, Ready, In Progress, In Review, Done |
 | **Labels** | GitHub labels | `task`, `epic`, `feature`, `cloud-agent`, etc. |
@@ -219,17 +221,21 @@ MCP tools cannot set project board fields directly. Use **signal labels** as a b
 | `set:size:l` | Size | L |
 | `set:workmode:cloud-agent` | Work mode | Cloud Agent |
 | `set:workmode:local-ide` | Work mode | Local IDE |
+| `set:workmode:cli-agent` | Work mode | CLI Agent |
 | `set:status:backlog` | Status | Backlog |
 | `set:status:ready` | Status | Ready |
 | `set:status:in-progress` | Status | In Progress |
 | `set:status:in-review` | Status | In Review |
 | `set:status:done` | Status | Done |
+| `set:area:<area-name>` | Area | Area value (see WORKER_FACTORY.md for valid names per repo) |
 
 ### When to set fields
 
 - Set Priority and Size when creating or triaging issues.
 - For issues with the `cloud-agent` label, the `cloud-agent-assign.yml` workflow automatically sets Work mode → Cloud Agent and Status → In Progress. Only add `set:priority:*` and `set:size:*` signal labels for those.
-- For local-IDE issues, add all relevant signal labels (`set:priority:*`, `set:size:*`, `set:workmode:local-ide`).
+- For local-IDE issues, add all relevant signal labels (`set:priority:*`, `set:size:*`, `set:workmode:local-ide`, `set:area:*`).
+- For CLI-agent issues, add all relevant signal labels (`set:priority:*`, `set:size:*`, `set:workmode:cli-agent`, `set:area:*`).
+- Always set `set:area:*` to indicate which component the issue targets.
 
 ## Post-merge issue completion (mandatory)
 
@@ -261,8 +267,35 @@ After any PR is merged, **always close linked issues explicitly using MCP tools*
 
 ## Engine quality gate (required before PR readiness)
 
-- `pre_commit run --all-files` passes
+- `dev: precommit: check` (empty input) or `pre_commit run --all-files` passes
 - SCons build succeeds
 - PR GitHub Actions checks are green (or explicitly understood/waived)
 - Changes in `modules/ultimate_ai/` are expected; changes outside require `CORE_MODIFICATIONS.md` entry
 - No secrets, credentials, or prompt content committed
+
+## Agent autonomy — branch, PR, and issue lifecycle
+
+Agents (Local IDE, CLI, Cloud) MUST handle their own git workflow end-to-end. The human should NOT need to manually create branches, open PRs, write PR descriptions, or close issues.
+
+### What every agent MUST do
+
+1. **Create the branch** before starting work — `git checkout -b subfeature/task/<desc>` from the correct base
+2. **Commit frequently** with conventional messages (`feat:`, `fix:`, `chore:`, `docs:`, `test:`, `refactor:`)
+3. **Push to origin** — do not leave work only on local branches
+4. **Open a PR** when work is complete — use `mcp_github_github_create_pull_request`
+5. **Fill in the PR description** — summary, changes, testing done, related issues
+6. **Request Copilot review** if not auto-triggered
+7. **Close the issue explicitly** after PR merge — use `mcp_github_github_issue_write` (do not rely on `Closes #N` for non-default-branch merges)
+8. **Delete the branch** after merge if GitHub auto-delete is not configured
+
+### What the human does NOT need to do
+
+- Create branches (agent creates them)
+- Open PRs (agent opens via MCP)
+- Write PR descriptions (agent writes them)
+- Close issues (agent closes via MCP)
+- Move board cards (agent uses signal labels)
+
+The human's only required actions are **merging** (for medium/high risk PRs) and **resolving merge conflicts**.
+
+See `.github/docs/WORKER_FACTORY.md` for the full concurrency model and tiered review policy.
