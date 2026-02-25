@@ -7,11 +7,10 @@ description: Investigate a bug and create a high-quality GitHub bug issue with r
 
 ## Mandatory first step
 
-Read the active task pointer so bug work is framed as primary work or tangent:
+Check the project board for active in-progress work so bug reports are correctly framed as primary work or a new discovery:
 
-```
-read_file(".github/context/CURRENT_TASK.md")
-```
+- Project board: https://github.com/users/rivie13/projects/3
+- Check this repo's in-progress issues to understand current context.
 
 ## Workflow
 

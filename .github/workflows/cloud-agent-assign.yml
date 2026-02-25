@@ -359,10 +359,16 @@ jobs:
                   ... on ProjectV2 {
                     fields(first: 30) {
                       nodes {
+                        __typename
                         ... on ProjectV2SingleSelectField {
                           id
                           name
                           options { id name }
+                        }
+                        ... on ProjectV2Field {
+                          id
+                          name
+                          dataType
                         }
                       }
                     }
@@ -371,9 +377,9 @@ jobs:
               }`;
 
             const fieldResult = await github.graphql(fieldQuery, { projectId });
-            const fields = fieldResult.node.fields.nodes.filter(f => f.name);
+            const fields = (fieldResult.node.fields.nodes || []).filter((field) => field?.name);
 
-            const updateMutation = `
+            const updateSingleSelectMutation = `
               mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) {
                 updateProjectV2ItemFieldValue(
                   input: {
@@ -385,6 +391,18 @@ jobs:
                 ) { projectV2Item { id } }
               }`;
 
+            const updateTextMutation = `
+              mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $text: String!) {
+                updateProjectV2ItemFieldValue(
+                  input: {
+                    projectId: $projectId
+                    itemId: $itemId
+                    fieldId: $fieldId
+                    value: { text: $text }
+                  }
+                ) { projectV2Item { id } }
+              }`;
+
             const updates = [];
 
             // Update Status → "In Progress"
@@ -392,7 +410,7 @@ jobs:
             if (statusField) {
               const inProgress = statusField.options.find(o => o.name === 'In Progress');
               if (inProgress) {
-                await github.graphql(updateMutation, {
+                await github.graphql(updateSingleSelectMutation, {
                   projectId, itemId,
                   fieldId: statusField.id,
                   optionId: inProgress.id,
@@ -402,14 +420,27 @@ jobs:
             }
 
             // Update Work mode → "Cloud Agent"
-            const workModeField = fields.find(f => f.name === 'Work mode');
+            const workModeField = fields.find((field) =>
+              ['work mode', 'workmode'].includes((field.name || '').toLowerCase())
+            );
             if (workModeField) {
-              const cloudAgent = workModeField.options.find(o => o.name === 'Cloud Agent');
-              if (cloudAgent) {
-                await github.graphql(updateMutation, {
-                  projectId, itemId,
+              if (workModeField.__typename === 'ProjectV2SingleSelectField') {
+                const cloudAgent = workModeField.options.find((option) => option.name === 'Cloud Agent');
+                if (cloudAgent) {
+                  await github.graphql(updateSingleSelectMutation, {
+                    projectId,
+                    itemId,
+                    fieldId: workModeField.id,
+                    optionId: cloudAgent.id,
+                  });
+                  updates.push('Work mode → **Cloud Agent**');
+                }
+              } else if (workModeField.__typename === 'ProjectV2Field' && workModeField.dataType === 'TEXT') {
+                await github.graphql(updateTextMutation, {
+                  projectId,
+                  itemId,
                   fieldId: workModeField.id,
-                  optionId: cloudAgent.id,
+                  text: 'Cloud Agent',
                 });
                 updates.push('Work mode → **Cloud Agent**');
               }

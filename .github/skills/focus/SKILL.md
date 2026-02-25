@@ -1,56 +1,63 @@
 ---
 name: focus
-description: Resume current work, check active task status, start a new task, or mark a task complete. Use when user says resume, what am I working on, task done, pick next task, update checkpoint, what's my focus, or starts a new session.
+description: Resume assigned work, confirm active task context, update checkpoints, or complete assigned tasks. Use when user says resume, what am I working on, task done, update checkpoint, what's my focus, or starts a new session.
 ---
 
 # Focus — Phoenix Agentic Engine
 
 ## Mandatory first step
 
-Always read the current task file before doing anything else:
+Always read board state first (single source of truth):
 
-```
-read_file(".github/context/CURRENT_TASK.md")
-```
+- Project board: https://github.com/users/rivie13/projects/3
+- Repository: `rivie13/Phoenix-Agentic-Engine`
 
 ## Workflows
 
 ### Resume (user says "resume", "what am I working on?", or starts a new session)
 
-1. Read `.github/context/CURRENT_TASK.md`
-2. If a task is active: summarize the current task in 3 lines — what, last checkpoint, next step
-3. If no active task: say "No active task" and offer to pick the next one
+1. Read board items for this repo in `In Progress` (and, if needed, `Ready`)
+2. If an in-progress item exists: summarize in 3 lines — what, current state, next step
+3. If no active item: say "No active assigned board task" and ask for assignment source/intent
 
-### Pick next task (user says "pick next task", "what should I work on?")
+### Confirm assigned task (dispatcher/local/cloud assignment)
 
-1. Read `.github/context/CURRENT_TASK.md` — confirm no active task (or ask to close current one first)
+1. Read assignment input from prompt/context (dispatcher payload, direct user-assigned issue, or cloud assignment)
+2. Validate assignment against board state and verify lock/dependency fields (`Area`, `Depends On`, `Lock Key`, `Needed Files`)
+3. Study assignment context (issue body, acceptance criteria, linked comments/PRs) before implementation
+4. Confirm branch target and execution mode (Local IDE / CLI / Cloud)
+5. If assignment is valid, proceed and post checkpoints during execution
+
+### Pick next task (fallback only; user explicitly asks)
+
+1. Confirm there is no conflicting in-progress work for this repo on the board
 2. Read the roadmap docs:
    - `phoenix_docs_private/ROADMAP.md`
    - `.github/instructions/engine-private-roadmap.instructions.md`
-3. Check the project board for items in "Ready" or "Backlog" for this repo using GitHub MCP tools:
-   - `mcp_github_github_list_issues` for `rivie13/Phoenix-Agentic-Engine`
-4. Recommend the highest-priority unblocked task based on: phase order, dependencies resolved, roadmap sequence
-5. Ask user to confirm
+3. Check the project board for items in "Ready" (and only use Backlog if explicitly requested)
+4. Recommend the highest-priority unblocked task based on phase order and dependencies
+5. Ask user to confirm assignment
 6. Create a GitHub issue if one doesn't exist
-7. Fill in `.github/context/CURRENT_TASK.md` with the task details
-8. Move the issue to "In Progress" on the project board
+7. Move the issue to **In Progress** and set its Area on the project board using signal labels:
+   ```
+   mcp_github_github_issue_write(method="update", owner="rivie13", repo="Phoenix-Agentic-Engine", issueNumber=<N>, labels=["task", "set:status:in-progress", "set:area:<area>"])
+   ```
+   Valid Engine areas: `module-assistant-ui`, `module-mcp`, `module-agent`, `module-addons`, `core`, `contracts`, `infra`, `docs`, `ci`
 
 ### Update checkpoint (user says "save progress", "checkpoint", "update task")
 
-1. Read `.github/context/CURRENT_TASK.md`
+1. Read the active board issue and latest PR/comment context
 2. Ask what was accomplished and what's next
-3. Update the "Last checkpoint" and "Next step" fields
-4. Commit the updated CURRENT_TASK.md
+3. Post/update concise progress in issue/PR comments and board status fields
 
 ### Complete task (user says "task done", "finished", "close task")
 
-1. Read `.github/context/CURRENT_TASK.md`
-2. Verify acceptance criteria are met
-3. **Close the GitHub issue** — do NOT rely solely on `Closes #N` in the PR body. Explicitly close it:
+1. Read active board issue and verify acceptance criteria are met
+2. **Close the GitHub issue** — do NOT rely solely on `Closes #N` in the PR body. Explicitly close it:
    ```
    mcp_github_github_issue_write(method="update", owner="rivie13", repo="Phoenix-Agentic-Engine", issueNumber=<N>, state="closed", stateReason="completed")
    ```
-4. **Close related sub-issues** — list sub-issues of the current issue and verify each completed one is closed:
+3. **Close related sub-issues** — list sub-issues of the current issue and verify each completed one is closed:
    ```
    mcp_github_github_issue_read(owner="rivie13", repo="Phoenix-Agentic-Engine", issueNumber=<PARENT_N>)
    ```
@@ -58,11 +65,9 @@ read_file(".github/context/CURRENT_TASK.md")
    ```
    mcp_github_github_issue_write(method="update", owner="rivie13", repo="<SUB_ISSUE_REPO>", issueNumber=<SUB_N>, state="closed", stateReason="completed")
    ```
-5. **Check parent epic** — if this issue was a sub-issue of an epic, read the parent epic and check whether all sibling sub-issues are now closed. If all are done, close the parent epic too.
-6. Move the issue/epic to "Done" on the project board
-7. Reset `.github/context/CURRENT_TASK.md` to the "no active task" state
-8. Commit the reset
-9. Offer to pick the next task
+4. **Check parent epic** — if this issue was a sub-issue of an epic, read the parent epic and check whether all sibling sub-issues are now closed. If all are done, close the parent epic too.
+5. Move the issue/epic to "Done" on the project board
+6. Report completion and await/confirm next assignment
 
 > **Why explicit closing?** GitHub's `Closes #N` auto-close only works when the PR merges into the repo's *default branch*. Subfeature PRs that merge into a `feature/*` branch will NOT auto-close their linked issues. Always close issues explicitly via MCP tools.
 
@@ -76,7 +81,7 @@ read_file(".github/context/CURRENT_TASK.md")
    - Assign @copilot to the issue
    - Update board Status → **In Progress** automatically
    - Update board Work mode → **Cloud Agent** automatically
-5. Note in CURRENT_TASK.md that this task is delegated to cloud agent
+5. Ensure board status/work mode reflect cloud delegation and link the issue/PR context
 
 > **Do NOT** add the `cloud-agent` label to issues in Backlog — the workflow will remove the label and post a rejection comment.
 
@@ -104,7 +109,7 @@ Sub-issues can cross repos. An Engine Epic can have Backend or Interface sub-iss
 | Docs | `subfeature/docs/<desc>` | parent `feature/*` |
 | Chore | `subfeature/chore/<desc>` | parent `feature/*` |
 
-When picking a task, identify which epic/feature branch it belongs to and branch from that feature branch.
+When executing an assigned task, identify which epic/feature branch it belongs to and branch from that feature branch.
 
 ## Cross-repo awareness
 
@@ -112,7 +117,7 @@ This is the **Engine** repo (Godot fork). Related repos:
 - Backend: `rivie13/Phoenix-Agentic-Engine-Backend`
 - Interface: `rivie13/Phoenix-Agentic-Engine-Interface`
 
-If the current task has cross-repo dependencies, note them in the "Depends on" field.
+If the current task has cross-repo dependencies, note them in the board/issue `Depends On` field.
 
 ## Project board
 
@@ -122,11 +127,12 @@ If the current task has cross-repo dependencies, note them in the "Depends on" f
 ## Reference docs
 
 - **Full workflow:** `.github/docs/PROJECT_WORKFLOW.md` — Ralph Loop, issue hierarchy, cloud agent flow
+- **Concurrency model:** `.github/docs/WORKER_FACTORY.md` — multi-agent concurrency, area definitions, conflict rules
 - **Roadmap:** `phoenix_docs_private/ROADMAP.md`
 
 ## Privacy rules
 
-This repo is **public**. When writing to CURRENT_TASK.md:
+This repo is **public**. In board/issue/PR updates:
 - Do NOT include API keys, secrets, or credentials
 - Do NOT include private strategy details
 - Keep descriptions technical and public-safe

@@ -98,10 +98,6 @@ phoenix_docs_private/
 phoenix_docs_private/ARCHITECTURE.md
 .github/copilot-instructions.md
 
-# Active task pointer (local working copy — never commit)
-# The committed stub template lives at .github/context/CURRENT_TASK.md.stub
-.github/context/CURRENT_TASK.md
-
 # Private Copilot instruction files (local only — never commit)
 .github/instructions/private-*.instructions.md
 .github/instructions/engine-private-*.instructions.md
