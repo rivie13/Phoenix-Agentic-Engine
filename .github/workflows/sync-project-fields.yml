@@ -58,6 +58,7 @@ jobs:
               { name: 'set:size:s',      color: 'BFD4F2', description: 'Signal: set Size → S' },
               { name: 'set:size:m',      color: 'BFD4F2', description: 'Signal: set Size → M' },
               { name: 'set:size:l',      color: 'BFD4F2', description: 'Signal: set Size → L' },
+              { name: 'set:size:xl',     color: 'BFD4F2', description: 'Signal: set Size → XL' },
               { name: 'set:workmode:cloud-agent', color: 'D4C5F9', description: 'Signal: set Work mode → Cloud Agent' },
               { name: 'set:workmode:local-ide',   color: 'D4C5F9', description: 'Signal: set Work mode → Local IDE' },
               { name: 'set:workmode:cli-agent',   color: 'D4C5F9', description: 'Signal: set Work mode → CLI Agent' },
@@ -175,6 +176,7 @@ jobs:
                   's':  /\bs\b/i,
                   'm':  /\bm\b/i,
                   'l':  /\bl\b/i,
+                  'xl': /\bxl\b/i,
                 },
               },
               workmode: {
@@ -262,28 +264,10 @@ jobs:
               return;
             }
 
-            // `set:workmode:cloud-agent` is a compatibility signal.
-            // Convert it to the real workflow trigger label and stop here.
-            if (fieldKey === 'workmode' && canonicalOptionKey === 'cloud-agent') {
-              const labels = (context.payload.issue.labels || [])
-                .map((entry) => typeof entry === 'string' ? entry : entry.name)
-                .filter(Boolean);
-
-              if (!labels.includes('cloud-agent')) {
-                await github.rest.issues.addLabels({
-                  owner,
-                  repo,
-                  issue_number: issueNumber,
-                  labels: ['cloud-agent'],
-                });
-                core.info(`Added real label "cloud-agent" to issue #${issueNumber}`);
-              } else {
-                core.info(`Issue #${issueNumber} already has label "cloud-agent"`);
-              }
-
-              await removeSignalLabel();
-              return;
-            }
+            // `set:workmode:cloud-agent` signal now sets the Work mode project
+            // field via the normal flow below. It does NOT auto-add the real
+            // `cloud-agent` label — that must be added manually by an authorized
+            // user to trigger cloud-agent-assign.yml with its permission guard.
 
             // `set:workmode:local-ide` should explicitly clear any stale
             // `cloud-agent` label to keep labels and project field aligned.
@@ -465,6 +449,29 @@ jobs:
                 's': 'S',
                 'm': 'M',
                 'l': 'L',
+                'xl': 'XL',
+                // Area
+                'module-assistant-ui': 'module/assistant-ui',
+                'module-mcp': 'module/mcp',
+                'module-agent': 'module/agent',
+                'module-addons': 'module/addons',
+                'core': 'core',
+                'gateway': 'gateway',
+                'worker': 'worker',
+                'orchestrator': 'orchestrator',
+                'sdk-client': 'sdk/client',
+                'sdk-core': 'sdk/core',
+                'contracts': 'contracts',
+                'infra': 'infra',
+                'app-pages': 'app/pages',
+                'components': 'components',
+                'content': 'content',
+                'public': 'public',
+                'api': 'api',
+                'domain': 'domain',
+                'tests': 'tests',
+                'docs': 'docs',
+                'ci': 'ci',
               };
 
               const textValue = textByOption[canonicalOptionKey];
