@@ -23,65 +23,70 @@ All Phoenix repos share a unified project board and task lifecycle called the **
 
 The Ralph Loop is the core task lifecycle. It is a **conditional iteration loop** — not a simple cycle, but a loop with a decision point that determines *how* each task is executed.
 
+The loop supports **three execution modes** (Local IDE, CLI Agent, Cloud Agent) that can run in parallel. See `.github/docs/WORKER_FACTORY.md` for the full concurrency model.
+
 ```
-┌──────────────────────────────────────────────────────┐
-│                   RALPH LOOP                         │
-│                                                      │
-│  ┌─────────────┐                                     │
-│  │  PICK TASK   │ ◄──────────────────────────────┐   │
-│  │  from board  │                                │   │
-│  └──────┬───────┘                                │   │
-│         │                                        │   │
-│         ▼                                        │   │
-│  ┌─────────────────┐                             │   │
-│  │  DECISION POINT  │                            │   │
-│  │  Local or Cloud? │                            │   │
-│  └───┬─────────┬────┘                            │   │
-│      │         │                                 │   │
-│  Local IDE  Cloud Agent                          │   │
-│      │         │                                 │   │
-│      ▼         ▼                                 │   │
-│  ┌────────┐ ┌──────────────┐                     │   │
-│  │  WORK  │ │ Copilot CCA  │                     │   │
-│  │  in VS │ │ works async  │                     │   │
-│  │  Code  │ │ opens PR     │                     │   │
-│  └───┬────┘ └──────┬───────┘                     │   │
-│      │             │                             │   │
-│      ▼             ▼                             │   │
-│  ┌─────────────────────┐                         │   │
-│  │   REVIEW + MERGE    │                         │   │
-│  │   (In Review → Done)│                         │   │
-│  └──────────┬──────────┘                         │   │
-│             │                                    │   │
-│             ▼                                    │   │
-│  ┌─────────────────────┐                         │   │
-│  │  RESET CURRENT_TASK │                         │   │
-│  │  pick next task ────┼─────────────────────────┘   │
-│  └─────────────────────┘                             │
-│                                                      │
-└──────────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────────┐
+│                        RALPH LOOP                             │
+│                                                               │
+│  ┌─────────────┐                                              │
+│  │  PICK TASK   │ ◄───────────────────────────────────────┐   │
+│  │  from board  │                                         │   │
+│  └──────┬───────┘                                         │   │
+│         │                                                 │   │
+│         ▼                                                 │   │
+│  ┌──────────────────────────┐                              │   │
+│  │     DECISION POINT       │                              │   │
+│  │  Local / CLI / Cloud?    │                              │   │
+│  └───┬─────────┬────────┬───┘                              │   │
+│      │         │        │                                  │   │
+│  Local IDE  CLI Agent  Cloud Agent                         │   │
+│      │         │        │                                  │   │
+│      ▼         ▼        ▼                                  │   │
+│  ┌────────┐ ┌────────┐ ┌──────────────┐                    │   │
+│  │  WORK  │ │  WORK  │ │ Copilot CCA  │                    │   │
+│  │  in VS │ │ local  │ │ works async  │                    │   │
+│  │  Code  │ │ wktree │ │ opens PR     │                    │   │
+│  └───┬────┘ └───┬────┘ └──────┬───────┘                    │   │
+│      │          │             │                            │   │
+│      ▼          ▼             ▼                            │   │
+│  ┌──────────────────────────────────┐                      │   │
+│  │        REVIEW + MERGE            │                      │   │
+│  │        (In Review → Done)        │                      │   │
+│  └──────────────┬───────────────────┘                      │   │
+│                 │                                          │   │
+│                 ▼                                          │   │
+│  ┌──────────────────────────────────┐                      │   │
+│  │  CLOSE ISSUES + pick next ────┼──────────────────────┘   │
+│  └──────────────────────────────────┘                          │
+│                                                               │
+└───────────────────────────────────────────────────────────────┘
 ```
 
 ### Loop Phases
 
 #### 1. PICK — Select the next task
-- Read `.github/context/CURRENT_TASK.md` to confirm no active task
+- Check the project board for in-progress items in this repo to confirm no conflicting active work
 - Check the project board for items in **Ready** column
 - If nothing in Ready, check **Backlog** and promote the highest-priority item
 - Use the `focus` skill: say "pick next task" or "what should I work on?"
 - The agent reads the roadmap, checks the board, and recommends the next task
 - Create/assign a GitHub issue if one doesn't exist
 
-#### 2. DECIDE — Local IDE or Cloud Agent?
+#### 2. DECIDE — Local IDE, CLI Agent, or Cloud Agent?
 - **Local IDE**: Complex work requiring human judgment, multi-file refactors, architecture decisions, debugging
-- **Cloud Agent**: Well-scoped, self-contained tasks with clear acceptance criteria — bug fixes, test additions, doc updates, simple features
-- On the project board, set the **Work mode** field to "Local (IDE)" or "Cloud Agent"
+- **CLI Agent**: Well-scoped tasks that benefit from local context (file system, running services) but can run in parallel with your IDE work. Invoked via `copilot-cli`. Requires a clean (committed + pushed) base branch.
+- **Cloud Agent**: Self-contained tasks with clear acceptance criteria that need no local context — bug fixes, test additions, doc updates, simple features
+- On the project board, set the **Work mode** field to "Local (IDE)" or "Cloud Agent" (CLI uses Local IDE)
 - If Cloud Agent: add the `cloud-agent` label to the issue → automation assigns Copilot
+- **Area check**: Before assigning, verify the task's area doesn't overlap with any currently active task. Use the board's Area and Lock Key fields.
 
 #### 3. WORK — Execute the task
-- **Local path**: Agent fills in `CURRENT_TASK.md`, you work in VS Code, agent helps via chat, checkpoints are saved periodically
+- **Local path**: Agent reads board issue context, you work in VS Code, agent helps via chat, checkpoints are posted to issue/PR comments
+- **CLI path**: CLI agent creates its own worktree + branch, works independently, opens a PR when done
 - **Cloud path**: Copilot coding agent works autonomously, opens a PR, you review when done
-- **Tangent handling**: If a bug or side task comes up during Local work, the tangent chat reads `CURRENT_TASK.md` and knows it's a tangent — the main task context is preserved
+- **Tangent handling**: If a bug or side task comes up during Local work, the agent checks the board and knows the main task context is preserved there
+- **Concurrency**: Multiple agents can work in the same repo if they touch different areas. Board fields (Area, Lock Key, Depends On) control conflict detection.
 
 #### 4. REVIEW — Validate and merge
 - PR is opened → board item moves to **In Review**
@@ -94,7 +99,6 @@ The Ralph Loop is the core task lifecycle. It is a **conditional iteration loop*
 - **Close completed sub-issues** — verify each sub-issue whose work was merged is closed. Close any that remain open.
 - **Close parent epic if all children are done** — if the completed task was a sub-issue, check the parent epic. If all siblings are closed, close the epic too.
 - Board item moves to **Done**
-- `CURRENT_TASK.md` is reset to "no active task"
 - The `focus` skill offers to pick the next task
 - Loop restarts
 
@@ -238,8 +242,8 @@ When you decide a task should be handled by Copilot coding agent instead of loca
 
 | File | Purpose |
 |------|---------|
-| `.github/context/CURRENT_TASK.md` | Active task pointer — read by agents at session start |
-| `.github/instructions/*-current-task.instructions.md` | Instruction telling agents to read CURRENT_TASK.md |
+| `.github/docs/WORKER_FACTORY.md` | Multi-agent concurrency model — area definitions, conflict rules, agent types |
+| `.github/instructions/*-current-task.instructions.md` | Instruction telling agents to read board context |
 | `.github/skills/focus/SKILL.md` | Skill for resume/pick/checkpoint/complete workflows |
 | `.github/workflows/project-board-sync.yml` | Auto-add issues/PRs to project board |
 | `.github/workflows/cloud-agent-assign.yml` | Auto-assign Copilot when `cloud-agent` label is added |

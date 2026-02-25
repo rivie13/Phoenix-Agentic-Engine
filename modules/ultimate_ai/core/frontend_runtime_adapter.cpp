@@ -125,13 +125,13 @@ Dictionary UltimateAIFrontendRuntimeAdapter::map_realtime_event(const Dictionary
 	String plan_id = String(p_event.get("plan_id", String())).strip_edges();
 	mapped["plan_id"] = plan_id;
 
-	if (event_name == "session.resync_required") {
-		if (!expected_session_id.is_empty() && !event_session_id.is_empty() && event_session_id != expected_session_id) {
-			mapped["handled"] = false;
-			mapped["message"] = "Ignored session.resync_required for a different session.";
-			return mapped;
-		}
+	if (!expected_session_id.is_empty() && !event_session_id.is_empty() && event_session_id != expected_session_id) {
+		mapped["handled"] = false;
+		mapped["message"] = "Ignored realtime event for a different session.";
+		return mapped;
+	}
 
+	if (event_name == "session.resync_required") {
 		mapped["requires_resync"] = true;
 		mapped["last_confirmed_seq"] = int(p_event.get("last_confirmed_seq", -1));
 		String reason = String(p_event.get("reason", String("state_drift"))).strip_edges();

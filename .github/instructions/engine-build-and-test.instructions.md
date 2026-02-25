@@ -31,14 +31,21 @@ C:\Python313\python.exe -m pre_commit install
 C:\Python313\python.exe -m pre_commit run --all-files
 ```
 
+VS Code task (preferred in this repo):
+
+- `dev: precommit: check`
+	- Leave prompt empty to run `--all-files` (default).
+	- Provide space-separated file paths to run `--files ...`.
+	- For `--all-files`, treat it as long-running and wait for task completion before moving to any next validation step.
+
 ## Git hygiene before commit/push
 
 - Use terminal Git commands from the Engine repo (`git add`, `git commit`, `git push`) so local hooks run consistently.
 - Do not bypass hooks with `--no-verify` in normal development.
 - If `git commit` auto-runs pre-commit hooks and they modify files, re-stage those files and re-run `git commit`.
 - Before pushing, run either:
-	- full checks: `C:\Python313\python.exe -m pre_commit run --all-files`
-	- targeted checks for touched files: `C:\Python313\python.exe -m pre_commit run --files <file1> <file2>`
+	- full checks: `dev: precommit: check` (empty input) or `C:\Python313\python.exe -m pre_commit run --all-files`
+	- targeted checks for touched files: `dev: precommit: check` (provide files) or `C:\Python313\python.exe -m pre_commit run --files <file1> <file2>`
 - Treat any pre-commit failure as a block for push until fixed.
 
 ## VS Code validation tasks (separate from pre-commit)
@@ -50,6 +57,7 @@ Run these tasks as an additional gate before commit/push:
 
 Available focused tasks:
 
+- `dev: precommit: check`
 - `dev: verify: headless:version`
 - `dev: verify: headless:startup`
 - `dev: verify: headless:doctool-temp`

@@ -6,6 +6,12 @@
       "type": "promptString",
       "description": "Public Gateway URL (cloudflared/App Service)",
       "default": "https://ensures-strap-tracy-constitution.trycloudflare.com"
+    },
+    {
+      "id": "preCommitFiles",
+      "type": "promptString",
+      "description": "Optional: space-separated files for pre-commit (--files). Leave empty to run --all-files.",
+      "default": ""
     }
   ],
   "tasks": [
@@ -29,6 +35,12 @@
       "type": "shell",
       "command": ".\\scripts\\run-editor-with-env.ps1",
       "group": "build"
+    },
+    {
+      "label": "dev: precommit: check",
+      "type": "shell",
+      "command": "$files = '${input:preCommitFiles}'; if ([string]::IsNullOrWhiteSpace($files)) { C:\\Python313\\python.exe -m pre_commit run --all-files } else { $fileArgs = $files -split '\\s+'; C:\\Python313\\python.exe -m pre_commit run --files $fileArgs }",
+      "group": "test"
     },
     {
       "label": "dev: verify: headless:version",
